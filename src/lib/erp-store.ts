@@ -1,4 +1,5 @@
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import type {
   Expense,
   Item,
@@ -15,189 +16,281 @@ type StoreState = {
   users: User[];
   settings: Settings;
   session: { username: string } | null;
+  hydrated: boolean;
 };
 
-const KEY = "erp-store-v1";
+const SETTINGS_KEY = "erp-settings-v1";
 
-const defaultState: StoreState = {
-  suppliers: [
-    { code: "SUP0001", name: "شركة الأمل للتجارة", country: "الصين", city: "قوانغتشو", phone: "+86 20 1234 5678", email: "amal@example.com", currency: "USD", notes: "", active: true },
-    { code: "SUP0002", name: "مؤسسة النور للاستيراد", country: "تركيا", city: "إسطنبول", phone: "+90 212 555 0000", email: "nour@example.com", currency: "USD", notes: "", active: true },
-  ],
-  items: [
-    { code: "MOD-1001", name: "سماعة بلوتوث A10", barcode: "6921547856321", units: [{ name: "حبة", pack: 24, lastPrice: 4.5 }], cbmPerCarton: 0.06, lastCost: 0 },
-    { code: "MOD-1002", name: "شاحن سريع 20W", barcode: "6921547856322", units: [{ name: "حبة", pack: 20, lastPrice: 3.2 }], cbmPerCarton: 0.04, lastCost: 0 },
-    { code: "MOD-1003", name: "كابل بيانات Type-C", barcode: "6921547856323", units: [{ name: "حبة", pack: 15, lastPrice: 1.1 }], cbmPerCarton: 0.02, lastCost: 0 },
-    { code: "MOD-1004", name: "باور بانك 10000mAh", barcode: "6921547856324", units: [{ name: "حبة", pack: 12, lastPrice: 6.8 }], cbmPerCarton: 0.08, lastCost: 0 },
-    { code: "MOD-1005", name: "سماعة سلكية Y20", barcode: "6921547856325", units: [{ name: "حبة", pack: 8, lastPrice: 2.0 }], cbmPerCarton: 0.03, lastCost: 0 },
-  ],
-  purchaseOrders: [
-    {
-      number: "PO-2024-00056",
-      date: "2024/05/19",
-      invoiceNo: "INV-2024-0487",
-      supplierCode: "SUP0001",
-      currency: "USD",
-      rate: 3.75,
-      containerNo: "TCLU1234567",
-      containerSize: "40 قدم HQ",
-      distributionType: "cbm",
-      notes: "",
-      rows: [
-        { id: 1, model: "MOD-1001", name: "سماعة بلوتوث A10", unit: "حبة", pack: 24, qty: 240, price: 4.5, cbm: 0.06 },
-        { id: 2, model: "MOD-1002", name: "شاحن سريع 20W", unit: "حبة", pack: 20, qty: 480, price: 3.2, cbm: 0.04 },
-        { id: 3, model: "MOD-1003", name: "كابل بيانات Type-C", unit: "حبة", pack: 15, qty: 1500, price: 1.1, cbm: 0.02 },
-        { id: 4, model: "MOD-1004", name: "باور بانك 10000mAh", unit: "حبة", pack: 12, qty: 240, price: 6.8, cbm: 0.08 },
-        { id: 5, model: "MOD-1005", name: "سماعة سلكية Y20", unit: "حبة", pack: 8, qty: 400, price: 2.0, cbm: 0.03 },
-      ],
-      expenses: [
-        { id: 1, type: "شحن بحري", note: "أجرة شحن الحاوية", currency: "USD", amount: 100, rate: 1, },
-        { id: 2, type: "جمارك", note: "رسوم جمركية", currency: "USD", amount: 32.72, rate: 1 },
-      ],
-      approved: false,
-    },
-  ],
-  users: [
-    { username: "admin", fullName: "المدير العام", role: "admin", active: true },
-    { username: "user1", fullName: "محاسب المخزون", role: "user", active: true },
-  ],
-  settings: {
-    companyName: "شركتي للتجارة العامة",
-    defaultCurrency: "USD",
-    fiscalYear: "2024",
-    language: "ar",
-  },
+const defaultSettings: Settings = {
+  companyName: "شركتي للتجارة العامة",
+  defaultCurrency: "USD",
+  fiscalYear: String(new Date().getFullYear()),
+  language: "ar",
+};
+
+const initialState: StoreState = {
+  suppliers: [],
+  items: [],
+  purchaseOrders: [],
+  users: [],
+  settings: loadSettings(),
   session: null,
+  hydrated: false,
 };
 
-let state: StoreState = load();
-const listeners = new Set<() => void>();
-
-function load(): StoreState {
-  if (typeof window === "undefined") return defaultState;
+function loadSettings(): Settings {
+  if (typeof window === "undefined") return defaultSettings;
   try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return defaultState;
-    return { ...defaultState, ...JSON.parse(raw) };
-  } catch {
-    return defaultState;
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    return raw ? { ...defaultSettings, ...JSON.parse(raw) } : defaultSettings;
+  } catch { return defaultSettings; }
+}
+function saveSettings(s: Settings) {
+  if (typeof window !== "undefined") window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+}
+
+let state: StoreState = initialState;
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach((l) => l());
+
+function setState(patch: Partial<StoreState>) {
+  state = { ...state, ...patch };
+  if (patch.settings) saveSettings(state.settings);
+  notify();
+}
+
+// ============ Fetchers ============
+async function fetchSuppliers(): Promise<Supplier[]> {
+  const { data } = await supabase.from("suppliers").select("*").order("code");
+  return (data ?? []).map((r: any) => ({
+    code: r.code, name: r.name, country: r.country ?? "", city: r.city ?? "",
+    phone: r.phone ?? "", email: r.email ?? "", currency: r.currency, notes: r.notes ?? "", active: r.active,
+  }));
+}
+async function fetchItems(): Promise<Item[]> {
+  const { data } = await supabase.from("items").select("*").order("code");
+  return (data ?? []).map((r: any) => ({
+    code: r.code, name: r.name, barcode: r.barcode ?? "",
+    units: Array.isArray(r.units) ? r.units : [],
+    cbmPerCarton: Number(r.cbm_per_carton) || 0,
+    lastCost: Number(r.last_cost) || 0,
+  }));
+}
+async function fetchPOs(): Promise<PurchaseOrder[]> {
+  const { data: pos } = await supabase.from("purchase_orders").select("*, po_rows(*), po_expenses(*), suppliers(code)").order("po_date", { ascending: false });
+  return (pos ?? []).map((p: any) => ({
+    number: p.number,
+    date: p.po_date,
+    invoiceNo: p.invoice_no ?? "",
+    supplierCode: p.suppliers?.code ?? "",
+    currency: p.currency,
+    rate: Number(p.rate) || 1,
+    containerNo: p.container_no ?? "",
+    containerSize: p.container_size ?? "",
+    distributionType: (p.distribution_type ?? "cbm") as any,
+    notes: p.notes ?? "",
+    approved: p.approved,
+    rows: (p.po_rows ?? []).sort((a: any, b: any) => a.line_no - b.line_no).map((r: any) => ({
+      id: r.line_no, model: r.model ?? "", name: r.name ?? "", unit: r.unit ?? "",
+      pack: r.pack, qty: Number(r.qty), price: Number(r.price), cbm: Number(r.cbm),
+    })),
+    expenses: (p.po_expenses ?? []).sort((a: any, b: any) => a.line_no - b.line_no).map((e: any) => ({
+      id: e.line_no, type: e.expense_type ?? "", note: e.note ?? "",
+      currency: e.currency, amount: Number(e.amount), rate: Number(e.rate),
+    })),
+  }));
+}
+async function fetchUsers(): Promise<User[]> {
+  const [{ data: profs }, { data: roles }] = await Promise.all([
+    supabase.from("profiles").select("id, email, full_name"),
+    supabase.from("user_roles").select("user_id, role"),
+  ]);
+  const roleMap = new Map((roles ?? []).map((r: any) => [r.user_id, r.role]));
+  return (profs ?? []).map((p: any) => ({
+    id: p.id, username: p.email, fullName: p.full_name ?? p.email,
+    role: (roleMap.get(p.id) ?? "viewer") as any, active: true,
+  }));
+}
+
+export async function hydrateStore() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) { setState({ hydrated: true }); return; }
+  const [suppliers, items, purchaseOrders, users] = await Promise.all([
+    fetchSuppliers(), fetchItems(), fetchPOs(), fetchUsers(),
+  ]);
+  setState({
+    suppliers, items, purchaseOrders, users,
+    session: { username: session.user.email ?? session.user.id },
+    hydrated: true,
+  });
+}
+
+export function useHydrate() {
+  useEffect(() => { void hydrateStore(); }, []);
+}
+
+// ============ Mutations ============
+export async function upsertSupplier(sup: Supplier) {
+  const { error } = await supabase.from("suppliers").upsert({
+    code: sup.code, name: sup.name, country: sup.country, city: sup.city,
+    phone: sup.phone, email: sup.email, currency: sup.currency, notes: sup.notes, active: sup.active,
+  }, { onConflict: "code" });
+  if (error) throw error;
+  setState({ suppliers: await fetchSuppliers() });
+}
+export async function deleteSupplier(code: string) {
+  const { error } = await supabase.from("suppliers").delete().eq("code", code);
+  if (error) throw error;
+  setState({ suppliers: await fetchSuppliers() });
+}
+
+export async function upsertItem(it: Item) {
+  const { error } = await supabase.from("items").upsert({
+    code: it.code, name: it.name, barcode: it.barcode || null,
+    units: it.units as any, cbm_per_carton: it.cbmPerCarton, last_cost: it.lastCost, active: true,
+  }, { onConflict: "code" });
+  if (error) throw error;
+  setState({ items: await fetchItems() });
+}
+export async function deleteItem(code: string) {
+  const { error } = await supabase.from("items").delete().eq("code", code);
+  if (error) throw error;
+  setState({ items: await fetchItems() });
+}
+
+export async function savePurchaseOrder(po: PurchaseOrder) {
+  // resolve supplier id
+  let supplierId: string | null = null;
+  if (po.supplierCode) {
+    const { data: s } = await supabase.from("suppliers").select("id").eq("code", po.supplierCode).maybeSingle();
+    supplierId = s?.id ?? null;
   }
+  const { data: existing } = await supabase.from("purchase_orders").select("id").eq("number", po.number).maybeSingle();
+  const poPayload = {
+    number: po.number, po_date: po.date, invoice_no: po.invoiceNo || null,
+    supplier_id: supplierId, currency: po.currency, rate: po.rate,
+    container_no: po.containerNo || null, container_size: po.containerSize || null,
+    distribution_type: po.distributionType, notes: po.notes || null, approved: po.approved,
+  };
+  let poId = existing?.id;
+  if (poId) {
+    const { error } = await supabase.from("purchase_orders").update(poPayload).eq("id", poId);
+    if (error) throw error;
+    await supabase.from("po_rows").delete().eq("po_id", poId);
+    await supabase.from("po_expenses").delete().eq("po_id", poId);
+  } else {
+    const { data, error } = await supabase.from("purchase_orders").insert(poPayload).select("id").single();
+    if (error) throw error;
+    poId = data.id;
+  }
+  const validRows = po.rows.filter((r) => r.model || r.name);
+  if (validRows.length) {
+    const { error } = await supabase.from("po_rows").insert(validRows.map((r, i) => ({
+      po_id: poId, line_no: i + 1, model: r.model, name: r.name, unit: r.unit,
+      pack: r.pack || 1, qty: r.qty, price: r.price, cbm: r.cbm,
+    })));
+    if (error) throw error;
+  }
+  if (po.expenses.length) {
+    const { error } = await supabase.from("po_expenses").insert(po.expenses.map((e, i) => ({
+      po_id: poId, line_no: i + 1, expense_type: e.type, note: e.note,
+      currency: e.currency, amount: e.amount, rate: e.rate,
+    })));
+    if (error) throw error;
+  }
+  // Auto-create/update items
+  for (const row of validRows) {
+    if (!row.model) continue;
+    const { data: existingItem } = await supabase.from("items").select("*").eq("code", row.model).maybeSingle();
+    if (!existingItem) {
+      await supabase.from("items").insert({
+        code: row.model, name: row.name, units: [{ name: row.unit, pack: row.pack, lastPrice: row.price }] as any,
+        cbm_per_carton: row.cbm, last_cost: 0, active: true,
+      });
+    } else if (po.approved) {
+      const units = Array.isArray(existingItem.units) ? [...(existingItem.units as any[])] : [];
+      const idx = units.findIndex((u: any) => u.name === row.unit);
+      if (idx >= 0) units[idx] = { ...units[idx], lastPrice: row.price, pack: row.pack };
+      else units.push({ name: row.unit, pack: row.pack, lastPrice: row.price });
+      await supabase.from("items").update({ units: units as any, cbm_per_carton: row.cbm }).eq("id", existingItem.id);
+    }
+  }
+  if (po.approved) {
+    const metrics = computePO(po);
+    for (let i = 0; i < validRows.length; i++) {
+      const m = metrics.rowMetrics[i];
+      if (!m) continue;
+      await supabase.from("items").update({ last_cost: m.avgCost }).eq("code", validRows[i].model);
+    }
+  }
+  setState({ purchaseOrders: await fetchPOs(), items: await fetchItems() });
 }
 
-function persist() {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(KEY, JSON.stringify(state));
-  listeners.forEach((l) => l());
+export async function deletePO(number: string) {
+  const { error } = await supabase.from("purchase_orders").delete().eq("number", number);
+  if (error) throw error;
+  setState({ purchaseOrders: await fetchPOs() });
 }
 
+// ============ Store API (compat with old code) ============
 export const erpStore = {
   get: () => state,
   set: (patch: Partial<StoreState>) => {
-    state = { ...state, ...patch };
-    persist();
+    // Legacy setter: keep for settings + local mutations
+    if (patch.suppliers) void patch.suppliers.forEach((s) => upsertSupplier(s));
+    else if (patch.items) void patch.items.forEach((i) => upsertItem(i));
+    else if (patch.purchaseOrders) {
+      // Save each PO
+      const prev = state.purchaseOrders;
+      const changed = patch.purchaseOrders.filter((p) => !prev.find((x) => JSON.stringify(x) === JSON.stringify(p)));
+      changed.forEach((p) => void savePurchaseOrder(p));
+    } else {
+      setState(patch);
+    }
   },
   reset: () => {
-    state = defaultState;
-    persist();
+    saveSettings(defaultSettings);
+    setState({ settings: defaultSettings });
   },
-  subscribe: (fn: () => void) => {
-    listeners.add(fn);
-    return () => listeners.delete(fn);
-  },
+  refresh: hydrateStore,
+  subscribe: (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; },
 };
 
 export function useErpStore<T>(selector: (s: StoreState) => T): T {
   return useSyncExternalStore(
     (cb) => erpStore.subscribe(cb),
-    () => selector(erpStore.get()),
-    () => selector(defaultState),
+    () => selector(state),
+    () => selector(initialState),
   );
 }
 
-// Business logic
+// ============ Business logic (unchanged) ============
 export function computePO(po: PurchaseOrder) {
-  const totalItems = po.rows.length;
+  const totalItems = po.rows.filter((r) => r.model || r.name).length;
   const totalQty = po.rows.reduce((s, r) => s + (r.qty || 0), 0);
   const totalPurchase = po.rows.reduce((s, r) => s + r.qty * r.price, 0);
   const totalCBM = po.rows.reduce((s, r) => {
     const cartons = r.pack ? r.qty / r.pack : 0;
     return s + cartons * r.cbm;
   }, 0);
-  const totalCartons = po.rows.reduce(
-    (s, r) => s + (r.pack ? r.qty / r.pack : 0),
-    0,
-  );
-  const totalExpenses = po.expenses.reduce(
-    (s, e) => s + e.amount * (e.rate || 1),
-    0,
-  );
+  const totalCartons = po.rows.reduce((s, r) => s + (r.pack ? r.qty / r.pack : 0), 0);
+  const totalExpenses = po.expenses.reduce((s, e) => s + e.amount * (e.rate || 1), 0);
   const cbmPrice = totalCBM > 0 ? totalExpenses / totalCBM : 0;
   const totalCost = totalPurchase + totalExpenses;
-
   const rowMetrics = po.rows.map((r) => {
     const cartons = r.pack ? r.qty / r.pack : 0;
     const linePurchase = r.qty * r.price;
     const lineCBM = cartons * r.cbm;
     let allocatedExp = 0;
-    if (po.distributionType === "cbm" && totalCBM > 0)
-      allocatedExp = (lineCBM / totalCBM) * totalExpenses;
-    else if (po.distributionType === "value" && totalPurchase > 0)
-      allocatedExp = (linePurchase / totalPurchase) * totalExpenses;
-    else if (po.distributionType === "qty" && totalQty > 0)
-      allocatedExp = (r.qty / totalQty) * totalExpenses;
+    if (po.distributionType === "cbm" && totalCBM > 0) allocatedExp = (lineCBM / totalCBM) * totalExpenses;
+    else if (po.distributionType === "value" && totalPurchase > 0) allocatedExp = (linePurchase / totalPurchase) * totalExpenses;
+    else if (po.distributionType === "qty" && totalQty > 0) allocatedExp = (r.qty / totalQty) * totalExpenses;
     const cbmCost = r.qty ? allocatedExp / r.qty : 0;
     const avgCost = r.price + cbmCost;
     return { cartons, linePurchase, lineCBM, allocatedExp, cbmCost, avgCost };
   });
-
-  return {
-    totalItems,
-    totalQty,
-    totalPurchase,
-    totalCBM,
-    totalCartons,
-    totalExpenses,
-    cbmPrice,
-    totalCost,
-    rowMetrics,
-  };
+  return { totalItems, totalQty, totalPurchase, totalCBM, totalCartons, totalExpenses, cbmPrice, totalCost, rowMetrics };
 }
 
-export function savePurchaseOrder(po: PurchaseOrder) {
-  const s = erpStore.get();
-  const existingIdx = s.purchaseOrders.findIndex((p) => p.number === po.number);
-  const list = [...s.purchaseOrders];
-  if (existingIdx >= 0) list[existingIdx] = po;
-  else list.push(po);
-
-  // Auto-create items
-  const items = [...s.items];
-  for (const row of po.rows) {
-    if (!row.model) continue;
-    let item = items.find((i) => i.code === row.model);
-    if (!item) {
-      item = {
-        code: row.model,
-        name: row.name,
-        barcode: "",
-        units: [{ name: row.unit, pack: row.pack, lastPrice: row.price }],
-        cbmPerCarton: row.cbm,
-        lastCost: 0,
-      };
-      items.push(item);
-    } else if (po.approved) {
-      const unit = item.units.find((u) => u.name === row.unit);
-      if (unit) unit.lastPrice = row.price;
-      else item.units.push({ name: row.unit, pack: row.pack, lastPrice: row.price });
-      item.cbmPerCarton = row.cbm;
-    }
-  }
-  if (po.approved) {
-    const metrics = computePO(po);
-    metrics.rowMetrics.forEach((m, i) => {
-      const it = items.find((x) => x.code === po.rows[i].model);
-      if (it) it.lastCost = m.avgCost;
-    });
-  }
-  erpStore.set({ purchaseOrders: list, items });
-}
+// Re-export savePurchaseOrder for old imports
+export { savePurchaseOrder as savePO };
