@@ -69,6 +69,7 @@ function POPage() {
   const [searchDlg, setSearchDlg] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const [markupPct, setMarkupPct] = useState<number>(30);
 
   const metrics = useMemo(() => computePO(po), [po]);
   const supplier = suppliers.find((s) => s.code === po.supplierCode);
@@ -246,6 +247,9 @@ function POPage() {
                 { value: "qty", label: "حسب الكمية" },
               ]} />
             </FieldRow>
+            <FieldRow label="نسبة الربح %">
+              <ErpInput value={String(markupPct)} onChange={(v) => setMarkupPct(Number(v) || 0)} disabled={disabled} />
+            </FieldRow>
             <div className="col-span-2">
               <FieldRow label="الملاحظات">
                 <textarea value={po.notes} onChange={(e) => patch({ notes: e.target.value })} disabled={disabled} className="w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white disabled:bg-slate-50 min-h-[50px]" />
@@ -269,13 +273,14 @@ function POPage() {
           <div className="font-semibold text-slate-700">جدول الأصناف</div>
           <div className="text-xs text-slate-500">{po.approved && <span className="text-emerald-600 font-semibold">✓ معتمد</span>}</div>
         </div>
-        <ErpTable headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","سعر الشراء","تكلفة الشراء","CBM الكرتون","إجمالي CBM","تكلفة CBM","متوسط التكلفة"]}>
+        <ErpTable headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","سعر الشراء","تكلفة الشراء","CBM الكرتون","إجمالي CBM","تكلفة CBM","متوسط التكلفة","إجمالي التكلفة","التكلفة %","سعر البيع"]}>
           {(() => {
             const displayRows = po.rows.length >= MIN_ROWS
               ? po.rows
               : [...po.rows, ...blankRows(MIN_ROWS - po.rows.length).map((r, k) => ({ ...r, id: (po.rows.at(-1)?.id ?? 0) + k + 1 }))];
             return displayRows.map((r, i) => {
             const m = metrics.rowMetrics[i];
+            const salePrice = (m?.avgCost ?? 0) * (1 + markupPct / 100);
             return (
               <tr key={r.id} className="hover:bg-blue-50/40 odd:bg-white even:bg-slate-50/40">
                 <td className="border border-slate-200 text-center px-1 font-semibold text-slate-500 bg-slate-100/60 w-10">{i + 1}</td>
@@ -294,6 +299,9 @@ function POPage() {
                 <Cell value={fmt(m?.lineCBM ?? 0, 4)} />
                 <Cell value={fmt(m?.cbmCost ?? 0, 4)} />
                 <td className="border border-slate-200 px-2 py-1 text-right bg-amber-50 font-semibold">{fmt(m?.avgCost ?? 0, 4)}</td>
+                <td className="border border-slate-200 px-2 py-1 text-right bg-amber-50/60 font-semibold">{fmt(m?.lineTotalCost ?? 0)}</td>
+                <td className="border border-slate-200 px-2 py-1 text-right">{fmt(m?.pctCost ?? 0, 2)}%</td>
+                <td className="border border-slate-200 px-2 py-1 text-right bg-emerald-50 font-semibold text-emerald-700">{fmt(salePrice, 4)}</td>
               </tr>
             );
           }); })()}
@@ -306,6 +314,9 @@ function POPage() {
             <td className="border border-slate-300"></td>
             <td className="border border-slate-300 text-right px-2">{fmt(metrics.totalCBM, 4)}</td>
             <td className="border border-slate-300"></td>
+            <td className="border border-slate-300"></td>
+            <td className="border border-slate-300 text-right px-2">{fmt(metrics.totalCost)}</td>
+            <td className="border border-slate-300 text-right px-2">{fmt(metrics.totalPurchase > 0 ? (metrics.totalExpenses / metrics.totalPurchase) * 100 : 0, 2)}%</td>
             <td className="border border-slate-300"></td>
           </tr>
         </ErpTable>
