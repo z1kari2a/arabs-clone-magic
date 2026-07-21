@@ -62,10 +62,24 @@ export type PurchaseOrder = {
 };
 
 export type User = {
+  id: string;
   username: string;
   fullName: string;
   role: "admin" | "user" | "viewer";
   active: boolean;
+};
+
+export type Role = "admin" | "user" | "viewer";
+
+export type AuditEntry = {
+  id: number;
+  user_email: string | null;
+  action: string;
+  table_name: string;
+  record_id: string | null;
+  before_data: unknown;
+  after_data: unknown;
+  created_at: string;
 };
 
 export type Settings = {
