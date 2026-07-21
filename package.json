@@ -10,9 +10,10 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "electron:start": "npm run build && electron electron/main.cjs",
-    "electron:build:win": "npm run build && electron-packager . ERP --platform=win32 --arch=x64 --out=electron-release --overwrite --ignore=\"^/src\" --ignore=\"^/public\" --ignore=\"^/electron-release\" --ignore=\"^/supabase\" --ignore=\"^/.lovable\"",
-    "electron:build:linux": "npm run build && electron-packager . ERP --platform=linux --arch=x64 --out=electron-release --overwrite --ignore=\"^/src\" --ignore=\"^/public\" --ignore=\"^/electron-release\" --ignore=\"^/supabase\" --ignore=\"^/.lovable\""
+    "build:electron": "vite build --config vite.electron.config.mjs",
+    "electron:start": "npm run build:electron && electron electron/main.cjs",
+    "electron:build:win": "npm run build:electron && electron-packager . ERP --platform=win32 --arch=x64 --out=electron-release --overwrite --ignore=\"^/src\" --ignore=\"^/public\" --ignore=\"^/dist\" --ignore=\"^/electron-release\" --ignore=\"^/supabase\" --ignore=\"^/.lovable\" --ignore=\"^/electron-app\"",
+    "electron:build:linux": "npm run build:electron && electron-packager . ERP --platform=linux --arch=x64 --out=electron-release --overwrite --ignore=\"^/src\" --ignore=\"^/public\" --ignore=\"^/dist\" --ignore=\"^/electron-release\" --ignore=\"^/supabase\" --ignore=\"^/.lovable\" --ignore=\"^/electron-app\""
   },
   "main": "electron/main.cjs",
   "dependencies": {
