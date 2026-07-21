@@ -287,7 +287,9 @@ export function computePO(po: PurchaseOrder) {
     else if (po.distributionType === "qty" && totalQty > 0) allocatedExp = (r.qty / totalQty) * totalExpenses;
     const cbmCost = r.qty ? allocatedExp / r.qty : 0;
     const avgCost = r.price + cbmCost;
-    return { cartons, linePurchase, lineCBM, allocatedExp, cbmCost, avgCost };
+    const lineTotalCost = avgCost * r.qty;
+    const pctCost = linePurchase > 0 ? (allocatedExp / linePurchase) * 100 : 0;
+    return { cartons, linePurchase, lineCBM, allocatedExp, cbmCost, avgCost, lineTotalCost, pctCost };
   });
   return { totalItems, totalQty, totalPurchase, totalCBM, totalCartons, totalExpenses, cbmPrice, totalCost, rowMetrics };
 }
