@@ -1,0 +1,131 @@
+import type { ReactNode } from "react";
+
+export const fmt = (n: number, d = 2) =>
+  (isFinite(n) ? n : 0).toLocaleString("en-US", {
+    minimumFractionDigits: d,
+    maximumFractionDigits: d,
+  });
+export const fmtInt = (n: number) => (isFinite(n) ? n : 0).toLocaleString("en-US");
+
+export function Panel({ title, children, className = "" }: { title: string; children: ReactNode; className?: string }) {
+  return (
+    <div className={`bg-white border border-slate-300 rounded ${className}`}>
+      <div className="text-center py-1 font-semibold text-slate-700 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
+        {title}
+      </div>
+      <div className="p-2">{children}</div>
+    </div>
+  );
+}
+
+export function LabelText({ children }: { children: ReactNode }) {
+  return <div className="text-xs text-slate-700 text-left pl-2 py-1">{children}</div>;
+}
+
+export function FieldRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[110px_1fr] items-center gap-2">
+      <LabelText>{label}</LabelText>
+      {children}
+    </div>
+  );
+}
+
+export function ErpInput({
+  value,
+  onChange,
+  disabled,
+  align = "right",
+  highlight,
+  className = "",
+  type = "text",
+}: {
+  value: string | number;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  align?: "right" | "left" | "center";
+  highlight?: boolean;
+  className?: string;
+  type?: string;
+}) {
+  return (
+    <input
+      value={value}
+      type={type}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      className={`w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-slate-50 disabled:text-slate-700 text-${align} ${highlight ? "!bg-[var(--color-erp-highlight)]" : ""} ${className}`}
+    />
+  );
+}
+
+export function ErpSelect({
+  value,
+  onChange,
+  options,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  disabled?: boolean;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      className="w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-slate-50 text-right"
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+  );
+}
+
+export function ErpTable({ headers, children }: { headers: string[]; children: ReactNode }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-[12px]">
+        <thead>
+          <tr style={{ background: "var(--color-erp-table-header)" }} className="text-slate-700">
+            {headers.map((h) => (
+              <th key={h} className="border border-slate-300 px-2 py-1.5 font-semibold whitespace-nowrap">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+export function Cell({
+  value,
+  onChange,
+  disabled,
+  align = "center",
+  type = "text",
+}: {
+  value: string | number;
+  onChange?: (v: string) => void;
+  disabled?: boolean;
+  align?: "right" | "left" | "center";
+  type?: string;
+}) {
+  if (!onChange) {
+    return <td className={`border border-slate-200 px-2 py-1 text-${align} bg-slate-50`}>{value}</td>;
+  }
+  return (
+    <td className="border border-slate-200 p-0">
+      <input
+        value={value}
+        type={type}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={`w-full px-2 py-1 bg-transparent outline-none focus:bg-blue-50 disabled:text-slate-700 text-${align}`}
+      />
+    </td>
+  );
+}
