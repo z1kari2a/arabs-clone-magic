@@ -1,24 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
+import PurchaseOrderScreen from "@/components/erp/PurchaseOrderScreen";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "أمر شراء - نظام ERP" },
+      {
+        name: "description",
+        content: "شاشة إدارة أوامر الشراء الكاملة مع جدول الأصناف وملخص التكاليف",
+      },
+      { property: "og:title", content: "أمر شراء - نظام ERP" },
+      { property: "og:description", content: "شاشة إدارة أوامر الشراء" },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
+  return <PurchaseOrderScreen />;
 }
