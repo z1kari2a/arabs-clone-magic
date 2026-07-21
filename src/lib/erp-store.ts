@@ -1,13 +1,6 @@
 import { useSyncExternalStore, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type {
-  Expense,
-  Item,
-  PurchaseOrder,
-  Settings,
-  Supplier,
-  User,
-} from "./erp-types";
+import type { Item, PurchaseOrder, Settings, Supplier, User } from "./erp-types";
+import { localDb, logAudit } from "./local-db";
 
 type StoreState = {
   suppliers: Supplier[];
@@ -60,67 +53,32 @@ function setState(patch: Partial<StoreState>) {
 }
 
 // ============ Fetchers ============
-async function fetchSuppliers(): Promise<Supplier[]> {
-  const { data } = await supabase.from("suppliers").select("*").order("code");
-  return (data ?? []).map((r: any) => ({
-    code: r.code, name: r.name, country: r.country ?? "", city: r.city ?? "",
-    phone: r.phone ?? "", email: r.email ?? "", currency: r.currency, notes: r.notes ?? "", active: r.active,
-  }));
-}
-async function fetchItems(): Promise<Item[]> {
-  const { data } = await supabase.from("items").select("*").order("code");
-  return (data ?? []).map((r: any) => ({
-    code: r.code, name: r.name, barcode: r.barcode ?? "",
-    units: Array.isArray(r.units) ? r.units : [],
-    cbmPerCarton: Number(r.cbm_per_carton) || 0,
-    lastCost: Number(r.last_cost) || 0,
-  }));
-}
-async function fetchPOs(): Promise<PurchaseOrder[]> {
-  const { data: pos } = await supabase.from("purchase_orders").select("*, po_rows(*), po_expenses(*), suppliers(code)").order("po_date", { ascending: false });
-  return (pos ?? []).map((p: any) => ({
-    number: p.number,
-    date: p.po_date,
-    invoiceNo: p.invoice_no ?? "",
-    supplierCode: p.suppliers?.code ?? "",
-    currency: p.currency,
-    rate: Number(p.rate) || 1,
-    containerNo: p.container_no ?? "",
-    containerSize: p.container_size ?? "",
-    distributionType: (p.distribution_type ?? "cbm") as any,
-    notes: p.notes ?? "",
-    approved: p.approved,
-    rows: (p.po_rows ?? []).sort((a: any, b: any) => a.line_no - b.line_no).map((r: any) => ({
-      id: r.line_no, model: r.model ?? "", name: r.name ?? "", unit: r.unit ?? "",
-      pack: r.pack, qty: Number(r.qty), price: Number(r.price), cbm: Number(r.cbm),
-    })),
-    expenses: (p.po_expenses ?? []).sort((a: any, b: any) => a.line_no - b.line_no).map((e: any) => ({
-      id: e.line_no, type: e.expense_type ?? "", note: e.note ?? "",
-      currency: e.currency, amount: Number(e.amount), rate: Number(e.rate),
-    })),
-  }));
-}
+// ============ Hydration ============
 async function fetchUsers(): Promise<User[]> {
-  const [{ data: profs }, { data: roles }] = await Promise.all([
-    supabase.from("profiles").select("id, email, full_name"),
-    supabase.from("user_roles").select("user_id, role"),
-  ]);
-  const roleMap = new Map((roles ?? []).map((r: any) => [r.user_id, r.role]));
-  return (profs ?? []).map((p: any) => ({
-    id: p.id, username: p.email, fullName: p.full_name ?? p.email,
-    role: (roleMap.get(p.id) ?? "viewer") as any, active: true,
+  const list = await localDb.users.list();
+  return list.map((u) => ({
+    id: u.id,
+    username: u.username,
+    fullName: u.fullName,
+    role: u.role,
+    active: u.active !== false,
   }));
 }
 
 export async function hydrateStore() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) { setState({ hydrated: true }); return; }
-  const [suppliers, items, purchaseOrders, users] = await Promise.all([
-    fetchSuppliers(), fetchItems(), fetchPOs(), fetchUsers(),
+  const [suppliers, items, purchaseOrders, users, settings] = await Promise.all([
+    localDb.suppliers.list(),
+    localDb.items.list(),
+    localDb.purchaseOrders.list(),
+    fetchUsers(),
+    localDb.settings.get(),
   ]);
   setState({
-    suppliers, items, purchaseOrders, users,
-    session: { username: session.user.email ?? session.user.id },
+    suppliers,
+    items,
+    purchaseOrders,
+    users,
+    settings: { ...defaultSettings, ...(settings ?? {}) },
     hydrated: true,
   });
 }
@@ -130,127 +88,157 @@ export function useHydrate() {
 }
 
 // ============ Mutations ============
+function currentUsername(): string | null {
+  return state.session?.username ?? null;
+}
+
 export async function upsertSupplier(sup: Supplier) {
-  const { error } = await supabase.from("suppliers").upsert({
-    code: sup.code, name: sup.name, country: sup.country, city: sup.city,
-    phone: sup.phone, email: sup.email, currency: sup.currency, notes: sup.notes, active: sup.active,
-  }, { onConflict: "code" });
-  if (error) throw error;
-  setState({ suppliers: await fetchSuppliers() });
+  const prev = (await localDb.suppliers.list()).find((s) => s.code === sup.code) ?? null;
+  await localDb.suppliers.upsert(sup);
+  await logAudit({
+    user_email: currentUsername(),
+    action: prev ? "UPDATE" : "INSERT",
+    table_name: "suppliers",
+    record_id: sup.code,
+    before_data: prev,
+    after_data: sup,
+  });
+  setState({ suppliers: await localDb.suppliers.list() });
 }
 export async function deleteSupplier(code: string) {
-  const { error } = await supabase.from("suppliers").delete().eq("code", code);
-  if (error) throw error;
-  setState({ suppliers: await fetchSuppliers() });
+  const removed = await localDb.suppliers.remove(code);
+  if (removed) {
+    await logAudit({
+      user_email: currentUsername(),
+      action: "DELETE",
+      table_name: "suppliers",
+      record_id: code,
+      before_data: removed,
+      after_data: null,
+    });
+  }
+  setState({ suppliers: await localDb.suppliers.list() });
 }
 
 export async function upsertItem(it: Item) {
-  const { error } = await supabase.from("items").upsert({
-    code: it.code, name: it.name, barcode: it.barcode || null,
-    units: it.units as any, cbm_per_carton: it.cbmPerCarton, last_cost: it.lastCost, active: true,
-  }, { onConflict: "code" });
-  if (error) throw error;
-  setState({ items: await fetchItems() });
+  const prev = (await localDb.items.list()).find((x) => x.code === it.code) ?? null;
+  await localDb.items.upsert(it);
+  await logAudit({
+    user_email: currentUsername(),
+    action: prev ? "UPDATE" : "INSERT",
+    table_name: "items",
+    record_id: it.code,
+    before_data: prev,
+    after_data: it,
+  });
+  setState({ items: await localDb.items.list() });
 }
 export async function deleteItem(code: string) {
-  const { error } = await supabase.from("items").delete().eq("code", code);
-  if (error) throw error;
-  setState({ items: await fetchItems() });
+  const removed = await localDb.items.remove(code);
+  if (removed) {
+    await logAudit({
+      user_email: currentUsername(),
+      action: "DELETE",
+      table_name: "items",
+      record_id: code,
+      before_data: removed,
+      after_data: null,
+    });
+  }
+  setState({ items: await localDb.items.list() });
 }
 
 export async function savePurchaseOrder(po: PurchaseOrder) {
-  // resolve supplier id
-  let supplierId: string | null = null;
-  if (po.supplierCode) {
-    const { data: s } = await supabase.from("suppliers").select("id").eq("code", po.supplierCode).maybeSingle();
-    supplierId = s?.id ?? null;
-  }
-  const { data: existing } = await supabase.from("purchase_orders").select("id").eq("number", po.number).maybeSingle();
-  const poPayload = {
-    number: po.number, po_date: po.date, invoice_no: po.invoiceNo || null,
-    supplier_id: supplierId, currency: po.currency, rate: po.rate,
-    container_no: po.containerNo || null, container_size: po.containerSize || null,
-    distribution_type: po.distributionType, notes: po.notes || null, approved: po.approved,
-  };
-  let poId = existing?.id;
-  if (poId) {
-    const { error } = await supabase.from("purchase_orders").update(poPayload).eq("id", poId);
-    if (error) throw error;
-    await supabase.from("po_rows").delete().eq("po_id", poId);
-    await supabase.from("po_expenses").delete().eq("po_id", poId);
-  } else {
-    const { data, error } = await supabase.from("purchase_orders").insert(poPayload).select("id").single();
-    if (error) throw error;
-    poId = data.id;
-  }
+  const prev = (await localDb.purchaseOrders.list()).find((p) => p.number === po.number) ?? null;
   const validRows = po.rows.filter((r) => r.model || r.name);
-  if (validRows.length) {
-    const { error } = await supabase.from("po_rows").insert(validRows.map((r, i) => ({
-      po_id: poId, line_no: i + 1, model: r.model, name: r.name, unit: r.unit,
-      pack: r.pack || 1, qty: r.qty, price: r.price, cbm: r.cbm,
-    })));
-    if (error) throw error;
-  }
-  if (po.expenses.length) {
-    const { error } = await supabase.from("po_expenses").insert(po.expenses.map((e, i) => ({
-      po_id: poId, line_no: i + 1, expense_type: e.type, note: e.note,
-      currency: e.currency, amount: e.amount, rate: e.rate,
-    })));
-    if (error) throw error;
-  }
-  // Auto-create/update items
+  const clean: PurchaseOrder = { ...po, rows: validRows };
+  await localDb.purchaseOrders.upsert(clean);
+  await logAudit({
+    user_email: currentUsername(),
+    action: prev ? "UPDATE" : "INSERT",
+    table_name: "purchase_orders",
+    record_id: po.number,
+    before_data: prev,
+    after_data: clean,
+  });
+
+  // Auto-create/update items catalog
+  const items = await localDb.items.list();
   for (const row of validRows) {
     if (!row.model) continue;
-    const { data: existingItem } = await supabase.from("items").select("*").eq("code", row.model).maybeSingle();
-    if (!existingItem) {
-      await supabase.from("items").insert({
-        code: row.model, name: row.name, units: [{ name: row.unit, pack: row.pack, lastPrice: row.price }] as any,
-        cbm_per_carton: row.cbm, last_cost: 0, active: true,
-      });
+    const existing = items.find((i) => i.code === row.model);
+    if (!existing) {
+      const newItem: Item = {
+        code: row.model,
+        name: row.name,
+        barcode: "",
+        units: [{ name: row.unit, pack: row.pack || 1, lastPrice: row.price }],
+        cbmPerCarton: row.cbm,
+        lastCost: 0,
+      };
+      await localDb.items.upsert(newItem);
     } else if (po.approved) {
-      const units = Array.isArray(existingItem.units) ? [...(existingItem.units as any[])] : [];
-      const idx = units.findIndex((u: any) => u.name === row.unit);
+      const units = [...existing.units];
+      const idx = units.findIndex((u) => u.name === row.unit);
       if (idx >= 0) units[idx] = { ...units[idx], lastPrice: row.price, pack: row.pack };
-      else units.push({ name: row.unit, pack: row.pack, lastPrice: row.price });
-      await supabase.from("items").update({ units: units as any, cbm_per_carton: row.cbm }).eq("id", existingItem.id);
+      else units.push({ name: row.unit, pack: row.pack || 1, lastPrice: row.price });
+      await localDb.items.upsert({ ...existing, units, cbmPerCarton: row.cbm });
     }
   }
   if (po.approved) {
-    const metrics = computePO(po);
+    const metrics = computePO(clean);
+    const list = await localDb.items.list();
     for (let i = 0; i < validRows.length; i++) {
       const m = metrics.rowMetrics[i];
-      if (!m) continue;
-      await supabase.from("items").update({ last_cost: m.avgCost }).eq("code", validRows[i].model);
+      const it = list.find((x) => x.code === validRows[i].model);
+      if (m && it) await localDb.items.upsert({ ...it, lastCost: m.avgCost });
     }
   }
-  setState({ purchaseOrders: await fetchPOs(), items: await fetchItems() });
+  setState({
+    purchaseOrders: await localDb.purchaseOrders.list(),
+    items: await localDb.items.list(),
+  });
 }
 
 export async function deletePO(number: string) {
-  const { error } = await supabase.from("purchase_orders").delete().eq("number", number);
-  if (error) throw error;
-  setState({ purchaseOrders: await fetchPOs() });
+  const removed = await localDb.purchaseOrders.remove(number);
+  if (removed) {
+    await logAudit({
+      user_email: currentUsername(),
+      action: "DELETE",
+      table_name: "purchase_orders",
+      record_id: number,
+      before_data: removed,
+      after_data: null,
+    });
+  }
+  setState({ purchaseOrders: await localDb.purchaseOrders.list() });
 }
 
 // ============ Store API (compat with old code) ============
 export const erpStore = {
   get: () => state,
   set: (patch: Partial<StoreState>) => {
-    // Legacy setter: keep for settings + local mutations
+    if (patch.settings) void localDb.settings.set(patch.settings);
     if (patch.suppliers) void patch.suppliers.forEach((s) => upsertSupplier(s));
-    else if (patch.items) void patch.items.forEach((i) => upsertItem(i));
-    else if (patch.purchaseOrders) {
-      // Save each PO
+    if (patch.items) void patch.items.forEach((i) => upsertItem(i));
+    if (patch.purchaseOrders) {
       const prev = state.purchaseOrders;
-      const changed = patch.purchaseOrders.filter((p) => !prev.find((x) => JSON.stringify(x) === JSON.stringify(p)));
+      const changed = patch.purchaseOrders.filter(
+        (p) => !prev.find((x) => JSON.stringify(x) === JSON.stringify(p)),
+      );
       changed.forEach((p) => void savePurchaseOrder(p));
-    } else {
-      setState(patch);
     }
+    setState(patch);
   },
-  reset: () => {
-    saveSettings(defaultSettings);
-    setState({ settings: defaultSettings });
+  reset: async () => {
+    await Promise.all([
+      localDb.suppliers.list().then((l) => l.forEach((s) => localDb.suppliers.remove(s.code))),
+      localDb.items.list().then((l) => l.forEach((i) => localDb.items.remove(i.code))),
+      localDb.purchaseOrders.list().then((l) => l.forEach((p) => localDb.purchaseOrders.remove(p.number))),
+      localDb.settings.set(defaultSettings),
+    ]);
+    await hydrateStore();
   },
   refresh: hydrateStore,
   subscribe: (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; },
