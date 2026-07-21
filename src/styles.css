@@ -97,6 +97,19 @@
   --sidebar-ring: oklch(0.704 0.04 256.788);
 }
 
+@theme {
+  --font-sans: "Cairo", ui-sans-serif, system-ui, sans-serif;
+  --color-erp-titlebar: #1e5a8e;
+  --color-erp-tab: #eef4fb;
+  --color-erp-tab-active: #ffffff;
+  --color-erp-panel-header: #cfe3f5;
+  --color-erp-bg: #f0f2f5;
+  --color-erp-highlight: #fff3c4;
+  --color-erp-border: #b6c6d6;
+  --color-erp-table-header: #eaf2fa;
+  --color-erp-status: #1e5a8e;
+}
+
 .dark {
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
