@@ -8,6 +8,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import path from "node:path";
 
 export default defineConfig({
+  root: path.resolve(process.cwd(), "electron-app"),
   base: "./",
   plugins: [react(), tailwindcss(), tsconfigPaths()],
   resolve: {
@@ -16,10 +17,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: "dist-electron",
+    outDir: path.resolve(process.cwd(), "dist-electron"),
     emptyOutDir: true,
-    rollupOptions: {
-      input: path.resolve(process.cwd(), "electron-app/index.html"),
-    },
   },
 });
