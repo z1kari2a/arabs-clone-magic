@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import {
@@ -26,6 +26,20 @@ export const Route = createFileRoute("/purchase-order")({
   component: POPage,
 });
 
+const MIN_ROWS = 15;
+
+const blankRows = (count: number): PORow[] =>
+  Array.from({ length: count }, (_, i) => ({
+    id: i + 1,
+    model: "",
+    name: "",
+    unit: "حبة",
+    pack: 1,
+    qty: 0,
+    price: 0,
+    cbm: 0,
+  }));
+
 const emptyPO = (num: string): PurchaseOrder => ({
   number: num,
   date: new Date().toISOString().slice(0, 10).replace(/-/g, "/"),
@@ -37,7 +51,7 @@ const emptyPO = (num: string): PurchaseOrder => ({
   containerSize: "40 قدم HQ",
   distributionType: "cbm",
   notes: "",
-  rows: [],
+  rows: blankRows(MIN_ROWS),
   expenses: [],
   approved: false,
 });
@@ -88,8 +102,9 @@ function POPage() {
   };
   const onSave = () => {
     if (!po.supplierCode) return toast.error("يجب اختيار المورد");
-    if (!po.rows.length) return toast.error("يجب إضافة صنف واحد على الأقل");
-    savePurchaseOrder(po);
+    const filled = po.rows.filter((r) => r.model || r.name || r.qty > 0);
+    if (!filled.length) return toast.error("يجب إضافة صنف واحد على الأقل");
+    savePurchaseOrder({ ...po, rows: filled });
     setEditing(false);
     toast.success("تم حفظ أمر الشراء");
   };
@@ -101,8 +116,9 @@ function POPage() {
     toast.success("تم الحذف");
   };
   const onApprove = () => {
-    if (!po.supplierCode || !po.rows.length) return toast.error("لا يمكن اعتماد أمر ناقص");
-    const approved = { ...po, approved: true };
+    const filled = po.rows.filter((r) => r.model || r.name || r.qty > 0);
+    if (!po.supplierCode || !filled.length) return toast.error("لا يمكن اعتماد أمر ناقص");
+    const approved = { ...po, rows: filled, approved: true };
     setPo(approved);
     savePurchaseOrder(approved);
     setEditing(false);
@@ -149,18 +165,36 @@ function POPage() {
   };
 
   const actions = [
-    { icon: FilePlus2, label: "جديد", color: "text-emerald-600", onClick: onNew },
-    { icon: FolderOpen, label: "فتح", color: "text-amber-500", onClick: () => setOpenDlg(true) },
-    { icon: Save, label: "حفظ", color: "text-blue-600", onClick: onSave, disabled: !editing },
-    { icon: Pencil, label: "تعديل", color: "text-cyan-600", onClick: onEdit, disabled: po.approved },
-    { icon: Trash2, label: "حذف", color: "text-rose-600", onClick: onDelete },
-    { icon: Search, label: "بحث", color: "text-indigo-500", onClick: () => setSearchDlg(true) },
-    { icon: Printer, label: "طباعة", color: "text-slate-600", onClick: () => window.print() },
+    { icon: FilePlus2, label: "جديد", hint: "Ctrl+N", color: "text-emerald-600", onClick: onNew },
+    { icon: FolderOpen, label: "فتح", hint: "Ctrl+O", color: "text-amber-500", onClick: () => setOpenDlg(true) },
+    { icon: Save, label: "حفظ", hint: "Ctrl+S", color: "text-blue-600", onClick: onSave, disabled: !editing },
+    { icon: Pencil, label: "تعديل", hint: "F2", color: "text-cyan-600", onClick: onEdit, disabled: po.approved },
+    { icon: Trash2, label: "حذف", hint: "Del", color: "text-rose-600", onClick: onDelete },
+    { icon: Search, label: "بحث", hint: "F3", color: "text-indigo-500", onClick: () => setSearchDlg(true) },
+    { icon: Printer, label: "طباعة", hint: "Ctrl+P", color: "text-slate-600", onClick: () => window.print() },
     { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
-    { icon: CheckCircle2, label: "اعتماد", color: "text-emerald-700", onClick: onApprove, disabled: po.approved },
-    { icon: X, label: "إغلاق", color: "text-rose-600", onClick: () => history.back() },
+    { icon: CheckCircle2, label: "اعتماد", hint: "F9", color: "text-emerald-700", onClick: onApprove, disabled: po.approved },
+    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: () => history.back() },
   ];
+
+  // Windows-like keyboard shortcuts
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase();
+      if (e.ctrlKey && k === "s") { e.preventDefault(); if (editing) onSave(); }
+      else if (e.ctrlKey && k === "n") { e.preventDefault(); onNew(); }
+      else if (e.ctrlKey && k === "o") { e.preventDefault(); setOpenDlg(true); }
+      else if (e.ctrlKey && k === "p") { e.preventDefault(); window.print(); }
+      else if (e.key === "F2") { e.preventDefault(); if (!po.approved) onEdit(); }
+      else if (e.key === "F3") { e.preventDefault(); setSearchDlg(true); }
+      else if (e.key === "F9") { e.preventDefault(); if (!po.approved) onApprove(); }
+      else if (e.key === "Escape") { setOpenDlg(false); setSupDlg(false); setExpDlg(false); setSearchDlg(false); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [po, editing]);
 
   return (
     <ErpLayout title="أمر شراء" ribbon={<Ribbon actions={actions} />}>
@@ -236,11 +270,15 @@ function POPage() {
           <div className="text-xs text-slate-500">{po.approved && <span className="text-emerald-600 font-semibold">✓ معتمد</span>}</div>
         </div>
         <ErpTable headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","سعر الشراء","تكلفة الشراء","CBM الكرتون","إجمالي CBM","تكلفة CBM","متوسط التكلفة"]}>
-          {po.rows.map((r, i) => {
+          {(() => {
+            const displayRows = po.rows.length >= MIN_ROWS
+              ? po.rows
+              : [...po.rows, ...blankRows(MIN_ROWS - po.rows.length).map((r, k) => ({ ...r, id: (po.rows.at(-1)?.id ?? 0) + k + 1 }))];
+            return displayRows.map((r, i) => {
             const m = metrics.rowMetrics[i];
             return (
-              <tr key={r.id} className="hover:bg-blue-50/40">
-                <td className="border border-slate-200 text-center px-1">{i + 1}</td>
+              <tr key={r.id} className="hover:bg-blue-50/40 odd:bg-white even:bg-slate-50/40">
+                <td className="border border-slate-200 text-center px-1 font-semibold text-slate-500 bg-slate-100/60 w-10">{i + 1}</td>
                 <Cell value={r.model} onChange={(v) => {
                   const it = items.find((x) => x.code === v || x.barcode === v);
                   if (it) patchRow(r.id, { model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? "حبة", pack: it.units[0]?.pack ?? 1, price: it.units[0]?.lastPrice ?? 0 });
@@ -258,7 +296,7 @@ function POPage() {
                 <td className="border border-slate-200 px-2 py-1 text-right bg-amber-50 font-semibold">{fmt(m?.avgCost ?? 0, 4)}</td>
               </tr>
             );
-          })}
+          }); })()}
           <tr className="font-bold" style={{ background: "var(--color-erp-panel-header)" }}>
             <td className="border border-slate-300 text-center">*</td>
             <td className="border border-slate-300" colSpan={4}></td>
