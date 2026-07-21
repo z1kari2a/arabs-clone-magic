@@ -12,7 +12,7 @@ export const Route = createFileRoute("/")({
       { title: "تسجيل الدخول - نظام ERP" },
       { name: "description", content: "تسجيل الدخول إلى نظام إدارة أوامر الشراء" },
       { property: "og:title", content: "تسجيل الدخول - نظام ERP" },
-      { property: "og:description", content: "شاشة تسجيل الدخول لنظام ERP" },
+      { property: "og:description", content: "تسجيل الدخول إلى نظام إدارة أوامر الشراء" },
     ],
   }),
   component: LoginPage,

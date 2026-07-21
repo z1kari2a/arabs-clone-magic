@@ -77,14 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "أمر شراء - نظام ERP" },
-      { name: "description", content: "شاشة إدارة أوامر الشراء - نظام تخطيط موارد المؤسسات" },
+      { title: "تسجيل الدخول - نظام ERP" },
+      { name: "description", content: "تسجيل الدخول إلى نظام إدارة أوامر الشراء" },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "أمر شراء - نظام ERP" },
-      { property: "og:description", content: "شاشة إدارة أوامر الشراء" },
+      { property: "og:title", content: "تسجيل الدخول - نظام ERP" },
+      { property: "og:description", content: "تسجيل الدخول إلى نظام إدارة أوامر الشراء" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "تسجيل الدخول - نظام ERP" },
+      { name: "twitter:description", content: "تسجيل الدخول إلى نظام إدارة أوامر الشراء" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/78a08e22-e638-485c-8bca-d71f860a133d/id-preview-3988a8a0--fcee6d02-066c-4ec5-8918-f7362ac0e4e4.lovable.app-1784654489404.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/78a08e22-e638-485c-8bca-d71f860a133d/id-preview-3988a8a0--fcee6d02-066c-4ec5-8918-f7362ac0e4e4.lovable.app-1784654489404.png" },
     ],
     links: [
       {
