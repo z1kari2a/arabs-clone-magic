@@ -4,8 +4,8 @@ import { RefreshCw, X, ScrollText, ShieldAlert } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { ErpTable } from "@/components/erp/ErpUI";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { getAudit } from "@/lib/local-db";
 import type { AuditEntry } from "@/lib/erp-types";
 
 export const Route = createFileRoute("/audit-log")({
@@ -35,8 +35,8 @@ function AuditPage() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("audit_log").select("*").order("created_at", { ascending: false }).limit(500);
-    setRows((data ?? []) as AuditEntry[]);
+    const rows = await getAudit();
+    setRows(rows);
     setLoading(false);
   };
 
