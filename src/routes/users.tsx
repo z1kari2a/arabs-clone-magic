@@ -1,20 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, Users as UsersIcon } from "lucide-react";
+import { RefreshCw, X, Users as UsersIcon, ShieldAlert } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
-import { ErpTable, Cell } from "@/components/erp/ErpUI";
-import { erpStore, useErpStore } from "@/lib/erp-store";
-import type { User } from "@/lib/erp-types";
+import { ErpTable } from "@/components/erp/ErpUI";
+import { useErpStore, hydrateStore } from "@/lib/erp-store";
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
+import type { Role } from "@/lib/erp-types";
 
 export const Route = createFileRoute("/users")({
   head: () => ({
     meta: [
       { title: "المستخدمون - نظام ERP" },
-      { name: "description", content: "إدارة المستخدمين والصلاحيات" },
+      { name: "description", content: "إدارة المستخدمين والصلاحيات في النظام" },
       { property: "og:title", content: "المستخدمون - نظام ERP" },
-      { property: "og:description", content: "شاشة إدارة المستخدمين" },
+      { property: "og:description", content: "شاشة إدارة المستخدمين والصلاحيات" },
     ],
   }),
   component: UsersPage,
@@ -22,54 +24,59 @@ export const Route = createFileRoute("/users")({
 
 function UsersPage() {
   const users = useErpStore((s) => s.users);
-  const [list, setList] = useState<User[]>(users);
-  const [editing, setEditing] = useState(false);
+  const { role: myRole, user } = useAuth();
+  const isAdmin = myRole === "admin";
+  const [busy, setBusy] = useState(false);
 
-  const patch = (i: number, p: Partial<User>) => setList(list.map((u, idx) => (idx === i ? { ...u, ...p } : u)));
-  const onNew = () => { setList([...list, { username: `user${list.length + 1}`, fullName: "", role: "user", active: true }]); setEditing(true); };
-  const onSave = () => { erpStore.set({ users: list }); setEditing(false); toast.success("تم الحفظ"); };
-  const noop = () => {};
+  const changeRole = async (userId: string, newRole: Role) => {
+    if (!isAdmin) return toast.error("يتطلب صلاحية مدير");
+    if (userId === user?.id && newRole !== "admin") return toast.error("لا يمكن إزالة صلاحيتك كمدير");
+    setBusy(true);
+    try {
+      await supabase.from("user_roles").delete().eq("user_id", userId);
+      const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: newRole });
+      if (error) throw error;
+      toast.success("تم تحديث الصلاحية");
+      await hydrateStore();
+    } catch (e: any) { toast.error(e.message); }
+    finally { setBusy(false); }
+  };
 
   const actions = [
-    { icon: FilePlus2, label: "جديد", color: "text-emerald-600", onClick: onNew },
-    { icon: FolderOpen, label: "فتح", color: "text-amber-500", onClick: noop },
-    { icon: Save, label: "حفظ", color: "text-blue-600", onClick: onSave },
-    { icon: Pencil, label: "تعديل", color: "text-cyan-600", onClick: () => setEditing(true) },
-    { icon: Trash2, label: "حذف", color: "text-rose-600", onClick: noop },
-    { icon: Search, label: "بحث", color: "text-indigo-500", onClick: noop },
-    { icon: Printer, label: "طباعة", color: "text-slate-600", onClick: () => window.print() },
-    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: noop },
-    { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: noop },
-    { icon: CheckCircle2, label: "اعتماد", color: "text-emerald-700", onClick: onSave },
+    { icon: RefreshCw, label: "تحديث", color: "text-blue-600", onClick: () => hydrateStore() },
     { icon: X, label: "إغلاق", color: "text-rose-600", onClick: () => history.back() },
   ];
 
   return (
     <ErpLayout title="المستخدمون" ribbon={<Ribbon actions={actions} />}>
+      {!isAdmin && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded p-2 text-xs flex items-center gap-2">
+          <ShieldAlert size={14} /> تعديل الصلاحيات متاح للمديرين فقط
+        </div>
+      )}
       <div className="bg-white border border-slate-300 rounded">
         <div className="px-3 py-2 border-b border-slate-300 flex items-center gap-2 font-semibold text-slate-700" style={{ background: "var(--color-erp-panel-header)" }}>
-          <UsersIcon size={16} /> المستخدمون ({list.length})
+          <UsersIcon size={16} /> المستخدمون ({users.length})
         </div>
-        <ErpTable headers={["م","اسم المستخدم","الاسم الكامل","الصلاحية","الحالة"]}>
-          {list.map((u, i) => (
-            <tr key={u.username + i}>
+        <ErpTable headers={["م", "البريد الإلكتروني", "الاسم", "الصلاحية", "المعرّف"]}>
+          {users.map((u, i) => (
+            <tr key={u.id}>
               <td className="border border-slate-200 text-center">{i + 1}</td>
-              <Cell value={u.username} onChange={(v) => patch(i, { username: v })} disabled={!editing} />
-              <Cell value={u.fullName} onChange={(v) => patch(i, { fullName: v })} disabled={!editing} align="right" />
+              <td className="border border-slate-200 px-2">{u.username}</td>
+              <td className="border border-slate-200 px-2 text-right">{u.fullName}</td>
               <td className="border border-slate-200 p-0">
-                <select value={u.role} disabled={!editing} onChange={(e) => patch(i, { role: e.target.value as User["role"] })} className="w-full px-2 py-1 bg-transparent outline-none text-center">
+                <select value={u.role} disabled={!isAdmin || busy} onChange={(e) => changeRole(u.id, e.target.value as Role)} className="w-full px-2 py-1 bg-transparent outline-none text-center disabled:cursor-not-allowed disabled:opacity-70">
                   <option value="admin">مدير</option>
                   <option value="user">مستخدم</option>
                   <option value="viewer">مطالع</option>
                 </select>
               </td>
-              <td className="border border-slate-200 text-center">
-                <button disabled={!editing} onClick={() => patch(i, { active: !u.active })} className={`px-2 py-0.5 rounded text-xs ${u.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"} disabled:opacity-70`}>
-                  {u.active ? "نشط" : "موقوف"}
-                </button>
-              </td>
+              <td className="border border-slate-200 px-2 text-[10px] text-slate-500 font-mono">{u.id.slice(0, 8)}...</td>
             </tr>
           ))}
+          {users.length === 0 && (
+            <tr><td colSpan={5} className="text-center py-8 text-slate-400 text-sm">لا يوجد مستخدمون بعد</td></tr>
+          )}
         </ErpTable>
       </div>
     </ErpLayout>
