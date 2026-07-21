@@ -1,81 +1,83 @@
-# تحويل ERP إلى نظام إنتاجي حقيقي
+# خطة التحويل إلى برنامج Windows محلي مستقل
 
-## الهدف
-معالجة العيوب الحرجة الأربعة: قاعدة بيانات حقيقية، مصادقة حقيقية، صلاحيات مفروضة، سجل تدقيق تفصيلي.
+النظام سيصبح تطبيق Electron مستقل بالكامل، بدون إنترنت، بدون Supabase، وقاعدة البيانات ملف SQLite على جهازك.
 
----
+## البنية الجديدة
 
-## 1. تفعيل Lovable Cloud
-تفعيل الـ Cloud → PostgreSQL + Auth + Storage + Edge Functions.
+```text
+┌─────────────────────────────────────────────┐
+│  Electron Window (نافذة البرنامج)           │
+│  ┌───────────────────────────────────────┐  │
+│  │  Renderer (واجهة React الحالية)        │  │
+│  │  - نفس التصميم والأزرار والشاشات      │  │
+│  └────────────────┬──────────────────────┘  │
+│                   │ IPC bridge (preload)    │
+│  ┌────────────────▼──────────────────────┐  │
+│  │  Main Process (Node.js)               │  │
+│  │  - better-sqlite3                     │  │
+│  │  - bcrypt للتشفير                     │  │
+│  │  - ملف: %APPDATA%/ERP/erp.db          │  │
+│  └───────────────────────────────────────┘  │
+└─────────────────────────────────────────────┘
+```
 
-## 2. مخطط قاعدة البيانات (Migration واحد)
+## الخطوات
 
-**جداول المصادقة والصلاحيات:**
-- `profiles` — البريد، الاسم، تاريخ الإنشاء (foreign key → auth.users)
-- `app_role` enum — `admin`, `user`, `viewer`
-- `user_roles` — جدول منفصل للأدوار (منع privilege escalation)
-- `has_role()` — دالة SECURITY DEFINER
+### 1. إزالة الاعتماد على السحابة
+- حذف كل استدعاءات `@/integrations/supabase/*` من الكود.
+- حذف مسارات `_authenticated` و `createServerFn`.
+- حذف مسار `/audit-log` القديم واستبداله بنسخة محلية.
 
-**قاعدة "أول مستخدم = Admin":**
-- Trigger على auth.users بعد INSERT → ينشئ profile + يعطي دور Admin لأول مستخدم و User للباقين
+### 2. إعداد Electron
+- `electron/main.cjs`: نافذة البرنامج + تهيئة قاعدة البيانات.
+- `electron/preload.cjs`: جسر آمن `window.erp` للواجهة.
+- `electron/db.cjs`: كل استعلامات SQLite (CRUD، تسجيل الدخول، Audit).
+- `vite.config.ts`: `base: './'` + تعطيل SSR (`ssr: false`).
 
-**جداول العمل:**
-- `suppliers` — الموردون
-- `items` — دليل الأصناف (مع الوحدات كـ JSONB)
-- `purchase_orders` — رأس أوامر الشراء
-- `po_rows` — بنود الأوامر
-- `po_expenses` — مصروفات الأوامر
-- `audit_log` — تفصيلي: user_id, action, table_name, record_id, before (jsonb), after (jsonb), timestamp
+### 3. مخطط قاعدة SQLite
+جداول: `users`, `suppliers`, `items`, `purchase_orders`, `po_rows`, `po_expenses`, `audit_log`, `settings`.
+- كلمات السر مشفرة بـ **bcrypt** (10 rounds).
+- أول تشغيل ينشئ حساب Admin تلقائياً ويطلب كلمة سر.
+- كل عملية INSERT/UPDATE/DELETE تسجّل في `audit_log` مع البيانات قبل/بعد.
 
-**سياسات RLS:**
-- القراءة: كل مستخدم مسجّل (`authenticated`)
-- الكتابة/التعديل: Admin أو User فقط
-- الحذف: Admin فقط
-- الاعتماد (approve): Admin فقط
-- Viewer: قراءة فقط
-- `audit_log`: قراءة للـ Admin، كتابة تلقائية من triggers
+### 4. طبقة الوصول من الواجهة
+- إنشاء `src/lib/erp-api.ts`: يستدعي `window.erp.*` (IPC) بدلاً من Supabase.
+- إبقاء نفس شكل `erp-store.ts` الحالي — تغيير المصدر فقط.
+- الأدوار (admin/user/viewer) تُفرض في الـ main process، لا في الواجهة.
 
-**Triggers للـ Audit:**
-- AFTER INSERT/UPDATE/DELETE على كل الجداول التجارية → يسجّل في audit_log مع before/after JSON
+### 5. المصادقة المحلية
+- شاشة تسجيل الدخول الحالية تبقى كما هي بصرياً.
+- الإدخال يمر عبر `window.erp.login(email, password)` → bcrypt.compare في main.
+- الجلسة محفوظة في ذاكرة العملية (RAM) — تختفي عند إغلاق البرنامج.
 
-## 3. طبقة الوصول للبيانات
-استبدال `erp-store.ts` بـ:
-- `src/lib/erp-api.functions.ts` — server functions محمية بـ `requireSupabaseAuth`
-- استخدام TanStack Query (`useSuspenseQuery` + `ensureQueryData` في loaders)
-- كل عملية كتابة تمر عبر server function تتحقق من الدور
+### 6. البناء والتغليف
+- تثبيت: `electron`, `@electron/packager`, `better-sqlite3`, `bcrypt`.
+- سكريبتات جديدة في `package.json`:
+  - `electron:dev` — تشغيل محلي للتجربة.
+  - `electron:build` — بناء Vite + تغليف Electron.
+- ناتج: `MyERP-win32-x64.zip` — يفك ضغطه المستخدم ويشغّل `MyERP.exe` مباشرة.
 
-## 4. المصادقة
-- استبدال شاشة `/` (login وهمي) بـ:
-  - `/auth` — تسجيل دخول/تسجيل حساب حقيقي (email + password)
-  - Password HIBP check مفعّل
-- `_authenticated/` layout للصفحات المحمية
-- نقل كل شاشات ERP تحت `_authenticated/`
-- تحديث ErpLayout ليقرأ من `supabase.auth.getUser()`
+### 7. النسخ الاحتياطي والاستيراد
+- زر "نسخة احتياطية" يحفظ نسخة من `erp.db` في أي مكان.
+- زر "استعادة" يستبدل قاعدة البيانات من ملف.
+- Excel Import/Export يبقى كما هو (يعمل داخل الواجهة).
 
-## 5. فرض الصلاحيات في الـ UI
-- إخفاء أزرار الحذف/الاعتماد عن Viewer
-- إخفاء شاشة "المستخدمون" عن غير Admin
-- إظهار badge للدور في شريط الحالة
+## نقاط تقنية مهمة
 
-## 6. شاشة سجل التدقيق
-- إضافة `/audit-log` (Admin فقط)
-- عرض جدول: التاريخ، المستخدم، العملية، الجدول، معرّف السجل، عرض قبل/بعد كـ dialog JSON
+- `better-sqlite3` و `bcrypt` هما native modules، لذا `@electron/packager` سيعيد بناءهما تلقائياً لبيئة Electron.
+- ملف قاعدة البيانات يُخزّن في `app.getPath('userData')` لكي لا يُحذف عند تحديث البرنامج.
+- `contextIsolation: true` و `nodeIntegration: false` — الأمان الموصى به من Electron.
+- الواجهة لن تصل مباشرة لـ SQLite أو نظام الملفات — فقط عبر IPC methods محددة.
 
-## 7. الحفاظ على التصميم الحالي
-لا تغيير في مظهر الـ ERP (الشريط الأزرق، الـ Ribbon، الأبعاد، الاختصارات). فقط تبديل مصدر البيانات وطبقة الأمان.
+## ما سيتغير في التجربة
+- **تسجيل الدخول**: أول مرة → إنشاء حساب Admin. بعدها → login عادي.
+- **البيانات الحالية في Supabase**: لن تنتقل تلقائياً (يمكن لاحقاً إضافة أداة تصدير/استيراد إن أردت).
+- **السرعة**: أسرع بكثير لأن كل شيء محلي، بدون شبكة.
+- **الحجم**: البرنامج النهائي حوالي 200-300 MB (Electron + Chromium مدمجان).
 
----
+## ما يبقى كما هو
+- كل التصميم، الشاشات، الأزرار، الاختصارات، الحسابات، الجداول، والتقارير.
+- التصدير/الاستيراد إلى Excel.
+- منطق CBM وتوزيع المصروفات وحساب أسعار البيع.
 
-## الملفات المتأثرة (تقريبياً 20 ملف)
-- **جديد**: migration SQL كبير، `erp-api.functions.ts`، `audit-log.tsx`، `_authenticated/route.tsx` (تلقائي من الـ integration)
-- **تعديل**: كل ملفات الـ routes الحالية (نقلها + استبدال store)، `ErpLayout.tsx`، `index.tsx` (login)
-- **حذف**: `erp-store.ts` القديم (localStorage)، `users.tsx` القديم (استبدال بإدارة عبر Supabase Auth)
-
-## ملاحظة مهمة
-لن يتم ترحيل بيانات localStorage الحالية (بيانات تجريبية). النظام يبدأ نظيفاً.
-
-## التنفيذ
-سيتم على 3 دفعات:
-1. Cloud + Migration + Auth
-2. تحويل الـ store + الشاشات + فرض الصلاحيات
-3. شاشة Audit Log + اختبار end-to-end
+بعد موافقتك على الخطة، أبدأ التنفيذ خطوة بخطوة.

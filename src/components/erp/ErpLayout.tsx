@@ -106,7 +106,7 @@ export default function ErpLayout({
       {/* Status bar */}
       <div className="flex items-center justify-between px-3 py-1 text-white text-[11px] border-t border-black/10" style={{ background: "var(--color-erp-status)" }}>
         <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1">المستخدم: {fullName || user?.email}</span>
+          <span className="flex items-center gap-1">المستخدم: {fullName || user?.username}</span>
           {role && <span className={`px-1.5 py-0.5 rounded text-white ${roleBadgeCls} flex items-center gap-1`}><ShieldCheck size={10} /> {roleLabel}</span>}
           <span>الفترة المالية: {settings.fiscalYear}</span>
           <span className="hidden md:flex items-center gap-1 opacity-90"><Keyboard size={12} /> Ctrl+N جديد • Ctrl+S حفظ • F2 تعديل • F3 بحث • F9 اعتماد • Esc إغلاق</span>
