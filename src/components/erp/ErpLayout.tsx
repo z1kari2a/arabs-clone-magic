@@ -1,6 +1,6 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { Minus, Square, X, Circle } from "lucide-react";
-import type { ReactNode } from "react";
+import { Minus, Square, X, Circle, Keyboard } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useErpStore, erpStore } from "@/lib/erp-store";
 
 const TABS = [
@@ -26,6 +26,12 @@ export default function ErpLayout({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const session = useErpStore((s) => s.session);
   const settings = useErpStore((s) => s.settings);
+  const [clock, setClock] = useState(() => new Date().toLocaleTimeString("en-US"));
+
+  useEffect(() => {
+    const id = setInterval(() => setClock(new Date().toLocaleTimeString("en-US")), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const onLogout = () => {
     erpStore.set({ session: null });
@@ -33,7 +39,7 @@ export default function ErpLayout({
   };
 
   return (
-    <div className="min-h-screen font-sans text-[13px] text-slate-800 flex flex-col" style={{ background: "var(--color-erp-bg)" }} dir="rtl">
+    <div className="h-screen font-sans text-[13px] text-slate-800 flex flex-col overflow-hidden" style={{ background: "var(--color-erp-bg)" }} dir="rtl">
       {/* Title bar */}
       <div className="relative flex items-center justify-between px-3 h-9 text-white" style={{ background: "var(--color-erp-titlebar)" }}>
         <div className="flex items-center gap-2">
@@ -72,23 +78,26 @@ export default function ErpLayout({
 
       {/* Ribbon */}
       {ribbon && (
-        <div className="bg-white border-b border-slate-300 px-2 py-1.5 flex items-stretch gap-0.5 overflow-x-auto">
+        <div className="bg-gradient-to-b from-white to-slate-50 border-b border-slate-300 px-2 py-1 flex items-stretch gap-0.5 overflow-x-auto shadow-[0_1px_0_rgba(0,0,0,0.03)]">
           {ribbon}
         </div>
       )}
 
       {/* Content */}
-      <div className="flex-1 p-2 space-y-2 overflow-auto">{children}</div>
+      <div className="flex-1 overflow-auto">
+        <div className="mx-auto max-w-[1600px] p-3 space-y-2">{children}</div>
+      </div>
 
       {/* Status bar */}
-      <div className="flex items-center justify-between px-3 py-1 text-white text-xs" style={{ background: "var(--color-erp-status)" }}>
+      <div className="flex items-center justify-between px-3 py-1 text-white text-[11px] border-t border-black/10" style={{ background: "var(--color-erp-status)" }}>
         <div className="flex items-center gap-4">
           <span>المستخدم: {session?.username ?? "guest"}</span>
           <span>الفترة المالية: {settings.fiscalYear}</span>
+          <span className="hidden md:flex items-center gap-1 opacity-90"><Keyboard size={12} /> Ctrl+N جديد • Ctrl+S حفظ • F2 تعديل • F3 بحث • F9 اعتماد • Esc إغلاق</span>
         </div>
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1"><Circle size={8} className="fill-emerald-400 text-emerald-400" /> متصل</span>
-          <span>{new Date().toLocaleTimeString("en-US")}</span>
+          <span className="tabular-nums">{clock}</span>
         </div>
       </div>
     </div>
