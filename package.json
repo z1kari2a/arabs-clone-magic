@@ -9,8 +9,12 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "electron:start": "npm run build && electron electron/main.cjs",
+    "electron:build:win": "npm run build && electron-packager . ERP --platform=win32 --arch=x64 --out=electron-release --overwrite --ignore=\"^/src\" --ignore=\"^/public\" --ignore=\"^/electron-release\" --ignore=\"^/supabase\" --ignore=\"^/.lovable\"",
+    "electron:build:linux": "npm run build && electron-packager . ERP --platform=linux --arch=x64 --out=electron-release --overwrite --ignore=\"^/src\" --ignore=\"^/public\" --ignore=\"^/electron-release\" --ignore=\"^/supabase\" --ignore=\"^/.lovable\""
   },
+  "main": "electron/main.cjs",
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
