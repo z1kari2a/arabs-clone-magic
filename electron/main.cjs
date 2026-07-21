@@ -27,7 +27,7 @@ function createWindow() {
 
   mainWindow.once("ready-to-show", () => mainWindow.show());
 
-  const indexHtml = path.join(__dirname, "..", "dist", "index.html");
+  const indexHtml = path.join(__dirname, "..", "dist-electron", "index.html");
   mainWindow.loadFile(indexHtml).catch((err) => {
     console.error("Failed to load index.html:", err);
   });
