@@ -89,7 +89,13 @@ export function useHydrate() {
 
 // ============ Mutations ============
 function currentUsername(): string | null {
-  return state.session?.username ?? null;
+  if (state.session?.username) return state.session.username;
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem("erp:current-user");
+    if (!raw) return null;
+    return (JSON.parse(raw) as { username?: string }).username ?? null;
+  } catch { return null; }
 }
 
 export async function upsertSupplier(sup: Supplier) {
