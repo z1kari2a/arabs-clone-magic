@@ -80,7 +80,7 @@ export default function ErpLayout({
       </div>
 
       <div className="flex flex-1 flex-row overflow-hidden">
-        <QuickSidebar />
+        {sidebarOpen && <QuickSidebar onClose={() => setSidebarOpen(false)} />}
 
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Tabs */}
