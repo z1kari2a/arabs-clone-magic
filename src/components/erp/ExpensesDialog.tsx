@@ -172,9 +172,9 @@ export default function ExpensesDialog({
                       type="number"
                       step="0.000001"
                       value={e.rate || ""}
-                      disabled={disabled}
-                      onChange={(ev) => patch(e.id, { rate: Number(ev.target.value) || 0 })}
-                      className="w-28 px-2 py-1.5 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-right tabular-nums"
+                      readOnly
+                      title="يُقرأ من إعدادات أسعار الصرف — غير قابل للتعديل"
+                      className="w-28 px-2 py-1.5 border border-slate-200 rounded-md bg-slate-100 text-sm text-right tabular-nums cursor-not-allowed"
                       placeholder="1.000000"
                     />
                   </td>
