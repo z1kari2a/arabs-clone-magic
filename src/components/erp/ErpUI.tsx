@@ -15,7 +15,7 @@ export function Panel({
   collapsible = false,
   defaultCollapsed = false,
 }: {
-  title: string;
+  title: React.ReactNode;
   children: ReactNode;
   className?: string;
   /** Show a toggle in the header that hides/shows the panel body. */
