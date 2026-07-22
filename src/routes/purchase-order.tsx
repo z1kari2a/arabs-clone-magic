@@ -557,14 +557,31 @@ function POPage() {
       {/* Price tiers */}
       {priceTiers.length > 0 && (
         <div className="bg-white border border-slate-300 rounded">
-          <button type="button" onClick={() => setShowTiers((v) => !v)} className="w-full text-center py-1 font-semibold text-slate-700 border-b border-slate-300 hover:bg-slate-100 flex items-center justify-center gap-1" style={{ background: "var(--color-erp-panel-header)" }} title={showTiers ? "طي" : "توسيع"}>
-            {showTiers ? <ChevronUp size={14} /> : <ChevronDown size={14} />} التسعيرات حسب الوجهات (تُدار من شاشة الإعدادات)
-          </button>
+          <div className="flex items-center justify-between px-2 py-1 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className="text-slate-600">عرض التسعيرات بعملة:</span>
+              <select
+                value={tierDisplayCurrency}
+                onChange={(e) => setTierDisplayCurrency(e.target.value)}
+                className="px-2 py-0.5 text-[11px] border border-slate-300 rounded bg-white"
+              >
+                {currencyOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <button type="button" onClick={() => setShowTiers((v) => !v)} className="font-semibold text-slate-700 flex items-center gap-1 hover:text-blue-700" title={showTiers ? "طي" : "توسيع"}>
+              {showTiers ? <ChevronUp size={14} /> : <ChevronDown size={14} />} التسعيرات حسب الوجهات
+            </button>
+            <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt((po.rate || 1) / (rateOfCode(tierDisplayCurrency) || 1), 4)} {tierDisplayCurrency}</div>
+          </div>
           {showTiers && (
-          <ErpTable headers={["م", "الموديل", "اسم الصنف", "متوسط التكلفة", ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`])]}>
+          <ErpTable headers={["م", "الموديل", "اسم الصنف", `متوسط التكلفة (${tierDisplayCurrency})`, ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`])]}>
             {po.rows.filter((r) => r.model || r.name).map((r, i) => {
               const m = metrics.rowMetrics[i];
-              const avg = m?.avgCost ?? 0;
+              // convert avgCost (in invoice currency) into display currency
+              const conv = (po.rate || 1) / (rateOfCode(tierDisplayCurrency) || 1);
+              const avg = (m?.avgCost ?? 0) * conv;
               return (
                 <tr key={r.id} className="odd:bg-white even:bg-slate-50/50">
                   <td className="border border-slate-200 text-center text-slate-500 w-10">{i + 1}</td>
