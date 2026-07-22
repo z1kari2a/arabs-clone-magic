@@ -5,13 +5,13 @@ import { toast } from "sonner";
 import {
   FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer,
   FileSpreadsheet, Download, CheckCircle2, X, Plus, Wallet, Building2, Copy,
-  ChevronUp, ChevronDown,
+  ChevronUp, ChevronDown, Coins, Star,
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtInt } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore, computePO, savePurchaseOrder } from "@/lib/erp-store";
-import type { PurchaseOrder, PORow, Expense } from "@/lib/erp-types";
+import type { PurchaseOrder, PORow, Expense, Currency } from "@/lib/erp-types";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { SEED_INVOICE } from "@/lib/erp-seed";
@@ -43,13 +43,13 @@ const blankRows = (count: number): PORow[] =>
     cbm: 0,
   }));
 
-const emptyPO = (num: string): PurchaseOrder => ({
+const emptyPO = (num: string, currency = "USD", rate = 1): PurchaseOrder => ({
   number: num,
   date: new Date().toISOString().slice(0, 10).replace(/-/g, "/"),
   invoiceNo: num,
   supplierCode: "",
-  currency: "USD",
-  rate: 1,
+  currency,
+  rate,
   containerNo: "",
   containerSize: "40 قدم HQ",
   distributionType: "cbm",
@@ -63,8 +63,14 @@ function POPage() {
   const suppliers = useErpStore((s) => s.suppliers);
   const items = useErpStore((s) => s.items);
   const orders = useErpStore((s) => s.purchaseOrders);
+  const settings = useErpStore((s) => s.settings);
+  const currencies = settings.currencies ?? [];
+  const defaultCurrency = settings.defaultCurrency || currencies[0]?.code || "USD";
+  const rateOfCode = (code: string) => currencies.find((c) => c.code === code)?.rate ?? 1;
 
-  const [po, setPo] = useState<PurchaseOrder>(orders[0] ?? emptyPO("INV-2026-00001"));
+  const [po, setPo] = useState<PurchaseOrder>(
+    orders[0] ?? emptyPO("INV-2026-00001", defaultCurrency, rateOfCode(defaultCurrency)),
+  );
   const [editing, setEditing] = useState(false);
   const [openDlg, setOpenDlg] = useState(false);
   const [supDlg, setSupDlg] = useState(false);
@@ -74,11 +80,49 @@ function POPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [markupPct, setMarkupPct] = useState<number>(30);
   const priceTiers = useErpStore((s) => s.settings.priceTiers ?? []);
-  const currencies = useErpStore((s) => s.settings.currencies ?? []);
   const currencyOptions = currencies.length
     ? currencies.map((c) => ({ value: c.code, label: `${c.code} - ${c.name}` }))
     : [{ value: "USD", label: "USD" }];
-  const rateOf = (code: string) => currencies.find((c) => c.code === code)?.rate ?? 1;
+  const rateOf = rateOfCode;
+  const [tierDisplayCurrency, setTierDisplayCurrency] = useState<string>(defaultCurrency);
+
+  // Currency management (inline side panel)
+  const saveCurrencies = (list: Currency[], newDefault?: string) => {
+    erpStore.set({
+      settings: {
+        ...settings,
+        currencies: list,
+        defaultCurrency: newDefault ?? settings.defaultCurrency,
+      },
+    });
+  };
+  const [newCur, setNewCur] = useState<Currency>({ code: "", name: "", rate: 1 });
+  const addCurrency = () => {
+    const code = newCur.code.trim().toUpperCase();
+    if (!code) return toast.error("أدخل رمز العملة");
+    if (currencies.some((c) => c.code === code)) return toast.error("العملة موجودة");
+    const list = [...currencies, { ...newCur, code, rate: Number(newCur.rate) || 1 }];
+    saveCurrencies(list, currencies.length === 0 ? code : settings.defaultCurrency);
+    setNewCur({ code: "", name: "", rate: 1 });
+    toast.success(`تمت إضافة ${code}`);
+  };
+  const patchCurrency = (code: string, p: Partial<Currency>) => {
+    const list = currencies.map((c) => (c.code === code ? { ...c, ...p } : c));
+    saveCurrencies(list);
+  };
+  const removeCurrency = (code: string) => {
+    if (!confirm(`حذف العملة ${code}؟`)) return;
+    const list = currencies.filter((c) => c.code !== code);
+    const nd = settings.defaultCurrency === code ? list[0]?.code ?? "" : settings.defaultCurrency;
+    saveCurrencies(list, nd);
+    toast.success("تم الحذف");
+  };
+  const setAsDefault = (code: string) => {
+    saveCurrencies(currencies, code);
+    // If PO not yet saved and still on old default, switch it too
+    if (!po.approved) patch({ currency: code, rate: rateOfCode(code) });
+    toast.success(`العملة الافتراضية: ${code}`);
+  };
 
   // Collapsible sections — let users shrink big tables to save space.
   const [showItems, setShowItems] = useState(true);
@@ -111,7 +155,7 @@ function POPage() {
 
   const onNew = () => {
     const num = `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`;
-    setPo(emptyPO(num));
+    setPo(emptyPO(num, defaultCurrency, rateOfCode(defaultCurrency)));
     setEditing(true);
     toast.success("تم إنشاء أمر شراء جديد");
   };
@@ -127,7 +171,7 @@ function POPage() {
   const onDelete = () => {
     if (!confirm("حذف أمر الشراء؟")) return;
     erpStore.set({ purchaseOrders: orders.filter((o) => o.number !== po.number) });
-    setPo(emptyPO(`INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`));
+    setPo(emptyPO(`INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`, defaultCurrency, rateOfCode(defaultCurrency)));
     toast.success("تم الحذف");
   };
   const onApprove = () => {
@@ -260,7 +304,7 @@ function POPage() {
     <ErpLayout title="أمر شراء" ribbon={<Ribbon actions={actions} />}>
       <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={onFile} className="hidden" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_320px] gap-2">
         <Panel title="بيانات المورد">
           <div className="flex gap-3 items-start">
             <div className="w-16 h-20 bg-slate-100 border border-slate-300 rounded flex items-center justify-center text-slate-400 shrink-0">
@@ -315,6 +359,63 @@ function POPage() {
                 <textarea value={po.notes} onChange={(e) => patch({ notes: e.target.value })} disabled={disabled} className="w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white disabled:bg-slate-50 min-h-[50px]" />
               </FieldRow>
             </div>
+          </div>
+        </Panel>
+
+        {/* Currency side panel — add / edit / delete / set default */}
+        <Panel title={<span className="flex items-center gap-1"><Coins size={13} className="text-amber-600" /> تهيئة العملات</span>}>
+          <div className="space-y-2">
+            <div className="text-[11px] text-slate-600 leading-relaxed">
+              أضف عملة (رمز، اسم، سعر تحويل) لتظهر في قوائم عملة الفاتورة والمصروفات والتسعيرات. حدّد ⭐ للعملة الافتراضية — تُستخدم تلقائياً كعملة الفاتورة في الأوامر الجديدة.
+            </div>
+            <div className="max-h-56 overflow-auto border border-slate-200 rounded">
+              <table className="w-full text-[11px]">
+                <thead className="bg-slate-100 sticky top-0">
+                  <tr>
+                    <th className="p-1 border-b border-slate-200 w-8">⭐</th>
+                    <th className="p-1 border-b border-slate-200">الرمز</th>
+                    <th className="p-1 border-b border-slate-200">الاسم</th>
+                    <th className="p-1 border-b border-slate-200">سعر التحويل</th>
+                    <th className="p-1 border-b border-slate-200 w-8"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currencies.map((c) => {
+                    const isDef = settings.defaultCurrency === c.code;
+                    return (
+                      <tr key={c.code} className={isDef ? "bg-amber-50" : "odd:bg-white even:bg-slate-50/60"}>
+                        <td className="text-center border-b border-slate-100">
+                          <button onClick={() => setAsDefault(c.code)} title="تعيين كافتراضية">
+                            <Star size={13} className={isDef ? "fill-amber-400 text-amber-500" : "text-slate-300 hover:text-amber-400"} />
+                          </button>
+                        </td>
+                        <td className="border-b border-slate-100 p-0">
+                          <input value={c.code} onChange={(e) => patchCurrency(c.code, { code: e.target.value.toUpperCase() })} className="w-full px-1 py-0.5 text-[11px] bg-transparent border-0 focus:outline-none focus:bg-white text-center font-semibold" />
+                        </td>
+                        <td className="border-b border-slate-100 p-0">
+                          <input value={c.name} onChange={(e) => patchCurrency(c.code, { name: e.target.value })} className="w-full px-1 py-0.5 text-[11px] bg-transparent border-0 focus:outline-none focus:bg-white text-right" />
+                        </td>
+                        <td className="border-b border-slate-100 p-0">
+                          <input value={String(c.rate)} onChange={(e) => patchCurrency(c.code, { rate: Number(e.target.value) || 0 })} className="w-full px-1 py-0.5 text-[11px] bg-transparent border-0 focus:outline-none focus:bg-white text-left" />
+                        </td>
+                        <td className="text-center border-b border-slate-100">
+                          <button onClick={() => removeCurrency(c.code)} className="text-rose-500 hover:bg-rose-50 p-0.5 rounded"><Trash2 size={11} /></button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-end gap-1 pt-1 border-t border-slate-200">
+              <input placeholder="رمز" value={newCur.code} onChange={(e) => setNewCur({ ...newCur, code: e.target.value })} className="w-14 px-1 py-1 text-[11px] border border-slate-300 rounded text-center" />
+              <input placeholder="اسم العملة" value={newCur.name} onChange={(e) => setNewCur({ ...newCur, name: e.target.value })} className="flex-1 px-1 py-1 text-[11px] border border-slate-300 rounded text-right" />
+              <input placeholder="السعر" value={String(newCur.rate)} onChange={(e) => setNewCur({ ...newCur, rate: Number(e.target.value) || 0 })} className="w-16 px-1 py-1 text-[11px] border border-slate-300 rounded text-left" />
+              <button onClick={addCurrency} className="px-2 py-1 text-[11px] bg-emerald-600 text-white rounded hover:bg-emerald-700 flex items-center gap-0.5"><Plus size={11} /> إضافة</button>
+            </div>
+            {settings.defaultCurrency && (
+              <div className="text-[10px] text-slate-500 pt-1">العملة الافتراضية الحالية: <span className="font-bold text-amber-700">{settings.defaultCurrency}</span></div>
+            )}
           </div>
         </Panel>
       </div>
@@ -456,14 +557,31 @@ function POPage() {
       {/* Price tiers */}
       {priceTiers.length > 0 && (
         <div className="bg-white border border-slate-300 rounded">
-          <button type="button" onClick={() => setShowTiers((v) => !v)} className="w-full text-center py-1 font-semibold text-slate-700 border-b border-slate-300 hover:bg-slate-100 flex items-center justify-center gap-1" style={{ background: "var(--color-erp-panel-header)" }} title={showTiers ? "طي" : "توسيع"}>
-            {showTiers ? <ChevronUp size={14} /> : <ChevronDown size={14} />} التسعيرات حسب الوجهات (تُدار من شاشة الإعدادات)
-          </button>
+          <div className="flex items-center justify-between px-2 py-1 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className="text-slate-600">عرض التسعيرات بعملة:</span>
+              <select
+                value={tierDisplayCurrency}
+                onChange={(e) => setTierDisplayCurrency(e.target.value)}
+                className="px-2 py-0.5 text-[11px] border border-slate-300 rounded bg-white"
+              >
+                {currencyOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <button type="button" onClick={() => setShowTiers((v) => !v)} className="font-semibold text-slate-700 flex items-center gap-1 hover:text-blue-700" title={showTiers ? "طي" : "توسيع"}>
+              {showTiers ? <ChevronUp size={14} /> : <ChevronDown size={14} />} التسعيرات حسب الوجهات
+            </button>
+            <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt((po.rate || 1) / (rateOfCode(tierDisplayCurrency) || 1), 4)} {tierDisplayCurrency}</div>
+          </div>
           {showTiers && (
-          <ErpTable headers={["م", "الموديل", "اسم الصنف", "متوسط التكلفة", ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`])]}>
+          <ErpTable headers={["م", "الموديل", "اسم الصنف", `متوسط التكلفة (${tierDisplayCurrency})`, ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`])]}>
             {po.rows.filter((r) => r.model || r.name).map((r, i) => {
               const m = metrics.rowMetrics[i];
-              const avg = m?.avgCost ?? 0;
+              // convert avgCost (in invoice currency) into display currency
+              const conv = (po.rate || 1) / (rateOfCode(tierDisplayCurrency) || 1);
+              const avg = (m?.avgCost ?? 0) * conv;
               return (
                 <tr key={r.id} className="odd:bg-white even:bg-slate-50/50">
                   <td className="border border-slate-200 text-center text-slate-500 w-10">{i + 1}</td>
