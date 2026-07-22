@@ -10,6 +10,7 @@ import {
   Settings,
   ShieldCheck,
   LogOut,
+  PanelRightClose,
   type LucideIcon,
 } from "lucide-react";
 
