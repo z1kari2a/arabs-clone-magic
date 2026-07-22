@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { Minus, Square, X, Circle, Keyboard, LogOut, ShieldCheck } from "lucide-react";
+import { Minus, Square, X, Circle, Keyboard, LogOut, ShieldCheck, Menu } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useErpStore, useHydrate } from "@/lib/erp-store";
 import { useAuth } from "@/lib/auth";
@@ -31,6 +31,7 @@ export default function ErpLayout({
   const { session, user, role, fullName, loading, signOut } = useAuth();
   useHydrate();
   const [clock, setClock] = useState(() => new Date().toLocaleTimeString("en-US"));
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     const id = setInterval(() => setClock(new Date().toLocaleTimeString("en-US")), 1000);
@@ -58,6 +59,14 @@ export default function ErpLayout({
       {/* Title bar */}
       <div className="relative flex items-center justify-between px-3 h-9 text-white shrink-0" style={{ background: "var(--color-erp-titlebar)" }}>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSidebarOpen((v) => !v)}
+            title={sidebarOpen ? "إخفاء القائمة الجانبية" : "إظهار القائمة الجانبية"}
+            className="w-7 h-7 rounded hover:bg-white/15 flex items-center justify-center transition-colors"
+            aria-label={sidebarOpen ? "إخفاء القائمة الجانبية" : "إظهار القائمة الجانبية"}
+          >
+            <Menu size={16} />
+          </button>
           <div className="w-6 h-6 rounded bg-white/20 flex items-center justify-center text-[10px] font-bold">ERP</div>
           <span className="text-sm font-semibold">{settings.companyName}</span>
         </div>
@@ -71,7 +80,7 @@ export default function ErpLayout({
       </div>
 
       <div className="flex flex-1 flex-row overflow-hidden">
-        <QuickSidebar />
+        {sidebarOpen && <QuickSidebar onClose={() => setSidebarOpen(false)} />}
 
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Tabs */}
