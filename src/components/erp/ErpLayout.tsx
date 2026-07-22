@@ -31,6 +31,7 @@ export default function ErpLayout({
   const { session, user, role, fullName, loading, signOut } = useAuth();
   useHydrate();
   const [clock, setClock] = useState(() => new Date().toLocaleTimeString("en-US"));
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     const id = setInterval(() => setClock(new Date().toLocaleTimeString("en-US")), 1000);
