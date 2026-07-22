@@ -8,6 +8,15 @@ export const fmt = (n: number, d = 2) =>
   });
 export const fmtInt = (n: number) => (isFinite(n) ? n : 0).toLocaleString("en-US");
 
+/** Parse a decimal number written with either `.` or `,` as decimal separator. */
+export const parseDecimal = (value: string | number): number => {
+  if (typeof value === "number") return isFinite(value) ? value : 0;
+  const cleaned = value.trim().replace(/\s/g, "").replace(/,/g, ".");
+  if (!cleaned || isNaN(Number(cleaned))) return 0;
+  const num = Number(cleaned);
+  return isFinite(num) ? num : 0;
+};
+
 export function Panel({
   title,
   children,
