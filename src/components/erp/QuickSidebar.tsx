@@ -41,10 +41,9 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
   { id: "reports", to: "/reports", label: "التقارير", icon: BarChart3 },
   {
     id: "expenses",
-    to: "/reports",
+    to: "/expenses",
     label: "المصروفات",
     icon: Wallet,
-    search: { tab: "expenses" },
     color: "text-orange-600",
   },
   { id: "users", to: "/users", label: "المستخدمون", icon: Users },
@@ -64,9 +63,6 @@ export function QuickSidebar({ onClose }: { onClose?: () => void }) {
   const { role, signOut } = useAuth();
 
   const isActive = (item: SidebarItem) => {
-    if (item.id === "expenses") {
-      return pathname === "/reports" && search.tab === "expenses";
-    }
     if (item.id === "reports") {
       return pathname === "/reports" && search.tab !== "expenses";
     }

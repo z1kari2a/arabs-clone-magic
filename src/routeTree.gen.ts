@@ -16,6 +16,7 @@ import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PurchaseOrderRouteImport } from './routes/purchase-order'
 import { Route as ItemsRouteImport } from './routes/items'
 import { Route as HomeRouteImport } from './routes/home'
+import { Route as ExpensesRouteImport } from './routes/expenses'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -54,6 +55,11 @@ const HomeRoute = HomeRouteImport.update({
   path: '/home',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ExpensesRoute = ExpensesRouteImport.update({
+  id: '/expenses',
+  path: '/expenses',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuditLogRoute = AuditLogRouteImport.update({
   id: '/audit-log',
   path: '/audit-log',
@@ -68,6 +74,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/audit-log': typeof AuditLogRoute
+  '/expenses': typeof ExpensesRoute
   '/home': typeof HomeRoute
   '/items': typeof ItemsRoute
   '/purchase-order': typeof PurchaseOrderRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/audit-log': typeof AuditLogRoute
+  '/expenses': typeof ExpensesRoute
   '/home': typeof HomeRoute
   '/items': typeof ItemsRoute
   '/purchase-order': typeof PurchaseOrderRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/audit-log': typeof AuditLogRoute
+  '/expenses': typeof ExpensesRoute
   '/home': typeof HomeRoute
   '/items': typeof ItemsRoute
   '/purchase-order': typeof PurchaseOrderRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/audit-log'
+    | '/expenses'
     | '/home'
     | '/items'
     | '/purchase-order'
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/audit-log'
+    | '/expenses'
     | '/home'
     | '/items'
     | '/purchase-order'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/audit-log'
+    | '/expenses'
     | '/home'
     | '/items'
     | '/purchase-order'
@@ -138,6 +150,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuditLogRoute: typeof AuditLogRoute
+  ExpensesRoute: typeof ExpensesRoute
   HomeRoute: typeof HomeRoute
   ItemsRoute: typeof ItemsRoute
   PurchaseOrderRoute: typeof PurchaseOrderRoute
@@ -198,6 +211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HomeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/expenses': {
+      id: '/expenses'
+      path: '/expenses'
+      fullPath: '/expenses'
+      preLoaderRoute: typeof ExpensesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/audit-log': {
       id: '/audit-log'
       path: '/audit-log'
@@ -218,6 +238,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuditLogRoute: AuditLogRoute,
+  ExpensesRoute: ExpensesRoute,
   HomeRoute: HomeRoute,
   ItemsRoute: ItemsRoute,
   PurchaseOrderRoute: PurchaseOrderRoute,
@@ -229,13 +250,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
