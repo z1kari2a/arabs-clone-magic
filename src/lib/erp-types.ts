@@ -74,6 +74,7 @@ export type User = {
   fullName: string;
   role: "admin" | "user" | "viewer";
   active: boolean;
+  pending?: boolean;
 };
 
 export type Role = "admin" | "user" | "viewer";
