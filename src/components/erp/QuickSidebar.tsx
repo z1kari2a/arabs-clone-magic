@@ -58,7 +58,7 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
   },
 ];
 
-export function QuickSidebar() {
+export function QuickSidebar({ onClose }: { onClose?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const search = useSearch({ strict: false }) as { tab?: string };
   const { role, signOut } = useAuth();
