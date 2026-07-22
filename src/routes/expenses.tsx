@@ -36,7 +36,9 @@ import {
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { ErpTable, fmt, fmtInt } from "@/components/erp/ErpUI";
-import { useErpStore, computePO } from "@/lib/erp-store";
+import { useErpStore, computePO, erpStore, savePurchaseOrder } from "@/lib/erp-store";
+import ExpensesDialog from "@/components/erp/ExpensesDialog";
+import { Plus } from "lucide-react";
 
 export const Route = createFileRoute("/expenses")({
   head: () => ({
@@ -56,6 +58,10 @@ function ExpensesPage() {
   const orders = useErpStore((s) => s.purchaseOrders);
   const suppliers = useErpStore((s) => s.suppliers);
   const settings = useErpStore((s) => s.settings);
+  const currencies = settings.currencies ?? [];
+
+  const [expDlg, setExpDlg] = useState(false);
+  const [targetPO, setTargetPO] = useState<string>("");
 
   const [q, setQ] = useState("");
   const [type, setType] = useState<string>("");
@@ -200,6 +206,10 @@ function ExpensesPage() {
 
   const actions = [
     { icon: RefreshCw, label: "تحديث", color: "text-emerald-600", onClick: () => toast.info("تم التحديث") },
+    { icon: Plus, label: "إضافة مصروف", color: "text-emerald-600", onClick: () => {
+        if (!orders.length) { toast.error("لا توجد أوامر شراء - أنشئ أمر شراء أولاً"); return; }
+        setTargetPO(orders[0].number); setExpDlg(true);
+      } },
     { icon: Filter, label: "تصفية", color: "text-blue-600", onClick: () => document.getElementById("exp-filter-q")?.focus() },
     { icon: Search, label: "بحث", hint: "F3", color: "text-indigo-500", onClick: () => document.getElementById("exp-filter-q")?.focus() },
     { icon: Printer, label: "طباعة", hint: "Ctrl+P", color: "text-slate-600", onClick: () => window.print() },
@@ -374,6 +384,38 @@ function ExpensesPage() {
           )}
         </div>
       </div>
+
+      {expDlg && (() => {
+        const po = orders.find((o) => o.number === targetPO);
+        if (!po) return null;
+        return (
+          <>
+            {/* PO selector chip above dialog */}
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] bg-white border border-slate-300 rounded-full shadow px-3 py-1 flex items-center gap-2 text-xs">
+              <span className="text-slate-500">إضافة إلى:</span>
+              <select value={targetPO} onChange={(e) => setTargetPO(e.target.value)}
+                className="px-2 py-1 border border-slate-300 rounded bg-white">
+                {orders.map((o) => (
+                  <option key={o.number} value={o.number}>{o.number} {o.approved ? "✓" : ""}</option>
+                ))}
+              </select>
+            </div>
+            <ExpensesDialog
+              open={expDlg}
+              onOpenChange={setExpDlg}
+              expenses={po.expenses}
+              invoiceCurrency={po.currency}
+              invoiceRate={po.rate}
+              currencies={currencies}
+              expenseTypes={settings.expenseTypes ?? []}
+              disabled={po.approved}
+              onSave={(rows) => { savePurchaseOrder({ ...po, expenses: rows }); }}
+              onSaveExpenseTypes={(types) => erpStore.set({ settings: { ...settings, expenseTypes: types } })}
+              title={`مصروفات الفاتورة ${po.number}`}
+            />
+          </>
+        );
+      })()}
     </ErpLayout>
   );
 }

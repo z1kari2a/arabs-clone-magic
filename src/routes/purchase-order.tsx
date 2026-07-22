@@ -10,6 +10,7 @@ import {
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtInt } from "@/components/erp/ErpUI";
+import ExpensesDialog from "@/components/erp/ExpensesDialog";
 import { erpStore, useErpStore, computePO, savePurchaseOrder } from "@/lib/erp-store";
 import type { PurchaseOrder, PORow, Expense, Currency } from "@/lib/erp-types";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -593,8 +594,11 @@ function POPage() {
       <div className="bg-white border border-slate-300 rounded">
         <div className="flex items-center justify-between px-2 py-1 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
           <div className="flex items-center gap-1">
+            <button onClick={() => setExpDlg(true)} disabled={disabled} className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40">
+              <Wallet size={12} /> فتح شاشة المصروفات
+            </button>
             <button onClick={addExp} disabled={disabled} className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-slate-300 rounded hover:bg-emerald-50 disabled:opacity-40">
-              <Plus size={12} className="text-emerald-600" /> إضافة مصروف
+              <Plus size={12} className="text-emerald-600" /> إضافة سطر
             </button>
           </div>
           <button type="button" onClick={() => setShowExpenses((v) => !v)} className="font-semibold text-slate-700 flex items-center gap-1 hover:text-blue-700" title={showExpenses ? "طي" : "توسيع"}>
@@ -775,6 +779,19 @@ function POPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ExpensesDialog
+        open={expDlg}
+        onOpenChange={setExpDlg}
+        expenses={po.expenses}
+        invoiceCurrency={po.currency}
+        invoiceRate={po.rate}
+        currencies={currencies}
+        expenseTypes={settings.expenseTypes ?? []}
+        disabled={disabled}
+        onSave={(rows) => setPo({ ...po, expenses: rows })}
+        onSaveExpenseTypes={(types) => erpStore.set({ settings: { ...settings, expenseTypes: types } })}
+      />
     </ErpLayout>
   );
 }
