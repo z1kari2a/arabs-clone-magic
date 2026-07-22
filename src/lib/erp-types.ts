@@ -96,6 +96,13 @@ export type Settings = {
   fiscalYear: string;
   language: "ar" | "en";
   priceTiers?: PriceTier[];
+  currencies?: Currency[];
+};
+
+export type Currency = {
+  code: string; // YER, SAR, CNY, USD...
+  name: string; // ريال, يوان...
+  rate: number; // مقابل العملة الأساسية (يمني)
 };
 
 export type PriceTier = {
