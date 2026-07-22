@@ -292,8 +292,15 @@ function POPage() {
                 { value: "cbm", label: "حسب CBM" },
                 { value: "value", label: "حسب قيمة الشراء" },
                 { value: "qty", label: "حسب الكمية" },
-                { value: "avg", label: "متوسط (CBM + القيمة) ÷ 2" },
               ]} />
+            </FieldRow>
+            <FieldRow label="نسبة المصروفات %">
+              <ErpInput
+                value={`${fmt(metrics.totalPurchase > 0 ? (metrics.totalExpenses / metrics.totalPurchase) * 100 : 0, 2)} %`}
+                onChange={() => {}}
+                disabled
+                highlight
+              />
             </FieldRow>
             <FieldRow label="نسبة الربح %">
               <ErpInput value={String(markupPct)} onChange={(v) => setMarkupPct(Number(v) || 0)} disabled={disabled} />
