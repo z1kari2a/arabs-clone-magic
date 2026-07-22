@@ -274,13 +274,17 @@ export function useErpStore<T>(selector: (s: StoreState) => T): T {
 export function computePO(po: PurchaseOrder) {
   const totalItems = po.rows.filter((r) => r.model || r.name).length;
   const totalQty = po.rows.reduce((s, r) => s + (r.qty || 0), 0);
-  const totalPurchase = po.rows.reduce((s, r) => s + r.qty * r.price, 0);
+  const invRate = po.rate || 1;
+  const effPriceOf = (r: import("./erp-types").PORow) => {
+    const rate = r.rate ?? invRate;
+    return r.price * (rate / invRate);
+  };
+  const totalPurchase = po.rows.reduce((s, r) => s + r.qty * effPriceOf(r), 0);
   const totalCBM = po.rows.reduce((s, r) => {
     const cartons = r.pack ? r.qty / r.pack : 0;
     return s + cartons * r.cbm;
   }, 0);
   const totalCartons = po.rows.reduce((s, r) => s + (r.pack ? r.qty / r.pack : 0), 0);
-  const invRate = po.rate || 1;
   const totalExpenses = po.expenses.reduce(
     (s, e) => s + (e.amount * (e.rate || 1)) / invRate,
     0,
@@ -289,7 +293,8 @@ export function computePO(po: PurchaseOrder) {
   const totalCost = totalPurchase + totalExpenses;
   const rowMetrics = po.rows.map((r) => {
     const cartons = r.pack ? r.qty / r.pack : 0;
-    const linePurchase = r.qty * r.price;
+    const effPrice = effPriceOf(r);
+    const linePurchase = r.qty * effPrice;
     const lineCBM = cartons * r.cbm;
     let allocatedExp = 0;
     if (po.distributionType === "cbm" && totalCBM > 0) allocatedExp = (lineCBM / totalCBM) * totalExpenses;
@@ -301,10 +306,10 @@ export function computePO(po: PurchaseOrder) {
       allocatedExp = (byCbm + byVal) / 2;
     }
     const cbmCost = r.qty ? allocatedExp / r.qty : 0;
-    const avgCost = r.price + cbmCost;
+    const avgCost = effPrice + cbmCost;
     const lineTotalCost = avgCost * r.qty;
     const pctCost = linePurchase > 0 ? (allocatedExp / linePurchase) * 100 : 0;
-    return { cartons, linePurchase, lineCBM, allocatedExp, cbmCost, avgCost, lineTotalCost, pctCost };
+    return { cartons, linePurchase, lineCBM, allocatedExp, cbmCost, avgCost, lineTotalCost, pctCost, effPrice };
   });
   return { totalItems, totalQty, totalPurchase, totalCBM, totalCartons, totalExpenses, cbmPrice, totalCost, rowMetrics };
 }
