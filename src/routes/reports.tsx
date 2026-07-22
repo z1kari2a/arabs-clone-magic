@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, BarChart3 } from "lucide-react";
+import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, BarChart3, Wallet } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { ErpTable, fmt, fmtInt } from "@/components/erp/ErpUI";
@@ -54,6 +54,7 @@ function ReportsPage() {
     { icon: Printer, label: "طباعة", color: "text-slate-600", onClick: () => window.print() },
     { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: noop },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
+    { icon: Wallet, label: "المصروفات", hint: "F4", color: "text-orange-600", onClick: () => { setReportId("expenses"); toast.success("تم عرض تقرير المصروفات"); } },
     { icon: CheckCircle2, label: "اعتماد", color: "text-emerald-700", onClick: noop },
     { icon: X, label: "إغلاق", color: "text-rose-600", onClick: () => history.back() },
   ];
