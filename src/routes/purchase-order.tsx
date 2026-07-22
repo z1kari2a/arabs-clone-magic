@@ -75,6 +75,11 @@ function POPage() {
   const [markupPct, setMarkupPct] = useState<number>(30);
   const priceTiers = useErpStore((s) => s.settings.priceTiers ?? []);
 
+  // Collapsible sections — let users shrink big tables to save space.
+  const [showItems, setShowItems] = useState(true);
+  const [showExpenses, setShowExpenses] = useState(true);
+  const [showTiers, setShowTiers] = useState(true);
+
   const metrics = useMemo(() => computePO(po), [po]);
   const supplier = suppliers.find((s) => s.code === po.supplierCode);
 
