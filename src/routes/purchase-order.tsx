@@ -304,7 +304,7 @@ function POPage() {
     <ErpLayout title="أمر شراء" ribbon={<Ribbon actions={actions} />}>
       <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={onFile} className="hidden" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_320px] gap-2">
         <Panel title="بيانات المورد">
           <div className="flex gap-3 items-start">
             <div className="w-16 h-20 bg-slate-100 border border-slate-300 rounded flex items-center justify-center text-slate-400 shrink-0">
@@ -359,6 +359,63 @@ function POPage() {
                 <textarea value={po.notes} onChange={(e) => patch({ notes: e.target.value })} disabled={disabled} className="w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white disabled:bg-slate-50 min-h-[50px]" />
               </FieldRow>
             </div>
+          </div>
+        </Panel>
+
+        {/* Currency side panel — add / edit / delete / set default */}
+        <Panel title={<span className="flex items-center gap-1"><Coins size={13} className="text-amber-600" /> تهيئة العملات</span>}>
+          <div className="space-y-2">
+            <div className="text-[11px] text-slate-600 leading-relaxed">
+              أضف عملة (رمز، اسم، سعر تحويل) لتظهر في قوائم عملة الفاتورة والمصروفات والتسعيرات. حدّد ⭐ للعملة الافتراضية — تُستخدم تلقائياً كعملة الفاتورة في الأوامر الجديدة.
+            </div>
+            <div className="max-h-56 overflow-auto border border-slate-200 rounded">
+              <table className="w-full text-[11px]">
+                <thead className="bg-slate-100 sticky top-0">
+                  <tr>
+                    <th className="p-1 border-b border-slate-200 w-8">⭐</th>
+                    <th className="p-1 border-b border-slate-200">الرمز</th>
+                    <th className="p-1 border-b border-slate-200">الاسم</th>
+                    <th className="p-1 border-b border-slate-200">سعر التحويل</th>
+                    <th className="p-1 border-b border-slate-200 w-8"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currencies.map((c) => {
+                    const isDef = settings.defaultCurrency === c.code;
+                    return (
+                      <tr key={c.code} className={isDef ? "bg-amber-50" : "odd:bg-white even:bg-slate-50/60"}>
+                        <td className="text-center border-b border-slate-100">
+                          <button onClick={() => setAsDefault(c.code)} title="تعيين كافتراضية">
+                            <Star size={13} className={isDef ? "fill-amber-400 text-amber-500" : "text-slate-300 hover:text-amber-400"} />
+                          </button>
+                        </td>
+                        <td className="border-b border-slate-100 p-0">
+                          <input value={c.code} onChange={(e) => patchCurrency(c.code, { code: e.target.value.toUpperCase() })} className="w-full px-1 py-0.5 text-[11px] bg-transparent border-0 focus:outline-none focus:bg-white text-center font-semibold" />
+                        </td>
+                        <td className="border-b border-slate-100 p-0">
+                          <input value={c.name} onChange={(e) => patchCurrency(c.code, { name: e.target.value })} className="w-full px-1 py-0.5 text-[11px] bg-transparent border-0 focus:outline-none focus:bg-white text-right" />
+                        </td>
+                        <td className="border-b border-slate-100 p-0">
+                          <input value={String(c.rate)} onChange={(e) => patchCurrency(c.code, { rate: Number(e.target.value) || 0 })} className="w-full px-1 py-0.5 text-[11px] bg-transparent border-0 focus:outline-none focus:bg-white text-left" />
+                        </td>
+                        <td className="text-center border-b border-slate-100">
+                          <button onClick={() => removeCurrency(c.code)} className="text-rose-500 hover:bg-rose-50 p-0.5 rounded"><Trash2 size={11} /></button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-end gap-1 pt-1 border-t border-slate-200">
+              <input placeholder="رمز" value={newCur.code} onChange={(e) => setNewCur({ ...newCur, code: e.target.value })} className="w-14 px-1 py-1 text-[11px] border border-slate-300 rounded text-center" />
+              <input placeholder="اسم العملة" value={newCur.name} onChange={(e) => setNewCur({ ...newCur, name: e.target.value })} className="flex-1 px-1 py-1 text-[11px] border border-slate-300 rounded text-right" />
+              <input placeholder="السعر" value={String(newCur.rate)} onChange={(e) => setNewCur({ ...newCur, rate: Number(e.target.value) || 0 })} className="w-16 px-1 py-1 text-[11px] border border-slate-300 rounded text-left" />
+              <button onClick={addCurrency} className="px-2 py-1 text-[11px] bg-emerald-600 text-white rounded hover:bg-emerald-700 flex items-center gap-0.5"><Plus size={11} /> إضافة</button>
+            </div>
+            {settings.defaultCurrency && (
+              <div className="text-[10px] text-slate-500 pt-1">العملة الافتراضية الحالية: <span className="font-bold text-amber-700">{settings.defaultCurrency}</span></div>
+            )}
           </div>
         </Panel>
       </div>
