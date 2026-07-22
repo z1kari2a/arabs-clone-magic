@@ -824,3 +824,93 @@ export const SEED_INVOICE = {
     }
   ]
 } as const;
+
+// ---------- Demo data seeder ----------
+import type { Supplier, PurchaseOrder, Item, Expense, PORow } from "./erp-types";
+import { localDb } from "./local-db";
+
+export async function seedDemoData(): Promise<void> {
+  const [sups, pos] = await Promise.all([
+    localDb.suppliers.list(),
+    localDb.purchaseOrders.list(),
+  ]);
+  if (sups.length > 0 || pos.length > 0) return; // already seeded
+
+  const suppliers: Supplier[] = [
+    { code: "SUP-001", name: "مصنع قوانغتشو للأدوات المنزلية", country: "الصين", city: "قوانغتشو", phone: "+86 20 1234 5678", email: "sales@gz-house.cn", currency: "USD", notes: "مورد رئيسي — حاويات شهرية", active: true },
+    { code: "SUP-002", name: "شركة ييوو للتصدير",             country: "الصين", city: "ييوو",     phone: "+86 579 8765 4321", email: "info@yiwu-exp.cn",  currency: "USD", notes: "بلاستيكيات ومطبخ",       active: true },
+    { code: "SUP-003", name: "مؤسسة النور للاستيراد المحلي",    country: "اليمن", city: "صنعاء",    phone: "+967 1 555 0100",   email: "noor@local.ye",     currency: "USD", notes: "توريدات محلية",           active: true },
+  ];
+  for (const s of suppliers) await localDb.suppliers.upsert(s);
+
+  const rows: PORow[] = SEED_INVOICE.rows.map((r, i) => ({
+    id: i + 1,
+    model: r.model,
+    name: r.name,
+    unit: "كرتون",
+    pack: r.pack,
+    qty: r.qty,
+    price: r.price,
+    cbm: r.cbm,
+  }));
+  const expenses: Expense[] = SEED_INVOICE.expenses.map((e, i) => ({
+    id: i + 1,
+    type: e.type,
+    note: e.note,
+    currency: e.currency,
+    amount: e.amount,
+    rate: e.rate,
+  }));
+
+  const po1: PurchaseOrder = {
+    number: "PO-2026-0001",
+    date: new Date().toISOString().slice(0, 10),
+    invoiceNo: "INV-PCIU8480987",
+    supplierCode: "SUP-001",
+    currency: "USD",
+    rate: 1,
+    containerNo: "PCIU8480987",
+    containerSize: "40HQ",
+    distributionType: "avg",
+    notes: "فاتورة عرض توضيحية — بيانات حقيقية من ملف الاستيراد",
+    rows,
+    expenses,
+    approved: true,
+  };
+
+  // Second smaller draft order — first 8 items, different supplier
+  const po2: PurchaseOrder = {
+    number: "PO-2026-0002",
+    date: new Date().toISOString().slice(0, 10),
+    invoiceNo: "INV-2026-002",
+    supplierCode: "SUP-002",
+    currency: "USD",
+    rate: 1,
+    containerNo: "YIWU-40-002",
+    containerSize: "20GP",
+    distributionType: "cbm",
+    notes: "مسودة — قيد المراجعة",
+    rows: rows.slice(0, 8).map((r, i) => ({ ...r, id: i + 1, qty: Math.max(1, Math.round(r.qty * 0.6)) })),
+    expenses: expenses.slice(0, 5).map((e, i) => ({ ...e, id: i + 1, amount: +(e.amount * 0.4).toFixed(2) })),
+    approved: false,
+  };
+
+  await localDb.purchaseOrders.upsert(po1);
+  await localDb.purchaseOrders.upsert(po2);
+
+  // Build items catalog from PO rows
+  const seen = new Set<string>();
+  for (const r of rows) {
+    if (seen.has(r.model)) continue;
+    seen.add(r.model);
+    const item: Item = {
+      code: r.model,
+      name: r.name,
+      barcode: "",
+      units: [{ name: "كرتون", pack: r.pack, lastPrice: r.price }],
+      cbmPerCarton: r.cbm,
+      lastCost: 0,
+    };
+    await localDb.items.upsert(item);
+  }
+}
