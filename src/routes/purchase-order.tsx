@@ -13,6 +13,8 @@ import { erpStore, useErpStore, computePO, savePurchaseOrder } from "@/lib/erp-s
 import type { PurchaseOrder, PORow, Expense } from "@/lib/erp-types";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { SEED_INVOICE } from "@/lib/erp-seed";
+import { upsertSupplier } from "@/lib/erp-store";
 
 export const Route = createFileRoute("/purchase-order")({
   head: () => ({
@@ -70,6 +72,7 @@ function POPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const [markupPct, setMarkupPct] = useState<number>(30);
+  const priceTiers = useErpStore((s) => s.settings.priceTiers ?? []);
 
   const metrics = useMemo(() => computePO(po), [po]);
   const supplier = suppliers.find((s) => s.code === po.supplierCode);
@@ -171,6 +174,39 @@ function POPage() {
     toast.success("تم التصدير إلى Excel");
   };
 
+  const onLoadSeed = async () => {
+    const supCode = "PCIU8480987";
+    await upsertSupplier({
+      code: supCode, name: "المورد الصيني - حاوية PCIU8480987",
+      country: "الصين", city: "قوانغجو", phone: "", email: "",
+      currency: "USD", notes: "بيانات مستوردة من فاتورة العرض", active: true,
+    });
+    const seeded: PurchaseOrder = {
+      number: `PO-DEMO-${Date.now().toString().slice(-5)}`,
+      date: new Date().toISOString().slice(0, 10).replace(/-/g, "/"),
+      invoiceNo: supCode,
+      supplierCode: supCode,
+      currency: "USD",
+      rate: 1,
+      containerNo: supCode,
+      containerSize: "40 قدم HQ",
+      distributionType: "avg",
+      notes: "الاتفاق: 30% قبل التصنيع، 30% عند التحميل، 40% قبل وصول الميناء",
+      rows: SEED_INVOICE.rows.map((r, i) => ({
+        id: i + 1, model: r.model, name: r.name, unit: "حبة",
+        pack: r.pack, qty: r.qty, price: r.price, cbm: r.cbm,
+      })),
+      expenses: SEED_INVOICE.expenses.map((e, i) => ({
+        id: i + 1, type: e.type, note: e.note,
+        currency: e.currency, amount: e.amount, rate: e.rate,
+      })),
+      approved: false,
+    };
+    setPo(seeded);
+    setEditing(true);
+    toast.success(`تم تحميل بيانات العرض (${seeded.rows.length} صنف، ${seeded.expenses.length} مصروف)`);
+  };
+
   const actions = [
     { icon: FilePlus2, label: "جديد", hint: "Ctrl+N", color: "text-emerald-600", onClick: onNew },
     { icon: Copy, label: "نسخ", hint: "Ctrl+D", color: "text-purple-600", onClick: onCopy },
@@ -184,6 +220,7 @@ function POPage() {
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
     { icon: Wallet, label: "المصروفات", hint: "F4", color: "text-orange-600", onClick: () => setExpDlg(true) },
     { icon: CheckCircle2, label: "اعتماد", hint: "F9", color: "text-emerald-700", onClick: onApprove, disabled: po.approved },
+    { icon: FileSpreadsheet, label: "بيانات العرض", color: "text-fuchsia-600", onClick: onLoadSeed },
     { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: () => history.back() },
   ];
 
@@ -375,6 +412,37 @@ function POPage() {
           <SummaryStat label="إجمالي التكلفة" value={fmt(metrics.totalCost)} unit={po.currency} highlight />
         </div>
       </div>
+
+      {/* Price tiers */}
+      {priceTiers.length > 0 && (
+        <div className="bg-white border border-slate-300 rounded">
+          <div className="text-center py-1 font-semibold text-slate-700 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
+            التسعيرات حسب الوجهات (تُدار من شاشة الإعدادات)
+          </div>
+          <ErpTable headers={["م", "الموديل", "اسم الصنف", "متوسط التكلفة", ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`])]}>
+            {po.rows.filter((r) => r.model || r.name).map((r, i) => {
+              const m = metrics.rowMetrics[i];
+              const avg = m?.avgCost ?? 0;
+              return (
+                <tr key={r.id} className="odd:bg-white even:bg-slate-50/50">
+                  <td className="border border-slate-200 text-center text-slate-500 w-10">{i + 1}</td>
+                  <td className="border border-slate-200 text-center px-2">{r.model}</td>
+                  <td className="border border-slate-200 text-right px-2">{r.name}</td>
+                  <td className="border border-slate-200 text-right px-2 bg-amber-50 font-semibold">{fmt(avg, 4)}</td>
+                  {priceTiers.flatMap((t) => {
+                    const tierCost = avg * (1 + (t.extraPct || 0) / 100);
+                    const salePrice = tierCost * (1 + (t.profitPct || 0) / 100);
+                    return [
+                      <td key={t.id + "c"} className="border border-slate-200 text-right px-2">{fmt(tierCost, 4)}</td>,
+                      <td key={t.id + "s"} className="border border-slate-200 text-right px-2 bg-emerald-50 font-semibold text-emerald-700">{fmt(salePrice, 4)}</td>,
+                    ];
+                  })}
+                </tr>
+              );
+            })}
+          </ErpTable>
+        </div>
+      )}
 
       {/* Dialogs */}
       <Dialog open={openDlg} onOpenChange={setOpenDlg}>
