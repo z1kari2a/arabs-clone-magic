@@ -3,6 +3,7 @@ import { Minus, Square, X, Circle, Keyboard, LogOut, ShieldCheck } from "lucide-
 import { useEffect, useState, type ReactNode } from "react";
 import { useErpStore, useHydrate } from "@/lib/erp-store";
 import { useAuth } from "@/lib/auth";
+import { QuickSidebar } from "./QuickSidebar";
 
 const TABS = [
   { to: "/home", label: "الرئيسية" },
@@ -53,9 +54,9 @@ export default function ErpLayout({
   }
 
   return (
-    <div className="h-screen font-sans text-[13px] text-slate-800 flex flex-col overflow-hidden" style={{ background: "var(--color-erp-bg)" }} dir="rtl">
+    <div className="h-screen w-full font-sans text-[13px] text-slate-800 flex flex-col overflow-hidden" style={{ background: "var(--color-erp-bg)" }} dir="rtl">
       {/* Title bar */}
-      <div className="relative flex items-center justify-between px-3 h-9 text-white" style={{ background: "var(--color-erp-titlebar)" }}>
+      <div className="relative flex items-center justify-between px-3 h-9 text-white shrink-0" style={{ background: "var(--color-erp-titlebar)" }}>
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded bg-white/20 flex items-center justify-center text-[10px] font-bold">ERP</div>
           <span className="text-sm font-semibold">{settings.companyName}</span>
@@ -69,51 +70,57 @@ export default function ErpLayout({
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-end bg-gradient-to-b from-slate-100 to-slate-200 border-b border-slate-300 px-1 pt-1">
-        <button className="px-4 py-1.5 text-[13px] bg-slate-100 border border-transparent hover:bg-white/70 text-slate-700 rounded-t-md ml-1">ملف</button>
-        {TABS.filter((t) => !(t as any).adminOnly || role === "admin").map((t) => {
-          const active = pathname.startsWith(t.to);
-          return (
-            <Link
-              key={t.to}
-              to={t.to}
-              className={`px-4 py-1.5 text-[13px] border border-b-0 rounded-t-md ml-1 ${
-                active
-                  ? "bg-white border-slate-300 font-semibold text-blue-700"
-                  : "bg-slate-100 border-transparent hover:bg-white/70 text-slate-700"
-              }`}
-            >
-              {t.label}
-            </Link>
-          );
-        })}
-        <button className="px-4 py-1.5 text-[13px] bg-slate-100 border border-transparent hover:bg-white/70 text-slate-700 rounded-t-md ml-1">المساعدة</button>
-      </div>
+      <div className="flex flex-1 flex-row overflow-hidden">
+        <QuickSidebar />
 
-      {/* Ribbon */}
-      {ribbon && (
-        <div className="bg-gradient-to-b from-white to-slate-50 border-b border-slate-300 px-2 py-1 flex items-stretch gap-0.5 overflow-x-auto shadow-[0_1px_0_rgba(0,0,0,0.03)]">
-          {ribbon}
-        </div>
-      )}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Tabs */}
+          <div className="flex items-end bg-gradient-to-b from-slate-100 to-slate-200 border-b border-slate-300 px-1 pt-1 shrink-0">
+            <button className="px-4 py-1.5 text-[13px] bg-slate-100 border border-transparent hover:bg-white/70 text-slate-700 rounded-t-md ml-1">ملف</button>
+            {TABS.filter((t) => !(t as any).adminOnly || role === "admin").map((t) => {
+              const active = pathname.startsWith(t.to);
+              return (
+                <Link
+                  key={t.to}
+                  to={t.to}
+                  className={`px-4 py-1.5 text-[13px] border border-b-0 rounded-t-md ml-1 ${
+                    active
+                      ? "bg-white border-slate-300 font-semibold text-blue-700"
+                      : "bg-slate-100 border-transparent hover:bg-white/70 text-slate-700"
+                  }`}
+                >
+                  {t.label}
+                </Link>
+              );
+            })}
+            <button className="px-4 py-1.5 text-[13px] bg-slate-100 border border-transparent hover:bg-white/70 text-slate-700 rounded-t-md ml-1">المساعدة</button>
+          </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="mx-auto max-w-[1600px] p-3 space-y-2">{children}</div>
-      </div>
+          {/* Ribbon */}
+          {ribbon && (
+            <div className="bg-gradient-to-b from-white to-slate-50 border-b border-slate-300 px-2 py-1 flex items-stretch gap-0.5 overflow-x-auto shadow-[0_1px_0_rgba(0,0,0,0.03)] shrink-0">
+              {ribbon}
+            </div>
+          )}
 
-      {/* Status bar */}
-      <div className="flex items-center justify-between px-3 py-1 text-white text-[11px] border-t border-black/10" style={{ background: "var(--color-erp-status)" }}>
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1">المستخدم: {fullName || user?.username}</span>
-          {role && <span className={`px-1.5 py-0.5 rounded text-white ${roleBadgeCls} flex items-center gap-1`}><ShieldCheck size={10} /> {roleLabel}</span>}
-          <span>الفترة المالية: {settings.fiscalYear}</span>
-          <span className="hidden md:flex items-center gap-1 opacity-90"><Keyboard size={12} /> Ctrl+N جديد • Ctrl+S حفظ • F2 تعديل • F3 بحث • F9 اعتماد • Esc إغلاق</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1"><Circle size={8} className="fill-emerald-400 text-emerald-400" /> متصل</span>
-          <span className="tabular-nums">{clock}</span>
+          {/* Content */}
+          <div className="flex-1 overflow-auto">
+            <div className="mx-auto max-w-[1600px] p-3 space-y-2">{children}</div>
+          </div>
+
+          {/* Status bar */}
+          <div className="flex items-center justify-between px-3 py-1 text-white text-[11px] border-t border-black/10 shrink-0" style={{ background: "var(--color-erp-status)" }}>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1">المستخدم: {fullName || user?.username}</span>
+              {role && <span className={`px-1.5 py-0.5 rounded text-white ${roleBadgeCls} flex items-center gap-1`}><ShieldCheck size={10} /> {roleLabel}</span>}
+              <span>الفترة المالية: {settings.fiscalYear}</span>
+              <span className="hidden md:flex items-center gap-1 opacity-90"><Keyboard size={12} /> Ctrl+N جديد • Ctrl+S حفظ • F2 تعديل • F3 بحث • F9 اعتماد • Esc إغلاق</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1"><Circle size={8} className="fill-emerald-400 text-emerald-400" /> متصل</span>
+              <span className="tabular-nums">{clock}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
