@@ -397,7 +397,7 @@ function POPage() {
               <Cell value={e.currency} onChange={(v) => patchExp(e.id, { currency: v })} disabled={disabled} />
               <Cell value={String(e.amount)} onChange={(v) => patchExp(e.id, { amount: Number(v) || 0 })} disabled={disabled} align="right" />
               <Cell value={String(e.rate)} onChange={(v) => patchExp(e.id, { rate: Number(v) || 0 })} disabled={disabled} align="right" />
-              <Cell value={fmt(e.amount * (e.rate || 1))} />
+              <Cell value={fmt((e.amount * (e.rate || 1)) / (po.rate || 1))} />
               <td className="border border-slate-200 text-center">
                 <button disabled={disabled} onClick={() => removeExp(e.id)} className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-40"><Trash2 size={12} /></button>
               </td>
