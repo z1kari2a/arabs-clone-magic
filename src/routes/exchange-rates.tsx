@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Save, RefreshCw, Star, DollarSign } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
-import { Panel, fmt } from "@/components/erp/ErpUI";
+import { Panel, fmt, parseDecimal } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore } from "@/lib/erp-store";
 import type { Currency } from "@/lib/erp-types";
 
@@ -121,8 +121,8 @@ function ExchangeRatesPage() {
                       className="w-full px-2 py-1 text-right bg-transparent focus:outline-none focus:bg-blue-50/50 rounded" />
                   </td>
                   <td className="border border-slate-200 p-1">
-                    <input type="number" step="0.000001" value={c.rate || ""}
-                      onChange={(e) => patch(c.code, { rate: Number(e.target.value) || 0 })}
+                    <input type="text" inputMode="decimal" value={c.rate || ""}
+                      onChange={(e) => patch(c.code, { rate: parseDecimal(e.target.value) })}
                       className="w-full px-2 py-1 text-right tabular-nums bg-transparent focus:outline-none focus:bg-blue-50/50 rounded" />
                   </td>
                   <td className="border border-slate-200 text-center text-slate-600 tabular-nums text-xs">
@@ -153,8 +153,8 @@ function ExchangeRatesPage() {
           </div>
           <div>
             <label className="text-[11px] text-slate-600 block mb-1">سعر التحويل</label>
-            <input type="number" step="0.000001" value={nc.rate || ""}
-              onChange={(e) => setNc({ ...nc, rate: Number(e.target.value) || 0 })}
+            <input type="text" inputMode="decimal" value={nc.rate || ""}
+              onChange={(e) => setNc({ ...nc, rate: parseDecimal(e.target.value) })}
               placeholder="530" className="w-full px-2 py-1.5 border border-slate-300 rounded text-right tabular-nums" />
           </div>
           <button onClick={add} className="flex items-center justify-center gap-1 px-3 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-sm">
@@ -210,7 +210,7 @@ function ConversionTester({ rows }: { rows: Currency[] }) {
     <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
       <div>
         <label className="text-[11px] text-slate-600 block mb-1">المبلغ</label>
-        <input type="number" value={amt || ""} onChange={(e) => setAmt(Number(e.target.value) || 0)}
+        <input type="text" inputMode="decimal" value={amt || ""} onChange={(e) => setAmt(parseDecimal(e.target.value))}
           className="w-full px-2 py-1.5 border border-slate-300 rounded text-right tabular-nums" />
       </div>
       <div>
