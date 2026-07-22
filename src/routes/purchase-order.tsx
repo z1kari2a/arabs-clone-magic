@@ -644,7 +644,17 @@ function POPage() {
 
       {/* Summary */}
       <div className="bg-white border border-slate-300 rounded">
-        <div className="text-center py-1 font-semibold text-slate-700 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>ملخص أمر الشراء</div>
+        <div className="flex items-center justify-between px-3 py-1 font-semibold text-slate-700 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
+          <div className="text-[11px] flex items-center gap-1">
+            <Coins size={12} className="text-amber-600" />
+            <span className="text-slate-600">العملة الرئيسية للإجمالي:</span>
+            <select value={masterCurrency} onChange={(e) => setMasterCurrency(e.target.value)} className="px-2 py-0.5 text-[11px] border border-slate-300 rounded bg-white font-bold">
+              {currencyOptions.map((o) => (<option key={o.value} value={o.value}>{o.value}</option>))}
+            </select>
+          </div>
+          <div>ملخص أمر الشراء</div>
+          <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt((po.rate || 1) / (rateOfCode(masterCurrency) || 1), 4)} {masterCurrency}</div>
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 p-2">
           <SummaryStat label="عدد الأصناف" value={fmtInt(metrics.totalItems)} unit="صنف" />
           <SummaryStat label="إجمالي الكمية" value={fmtInt(metrics.totalQty)} />
@@ -653,6 +663,15 @@ function POPage() {
           <SummaryStat label="إجمالي المصروفات" value={fmt(metrics.totalExpenses)} unit={po.currency} />
           <SummaryStat label="سعر CBM" value={fmt(metrics.cbmPrice)} unit={po.currency} />
           <SummaryStat label="إجمالي التكلفة" value={fmt(metrics.totalCost)} unit={po.currency} highlight />
+        </div>
+        <div className="border-t border-slate-200 bg-gradient-to-l from-amber-50 to-emerald-50 px-3 py-2 flex items-center justify-between">
+          <div className="text-[11px] text-slate-600">
+            الإجمالي النهائي محوّل تلقائيًا إلى <b className="text-amber-700">{masterCurrency}</b>
+          </div>
+          <div className="text-lg font-black text-emerald-700">
+            {fmt(metrics.totalCost * ((po.rate || 1) / (rateOfCode(masterCurrency) || 1)))}
+            <span className="text-xs text-slate-500 mr-2">{masterCurrency}</span>
+          </div>
         </div>
       </div>
 
