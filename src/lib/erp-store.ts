@@ -279,6 +279,11 @@ export function computePO(po: PurchaseOrder) {
     if (po.distributionType === "cbm" && totalCBM > 0) allocatedExp = (lineCBM / totalCBM) * totalExpenses;
     else if (po.distributionType === "value" && totalPurchase > 0) allocatedExp = (linePurchase / totalPurchase) * totalExpenses;
     else if (po.distributionType === "qty" && totalQty > 0) allocatedExp = (r.qty / totalQty) * totalExpenses;
+    else if (po.distributionType === "avg") {
+      const byCbm = totalCBM > 0 ? (lineCBM / totalCBM) * totalExpenses : 0;
+      const byVal = totalPurchase > 0 ? (linePurchase / totalPurchase) * totalExpenses : 0;
+      allocatedExp = (byCbm + byVal) / 2;
+    }
     const cbmCost = r.qty ? allocatedExp / r.qty : 0;
     const avgCost = r.price + cbmCost;
     const lineTotalCost = avgCost * r.qty;

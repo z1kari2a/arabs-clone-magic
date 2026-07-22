@@ -54,7 +54,7 @@ export type PurchaseOrder = {
   rate: number;
   containerNo: string;
   containerSize: string;
-  distributionType: "cbm" | "value" | "qty";
+  distributionType: "cbm" | "value" | "qty" | "avg";
   notes: string;
   rows: PORow[];
   expenses: Expense[];
