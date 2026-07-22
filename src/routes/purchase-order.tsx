@@ -331,9 +331,12 @@ function POPage() {
               <Trash2 size={12} className="text-rose-600" /> حذف
             </button>
           </div>
-          <div className="font-semibold text-slate-700">جدول الأصناف</div>
+          <button type="button" onClick={() => setShowItems((v) => !v)} className="font-semibold text-slate-700 flex items-center gap-1 hover:text-blue-700" title={showItems ? "طي الجدول" : "توسيع الجدول"}>
+            {showItems ? <ChevronUp size={14} /> : <ChevronDown size={14} />} جدول الأصناف ({po.rows.filter((r) => r.model || r.name).length})
+          </button>
           <div className="text-xs text-slate-500">{po.approved && <span className="text-emerald-600 font-semibold">✓ معتمد</span>}</div>
         </div>
+        {showItems && (
         <ErpTable headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","سعر الشراء","تكلفة الشراء","CBM الكرتون","إجمالي CBM","تكلفة CBM","متوسط التكلفة","إجمالي التكلفة","التكلفة %","سعر البيع"]}>
           {(() => {
             const displayRows = po.rows.length >= MIN_ROWS
@@ -381,6 +384,7 @@ function POPage() {
             <td className="border border-slate-300"></td>
           </tr>
         </ErpTable>
+        )}
       </div>
 
       {/* Expenses */}
@@ -391,9 +395,12 @@ function POPage() {
               <Plus size={12} className="text-emerald-600" /> إضافة مصروف
             </button>
           </div>
-          <div className="font-semibold text-slate-700 flex items-center gap-1"><Wallet size={14} /> المصروفات</div>
+          <button type="button" onClick={() => setShowExpenses((v) => !v)} className="font-semibold text-slate-700 flex items-center gap-1 hover:text-blue-700" title={showExpenses ? "طي" : "توسيع"}>
+            {showExpenses ? <ChevronUp size={14} /> : <ChevronDown size={14} />} <Wallet size={14} /> المصروفات ({po.expenses.length})
+          </button>
           <div className="text-xs text-slate-600">الإجمالي: <span className="font-bold">{fmt(metrics.totalExpenses)}</span> {po.currency}</div>
         </div>
+        {showExpenses && (
         <ErpTable headers={["م","اسم المصروف","رقم الحساب","الحساب التحليلي","رقم المركز","مرفقة","المبلغ","سعر التحويل","المبلغ بعملة الفاتورة","رقم الفاتورة","تاريخ الفاتورة","البيان","الفرع المستفيد",""]}>
           {po.expenses.map((e, i) => (
             <tr key={e.id} className="hover:bg-blue-50/40">
@@ -418,6 +425,7 @@ function POPage() {
             </tr>
           ))}
         </ErpTable>
+        )}
       </div>
 
       {/* Summary */}
@@ -437,9 +445,10 @@ function POPage() {
       {/* Price tiers */}
       {priceTiers.length > 0 && (
         <div className="bg-white border border-slate-300 rounded">
-          <div className="text-center py-1 font-semibold text-slate-700 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
-            التسعيرات حسب الوجهات (تُدار من شاشة الإعدادات)
-          </div>
+          <button type="button" onClick={() => setShowTiers((v) => !v)} className="w-full text-center py-1 font-semibold text-slate-700 border-b border-slate-300 hover:bg-slate-100 flex items-center justify-center gap-1" style={{ background: "var(--color-erp-panel-header)" }} title={showTiers ? "طي" : "توسيع"}>
+            {showTiers ? <ChevronUp size={14} /> : <ChevronDown size={14} />} التسعيرات حسب الوجهات (تُدار من شاشة الإعدادات)
+          </button>
+          {showTiers && (
           <ErpTable headers={["م", "الموديل", "اسم الصنف", "متوسط التكلفة", ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`])]}>
             {po.rows.filter((r) => r.model || r.name).map((r, i) => {
               const m = metrics.rowMetrics[i];
@@ -462,6 +471,7 @@ function POPage() {
               );
             })}
           </ErpTable>
+          )}
         </div>
       )}
 
