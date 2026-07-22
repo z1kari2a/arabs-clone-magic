@@ -9,6 +9,10 @@ import Ribbon from "@/components/erp/Ribbon";
 import { ErpTable, fmt, fmtInt } from "@/components/erp/ErpUI";
 import { useErpStore, computePO } from "@/lib/erp-store";
 
+const searchSchema = z.object({
+  tab: z.enum(["purchases", "items", "expenses", "suppliers"]).optional(),
+});
+
 export const Route = createFileRoute("/reports")({
   head: () => ({
     meta: [
@@ -18,6 +22,7 @@ export const Route = createFileRoute("/reports")({
       { property: "og:description", content: "شاشة التقارير" },
     ],
   }),
+  validateSearch: searchSchema.parse,
   component: ReportsPage,
 });
 
@@ -29,7 +34,12 @@ const REPORTS = [
 ];
 
 function ReportsPage() {
-  const [reportId, setReportId] = useState("purchases");
+  const { tab } = Route.useSearch();
+  const [reportId, setReportId] = useState(tab || "purchases");
+
+  useEffect(() => {
+    if (tab) setReportId(tab);
+  }, [tab]);
   const orders = useErpStore((s) => s.purchaseOrders);
   const suppliers = useErpStore((s) => s.suppliers);
   const items = useErpStore((s) => s.items);
