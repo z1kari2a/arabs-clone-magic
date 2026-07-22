@@ -87,4 +87,12 @@ export type Settings = {
   defaultCurrency: string;
   fiscalYear: string;
   language: "ar" | "en";
+  priceTiers?: PriceTier[];
+};
+
+export type PriceTier = {
+  id: string;
+  name: string;
+  extraPct: number;   // % added on top of avg cost (logistics, taxes for destination)
+  profitPct: number;  // % profit margin applied on top of tier cost
 };
