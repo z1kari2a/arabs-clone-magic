@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer,
   FileSpreadsheet, Download, CheckCircle2, X, Plus, Wallet, Building2, Copy,
-  ChevronUp, ChevronDown, Coins, Star,
+  ChevronUp, ChevronDown, Coins, Star, Package, ChevronLeft, Check,
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
