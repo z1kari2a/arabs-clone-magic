@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import {
   FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer,
-  FileSpreadsheet, Download, CheckCircle2, X, Plus, Wallet, Building2,
+  FileSpreadsheet, Download, CheckCircle2, X, Plus, Wallet, Building2, Copy,
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
@@ -126,6 +126,12 @@ function POPage() {
     toast.success("تم اعتماد أمر الشراء");
   };
   const onImport = () => fileRef.current?.click();
+  const onCopy = () => {
+    const num = `PO-2024-${String(Math.floor(Math.random() * 90000) + 10000)}`;
+    setPo({ ...po, number: num, approved: false, invoiceNo: "" });
+    setEditing(true);
+    toast.success("تم نسخ الأمر - عدّل ثم احفظ");
+  };
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
     const wb = XLSX.read(await f.arrayBuffer());
@@ -167,6 +173,7 @@ function POPage() {
 
   const actions = [
     { icon: FilePlus2, label: "جديد", hint: "Ctrl+N", color: "text-emerald-600", onClick: onNew },
+    { icon: Copy, label: "نسخ", hint: "Ctrl+D", color: "text-purple-600", onClick: onCopy },
     { icon: FolderOpen, label: "فتح", hint: "Ctrl+O", color: "text-amber-500", onClick: () => setOpenDlg(true) },
     { icon: Save, label: "حفظ", hint: "Ctrl+S", color: "text-blue-600", onClick: onSave, disabled: !editing },
     { icon: Pencil, label: "تعديل", hint: "F2", color: "text-cyan-600", onClick: onEdit, disabled: po.approved },
@@ -175,6 +182,7 @@ function POPage() {
     { icon: Printer, label: "طباعة", hint: "Ctrl+P", color: "text-slate-600", onClick: () => window.print() },
     { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
+    { icon: Wallet, label: "المصروفات", hint: "F4", color: "text-orange-600", onClick: () => setExpDlg(true) },
     { icon: CheckCircle2, label: "اعتماد", hint: "F9", color: "text-emerald-700", onClick: onApprove, disabled: po.approved },
     { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: () => history.back() },
   ];
@@ -189,7 +197,9 @@ function POPage() {
       else if (e.ctrlKey && k === "p") { e.preventDefault(); window.print(); }
       else if (e.key === "F2") { e.preventDefault(); if (!po.approved) onEdit(); }
       else if (e.key === "F3") { e.preventDefault(); setSearchDlg(true); }
+      else if (e.key === "F4") { e.preventDefault(); setExpDlg(true); }
       else if (e.key === "F9") { e.preventDefault(); if (!po.approved) onApprove(); }
+      else if (e.ctrlKey && k === "d") { e.preventDefault(); onCopy(); }
       else if (e.key === "Escape") { setOpenDlg(false); setSupDlg(false); setExpDlg(false); setSearchDlg(false); }
     };
     window.addEventListener("keydown", onKey);
