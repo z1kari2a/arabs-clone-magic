@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 export const fmt = (n: number, d = 2) =>
   (isFinite(n) ? n : 0).toLocaleString("en-US", {
@@ -7,13 +8,42 @@ export const fmt = (n: number, d = 2) =>
   });
 export const fmtInt = (n: number) => (isFinite(n) ? n : 0).toLocaleString("en-US");
 
-export function Panel({ title, children, className = "" }: { title: string; children: ReactNode; className?: string }) {
+export function Panel({
+  title,
+  children,
+  className = "",
+  collapsible = false,
+  defaultCollapsed = false,
+}: {
+  title: string;
+  children: ReactNode;
+  className?: string;
+  /** Show a toggle in the header that hides/shows the panel body. */
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   return (
     <div className={`bg-white border border-slate-300 rounded ${className}`}>
-      <div className="text-center py-1 font-semibold text-slate-700 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
+      <div
+        className={`relative text-center py-1 font-semibold text-slate-700 border-b border-slate-300 ${collapsible ? "cursor-pointer select-none hover:bg-slate-100" : ""}`}
+        style={{ background: "var(--color-erp-panel-header)" }}
+        onClick={collapsible ? () => setCollapsed((c) => !c) : undefined}
+        title={collapsible ? (collapsed ? "توسيع" : "طي") : undefined}
+      >
         {title}
+        {collapsible && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setCollapsed((c) => !c); }}
+            className="absolute inset-y-0 left-2 flex items-center text-slate-600 hover:text-slate-900"
+            aria-label={collapsed ? "توسيع" : "طي"}
+          >
+            {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+          </button>
+        )}
       </div>
-      <div className="p-2">{children}</div>
+      {!collapsed && <div className="p-2">{children}</div>}
     </div>
   );
 }
