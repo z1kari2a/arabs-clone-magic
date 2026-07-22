@@ -103,6 +103,8 @@ export type Settings = {
   currencies?: Currency[];
   /** Currency used to display the grand total of a purchase order. */
   masterCurrency?: string;
+  /** Predefined expense types shown in the expenses dialog. */
+  expenseTypes?: string[];
 };
 
 export type Currency = {
