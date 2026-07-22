@@ -59,6 +59,14 @@ export default function ErpLayout({
       {/* Title bar */}
       <div className="relative flex items-center justify-between px-3 h-9 text-white shrink-0" style={{ background: "var(--color-erp-titlebar)" }}>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSidebarOpen((v) => !v)}
+            title={sidebarOpen ? "إخفاء القائمة الجانبية" : "إظهار القائمة الجانبية"}
+            className="w-7 h-7 rounded hover:bg-white/15 flex items-center justify-center transition-colors"
+            aria-label={sidebarOpen ? "إخفاء القائمة الجانبية" : "إظهار القائمة الجانبية"}
+          >
+            <Menu size={16} />
+          </button>
           <div className="w-6 h-6 rounded bg-white/20 flex items-center justify-center text-[10px] font-bold">ERP</div>
           <span className="text-sm font-semibold">{settings.companyName}</span>
         </div>
