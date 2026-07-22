@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Role } from "./erp-types";
 import { localDb, hashPassword, randomSalt, newId, logAudit, type LocalUser } from "./local-db";
+import { seedDemoData } from "./erp-seed";
 
 // -------- Local authentication (no cloud) --------
 // Session lives in sessionStorage so it survives reloads but not tab close.
@@ -49,6 +50,7 @@ async function init() {
   if (users.length === 0) {
     // Seed demo accounts so provided credentials work out of the box.
     await seedDemoUsers();
+    await seedDemoData();
     users = await localDb.users.list();
   }
   const current = readSession();
@@ -66,6 +68,7 @@ async function seedDemoUsers() {
   const demos: Array<{ username: string; password: string; fullName: string; role: Role }> = [
     { username: "admin@demo.local", password: "Admin@2026!", fullName: "مدير النظام", role: "admin" },
     { username: "user@demo.local", password: "User@2026!", fullName: "مستخدم تجريبي", role: "user" },
+    { username: "demo@demo.local", password: "Demo@2026!", fullName: "حساب العرض", role: "viewer" },
   ];
   for (const d of demos) {
     const salt = await randomSalt();
