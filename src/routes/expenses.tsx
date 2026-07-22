@@ -113,7 +113,6 @@ function ExpensesPage() {
       const o = orders.find((x) => x.number === num);
       if (o) totalPurchase += computePO(o).totalPurchase;
     });
-    const expenseRatio = totalPurchase > 0 ? (total / totalPurchase) * 100 : 0;
     let totalCBM = 0;
     ordersSet.forEach((num) => {
       const o = orders.find((x) => x.number === num);
@@ -170,7 +169,6 @@ function ExpensesPage() {
       ordersCount: ordersSet.size,
       avgPerOrder,
       avgPerLine,
-      expenseRatio,
       totalPurchase,
       cbmCost,
       totalCBM,
