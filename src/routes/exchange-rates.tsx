@@ -210,7 +210,7 @@ function ConversionTester({ rows }: { rows: Currency[] }) {
     <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
       <div>
         <label className="text-[11px] text-slate-600 block mb-1">المبلغ</label>
-        <input type="number" value={amt || ""} onChange={(e) => setAmt(Number(e.target.value) || 0)}
+        <input type="number" inputMode="decimal" value={amt || ""} onChange={(e) => setAmt(parseDecimal(e.target.value))}
           className="w-full px-2 py-1.5 border border-slate-300 rounded text-right tabular-nums" />
       </div>
       <div>
