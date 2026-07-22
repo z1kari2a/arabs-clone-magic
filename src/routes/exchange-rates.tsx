@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, Save, RefreshCw, Star, DollarSign } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
@@ -25,6 +25,16 @@ function ExchangeRatesPage() {
   const [rows, setRows] = useState<Currency[]>(settings.currencies ?? []);
   const [defCode, setDefCode] = useState<string>(settings.defaultCurrency || rows[0]?.code || "");
   const [nc, setNc] = useState<Currency>({ code: "", name: "", rate: 0 });
+
+  // Re-sync when settings change from other screens
+  useEffect(() => {
+    setRows(settings.currencies ?? []);
+    setDefCode(settings.defaultCurrency || settings.currencies?.[0]?.code || "");
+  }, [settings.currencies, settings.defaultCurrency]);
+
+  const dirty =
+    JSON.stringify(rows) !== JSON.stringify(settings.currencies ?? []) ||
+    defCode !== (settings.defaultCurrency || "");
 
   const baseCode = rows[0]?.code ?? "";
 
@@ -150,6 +160,34 @@ function ExchangeRatesPage() {
           <button onClick={add} className="flex items-center justify-center gap-1 px-3 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-sm">
             <Plus size={14} /> إضافة عملة
           </button>
+        </div>
+
+        {/* Prominent Save / Update bar */}
+        <div className="mt-3 flex items-center justify-between gap-2 p-3 border rounded bg-gradient-to-l from-blue-50 to-white border-blue-200">
+          <div className="text-[12px] text-slate-600">
+            {dirty ? (
+              <span className="text-amber-700 font-semibold">● يوجد تعديلات لم تُحفظ — اضغط «حفظ وتعديل الأسعار» لتطبيقها على كامل النظام.</span>
+            ) : (
+              <span className="text-emerald-700">✓ الأسعار محفوظة ومُطبَّقة في كامل النظام.</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={reset}
+              disabled={!dirty}
+              className="flex items-center gap-1 px-3 py-2 border border-slate-300 rounded text-slate-700 hover:bg-slate-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw size={14} /> استرجاع
+            </button>
+            <button
+              onClick={save}
+              className={`flex items-center gap-1 px-4 py-2 rounded text-white text-sm font-semibold shadow-sm ${
+                dirty ? "bg-blue-600 hover:bg-blue-700" : "bg-emerald-600 hover:bg-emerald-700"
+              }`}
+            >
+              <Save size={15} /> {dirty ? "حفظ وتعديل الأسعار" : "حفظ الأسعار"}
+            </button>
+          </div>
         </div>
       </Panel>
 
