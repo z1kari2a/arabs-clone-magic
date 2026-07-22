@@ -13,6 +13,8 @@ export type LocalUser = {
   passwordHash: string;
   salt: string;
   createdAt: string;
+  /** Pending admin approval — cannot sign in until an admin approves. */
+  pending?: boolean;
 };
 
 type NativeBridge = {
@@ -36,7 +38,52 @@ declare global {
 const isBrowser = typeof window !== "undefined";
 const native = () => (isBrowser ? window.erpNative : undefined);
 
-const KEY = (table: string) => `erp:${table}`;
+// ---------- Per-user scoping ----------
+// Tables listed here are stored PER user account, so signing in as a
+// different user shows only that user's own data. `users` stays global
+// (needed for the login screen itself).
+const SCOPED_TABLES = new Set([
+  "suppliers",
+  "items",
+  "purchase_orders",
+  "audit_log",
+]);
+const SCOPED_KV = new Set(["settings"]);
+
+const SCOPE_STORAGE_KEY = "erp:current-scope";
+let currentScope: string | null = null;
+if (isBrowser) {
+  try {
+    currentScope = window.sessionStorage.getItem(SCOPE_STORAGE_KEY);
+  } catch { currentScope = null; }
+}
+
+export function setCurrentScope(userId: string | null) {
+  currentScope = userId;
+  if (!isBrowser) return;
+  try {
+    if (userId) window.sessionStorage.setItem(SCOPE_STORAGE_KEY, userId);
+    else window.sessionStorage.removeItem(SCOPE_STORAGE_KEY);
+  } catch { /* ignore */ }
+}
+
+export function getCurrentScope(): string | null {
+  return currentScope;
+}
+
+const KEY = (table: string) => {
+  if (SCOPED_TABLES.has(table) && currentScope) {
+    return `erp:u:${currentScope}:${table}`;
+  }
+  return `erp:${table}`;
+};
+
+const KV_KEY = (key: string) => {
+  if (SCOPED_KV.has(key) && currentScope) {
+    return `erp:u:${currentScope}:kv:${key}`;
+  }
+  return `erp:kv:${key}`;
+};
 
 // ---------- Generic table storage ----------
 export async function getAll<T = any>(table: string): Promise<T[]> {
@@ -86,10 +133,11 @@ export async function removeBy<T extends Record<string, any>>(
 // ---------- KV (single-value settings) ----------
 export async function getKV<T = any>(key: string): Promise<T | null> {
   const n = native();
-  if (n) return (await n.getKV(key)) as T | null;
+  const scoped = SCOPED_KV.has(key) && currentScope ? `u:${currentScope}:${key}` : key;
+  if (n) return (await n.getKV(scoped)) as T | null;
   if (!isBrowser) return null;
   try {
-    const raw = window.localStorage.getItem(KEY("kv:" + key));
+    const raw = window.localStorage.getItem(KV_KEY(key));
     return raw ? (JSON.parse(raw) as T) : null;
   } catch {
     return null;
@@ -97,9 +145,10 @@ export async function getKV<T = any>(key: string): Promise<T | null> {
 }
 export async function setKV(key: string, value: any): Promise<void> {
   const n = native();
-  if (n) return n.setKV(key, value);
+  const scoped = SCOPED_KV.has(key) && currentScope ? `u:${currentScope}:${key}` : key;
+  if (n) return n.setKV(scoped, value);
   if (!isBrowser) return;
-  window.localStorage.setItem(KEY("kv:" + key), JSON.stringify(value));
+  window.localStorage.setItem(KV_KEY(key), JSON.stringify(value));
 }
 
 // ---------- Password hashing ----------

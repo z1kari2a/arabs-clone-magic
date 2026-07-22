@@ -43,9 +43,16 @@ function LoginPage() {
         await signIn(username.trim(), password);
         toast.success("مرحباً بعودتك");
       } else {
-        await signUp({ username: username.trim(), password, fullName });
-        await signIn(username.trim(), password);
-        toast.success(needsBootstrap ? "تم إنشاء حساب المدير" : "تم إنشاء الحساب");
+        const created = await signUp({ username: username.trim(), password, fullName });
+        if (created.pending) {
+          toast.success("تم إرسال طلبك — بانتظار موافقة المدير", { duration: 6000 });
+          setMode("login");
+          setPassword("");
+          setFullName("");
+        } else {
+          await signIn(username.trim(), password);
+          toast.success(needsBootstrap ? "تم إنشاء حساب المدير" : "تم إنشاء الحساب");
+        }
       }
     } catch (err: any) {
       toast.error(err.message || "فشل");

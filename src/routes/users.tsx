@@ -6,7 +6,7 @@ import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { ErpTable } from "@/components/erp/ErpUI";
 import { useErpStore, hydrateStore } from "@/lib/erp-store";
-import { useAuth, signUp, changePassword } from "@/lib/auth";
+import { useAuth, signUp, changePassword, approveUser } from "@/lib/auth";
 import { localDb, logAudit } from "@/lib/local-db";
 import type { Role } from "@/lib/erp-types";
 
@@ -60,10 +60,21 @@ function UsersPage() {
     if (!isAdmin) return;
     setBusy(true);
     try {
-      await signUp({ username: nu.username.trim(), password: nu.password, fullName: nu.fullName, role: nu.role });
+      await signUp({ username: nu.username.trim(), password: nu.password, fullName: nu.fullName, role: nu.role, createdByAdmin: true });
       toast.success("تم إضافة المستخدم");
       setShowAdd(false);
       setNu({ username: "", fullName: "", password: "", role: "user" });
+      await hydrateStore();
+    } catch (e: any) { toast.error(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const approve = async (id: string) => {
+    if (!isAdmin) return;
+    setBusy(true);
+    try {
+      await approveUser(id);
+      toast.success("تم قبول الطلب");
       await hydrateStore();
     } catch (e: any) { toast.error(e.message); }
     finally { setBusy(false); }
@@ -141,7 +152,7 @@ function UsersPage() {
         <div className="px-3 py-2 border-b border-slate-300 flex items-center gap-2 font-semibold text-slate-700" style={{ background: "var(--color-erp-panel-header)" }}>
           <UsersIcon size={16} /> المستخدمون ({users.length})
         </div>
-        <ErpTable headers={["م", "اسم المستخدم", "الاسم", "الصلاحية", "إجراءات"]}>
+        <ErpTable headers={["م", "اسم المستخدم", "الاسم", "الصلاحية", "الحالة", "إجراءات"]}>
           {users.map((u, i) => (
             <tr key={u.id}>
               <td className="border border-slate-200 text-center">{i + 1}</td>
@@ -154,9 +165,19 @@ function UsersPage() {
                   <option value="viewer">مطالع</option>
                 </select>
               </td>
+              <td className="border border-slate-200 text-center text-xs">
+                {u.pending ? (
+                  <span className="inline-block px-2 py-0.5 rounded bg-amber-100 text-amber-800">قيد المراجعة</span>
+                ) : (
+                  <span className="inline-block px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">مفعّل</span>
+                )}
+              </td>
               <td className="border border-slate-200 px-1 text-center">
                 {isAdmin && (
                   <div className="flex items-center gap-1 justify-center">
+                    {u.pending && (
+                      <button onClick={() => approve(u.id)} title="قبول الطلب" className="px-2 py-0.5 text-[11px] bg-emerald-600 text-white rounded hover:bg-emerald-700">قبول</button>
+                    )}
                     <button onClick={() => setPwUser(u.id)} title="تغيير كلمة السر" className="p-1 text-blue-600 hover:bg-blue-50 rounded"><KeyRound size={14} /></button>
                     <button onClick={() => removeUser(u.id)} title="حذف" className="p-1 text-rose-600 hover:bg-rose-50 rounded"><Trash2 size={14} /></button>
                   </div>
@@ -165,7 +186,7 @@ function UsersPage() {
             </tr>
           ))}
           {users.length === 0 && (
-            <tr><td colSpan={5} className="text-center py-8 text-slate-400 text-sm">لا يوجد مستخدمون بعد</td></tr>
+            <tr><td colSpan={6} className="text-center py-8 text-slate-400 text-sm">لا يوجد مستخدمون بعد</td></tr>
           )}
         </ErpTable>
       </div>
