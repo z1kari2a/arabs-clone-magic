@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { Minus, Square, X, Circle, Keyboard, LogOut, ShieldCheck } from "lucide-react";
+import { Minus, Square, X, Circle, Keyboard, LogOut, ShieldCheck, Menu } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useErpStore, useHydrate } from "@/lib/erp-store";
 import { useAuth } from "@/lib/auth";
