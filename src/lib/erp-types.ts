@@ -43,6 +43,13 @@ export type Expense = {
   currency: string;
   amount: number;
   rate: number; // to invoice currency
+  accountNo?: string;
+  analyticAccount?: string;
+  centerNo?: string;
+  attached?: boolean;
+  invoiceNo?: string;
+  invoiceDate?: string;
+  branch?: string;
 };
 
 export type PurchaseOrder = {
