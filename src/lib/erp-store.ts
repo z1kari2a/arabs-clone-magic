@@ -30,6 +30,18 @@ const defaultSettings: Settings = {
     { code: "CNY", name: "يوان صيني",  rate: 76 },
     { code: "USD", name: "دولار",       rate: 530 },
   ],
+  expenseTypes: [
+    "شحن بحري",
+    "تخليص جمركي",
+    "نقل داخلي",
+    "تأمين",
+    "ضرائب",
+    "رسوم جمركية",
+    "عمولة",
+    "مصاريف بنكية",
+    "تخزين",
+    "أخرى",
+  ],
 };
 
 const initialState: StoreState = {
