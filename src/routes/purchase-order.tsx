@@ -353,7 +353,7 @@ function POPage() {
     <ErpLayout title="أمر شراء" ribbon={<Ribbon actions={actions} />}>
       <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={onFile} className="hidden" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_320px] gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
         <Panel title="بيانات المورد">
           <div className="flex gap-3 items-start">
             <div className="w-16 h-20 bg-slate-100 border border-slate-300 rounded flex items-center justify-center text-slate-400 shrink-0">
