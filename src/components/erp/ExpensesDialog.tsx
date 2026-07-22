@@ -42,7 +42,7 @@ export default function ExpensesDialog({
   // Reset when reopened
   useMemo(() => { if (open) { setRows(expenses); setTypes(expenseTypes); } }, [open]); // eslint-disable-line
 
-  const rateOf = (code: string) => currencies.find((c) => c.code === code)?.rate ?? 1;
+  const rateOf = (code: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
   const convert = (amt: number, rate: number) => (amt * (rate || 1)) / (invoiceRate || 1);
   const total = rows.reduce((s, e) => s + convert(e.amount, e.rate), 0);
 
@@ -66,6 +66,14 @@ export default function ExpensesDialog({
 
   const save = () => {
     const clean = rows.filter((r) => r.amount > 0 || r.type);
+    for (const r of clean) {
+      if (!r.currency || !currencies.some((c) => c.code === r.currency)) {
+        return toast.error(`العملة "${r.currency || "—"}" غير معرّفة في أسعار الصرف`);
+      }
+      if (!(r.rate > 0)) {
+        return toast.error(`سعر صرف غير صالح للعملة ${r.currency}`);
+      }
+    }
     onSave(clean);
     if (onSaveExpenseTypes) onSaveExpenseTypes(types);
     onOpenChange(false);
