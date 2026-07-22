@@ -572,8 +572,8 @@ function POPage() {
                 </select>
               </td>
               <Cell value={String(e.amount)} onChange={(v) => patchExp(e.id, { amount: Number(v) || 0 })} disabled={disabled} align="right" />
-              <Cell value={String(e.rate)} onChange={(v) => patchExp(e.id, { rate: Number(v) || 0 })} disabled={disabled} align="right" />
-              <Cell value={fmt((e.amount * (e.rate || 1)) / (po.rate || 1))} />
+              <Cell value={fmt(rateOf(e.currency), 4)} align="right" />
+              <Cell value={fmt((e.amount * (rateOf(e.currency) || 0)) / (po.rate || 1))} />
               <Cell value={e.type} onChange={(v) => patchExp(e.id, { type: v })} disabled={disabled} align="right" />
               <Cell value={e.accountNo ?? ""} onChange={(v) => patchExp(e.id, { accountNo: v })} disabled={disabled} align="right" />
               <Cell value={e.analyticAccount ?? ""} onChange={(v) => patchExp(e.id, { analyticAccount: v })} disabled={disabled} align="right" />
