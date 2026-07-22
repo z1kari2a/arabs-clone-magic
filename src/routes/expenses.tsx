@@ -384,6 +384,38 @@ function ExpensesPage() {
           )}
         </div>
       </div>
+
+      {expDlg && (() => {
+        const po = orders.find((o) => o.number === targetPO);
+        if (!po) return null;
+        return (
+          <>
+            {/* PO selector chip above dialog */}
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] bg-white border border-slate-300 rounded-full shadow px-3 py-1 flex items-center gap-2 text-xs">
+              <span className="text-slate-500">إضافة إلى:</span>
+              <select value={targetPO} onChange={(e) => setTargetPO(e.target.value)}
+                className="px-2 py-1 border border-slate-300 rounded bg-white">
+                {orders.map((o) => (
+                  <option key={o.number} value={o.number}>{o.number} {o.approved ? "✓" : ""}</option>
+                ))}
+              </select>
+            </div>
+            <ExpensesDialog
+              open={expDlg}
+              onOpenChange={setExpDlg}
+              expenses={po.expenses}
+              invoiceCurrency={po.currency}
+              invoiceRate={po.rate}
+              currencies={currencies}
+              expenseTypes={settings.expenseTypes ?? []}
+              disabled={po.approved}
+              onSave={(rows) => { savePurchaseOrder({ ...po, expenses: rows }); }}
+              onSaveExpenseTypes={(types) => erpStore.set({ settings: { ...settings, expenseTypes: types } })}
+              title={`مصروفات الفاتورة ${po.number}`}
+            />
+          </>
+        );
+      })()}
     </ErpLayout>
   );
 }
