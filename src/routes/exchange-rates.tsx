@@ -153,8 +153,8 @@ function ExchangeRatesPage() {
           </div>
           <div>
             <label className="text-[11px] text-slate-600 block mb-1">سعر التحويل</label>
-            <input type="number" step="0.000001" value={nc.rate || ""}
-              onChange={(e) => setNc({ ...nc, rate: Number(e.target.value) || 0 })}
+            <input type="number" step="0.000001" inputMode="decimal" value={nc.rate || ""}
+              onChange={(e) => setNc({ ...nc, rate: parseDecimal(e.target.value) })}
               placeholder="530" className="w-full px-2 py-1.5 border border-slate-300 rounded text-right tabular-nums" />
           </div>
           <button onClick={add} className="flex items-center justify-center gap-1 px-3 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-sm">
