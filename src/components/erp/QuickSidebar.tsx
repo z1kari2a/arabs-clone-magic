@@ -79,8 +79,18 @@ export function QuickSidebar({ onClose }: { onClose?: () => void }) {
         className="h-full w-14 flex-shrink-0 flex flex-col bg-slate-100 text-slate-700 border-l border-slate-300 shadow-[inset_-1px_0_0_rgba(0,0,0,0.04)]"
         aria-label="الشريط الجانبي"
       >
-        <div className="flex items-center justify-center h-8 border-b border-slate-300 bg-slate-200/70">
-          <span className="text-[9px] font-bold text-slate-500">اختصارات</span>
+        <div className="flex items-center justify-between px-1 h-8 border-b border-slate-300 bg-slate-200/70">
+          <span className="text-[9px] font-bold text-slate-500 mr-2">اختصارات</span>
+          {onClose && (
+            <button
+              onClick={onClose}
+              title="إغلاق القائمة الجانبية"
+              className="w-6 h-6 rounded hover:bg-slate-300/70 flex items-center justify-center text-slate-600 transition-colors"
+              aria-label="إغلاق القائمة الجانبية"
+            >
+              <PanelRightClose size={14} />
+            </button>
+          )}
         </div>
 
         <nav className="flex-1 overflow-y-auto py-2 px-1 space-y-1">
