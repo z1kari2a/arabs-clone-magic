@@ -3,6 +3,7 @@ import { Minus, Square, X, Circle, Keyboard, LogOut, ShieldCheck } from "lucide-
 import { useEffect, useState, type ReactNode } from "react";
 import { useErpStore, useHydrate } from "@/lib/erp-store";
 import { useAuth } from "@/lib/auth";
+import { QuickSidebar } from "./QuickSidebar";
 
 const TABS = [
   { to: "/home", label: "الرئيسية" },
