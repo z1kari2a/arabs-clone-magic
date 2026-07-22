@@ -12,6 +12,7 @@ const TABS = [
   { to: "/items", label: "دليل الأصناف" },
   { to: "/expenses", label: "المصروفات" },
   { to: "/reports", label: "التقارير" },
+  { to: "/exchange-rates", label: "أسعار الصرف" },
   { to: "/users", label: "المستخدمون" },
   { to: "/audit-log", label: "سجل التدقيق", adminOnly: true },
   { to: "/settings", label: "الإعدادات" },
