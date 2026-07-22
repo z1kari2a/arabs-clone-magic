@@ -45,7 +45,12 @@ let initialized = false;
 async function init() {
   if (initialized || typeof window === "undefined") return;
   initialized = true;
-  const users = await localDb.users.list();
+  let users = await localDb.users.list();
+  if (users.length === 0) {
+    // Seed demo accounts so provided credentials work out of the box.
+    await seedDemoUsers();
+    users = await localDb.users.list();
+  }
   const current = readSession();
   state = {
     user: current,
@@ -55,6 +60,27 @@ async function init() {
     needsBootstrap: users.length === 0,
   };
   emit();
+}
+
+async function seedDemoUsers() {
+  const demos: Array<{ username: string; password: string; fullName: string; role: Role }> = [
+    { username: "admin@demo.local", password: "Admin@2026!", fullName: "مدير النظام", role: "admin" },
+    { username: "user@demo.local", password: "User@2026!", fullName: "مستخدم تجريبي", role: "user" },
+  ];
+  for (const d of demos) {
+    const salt = await randomSalt();
+    const passwordHash = await hashPassword(d.password, salt);
+    await localDb.users.upsert({
+      id: newId(),
+      username: d.username,
+      fullName: d.fullName,
+      role: d.role,
+      active: true,
+      passwordHash,
+      salt,
+      createdAt: new Date().toISOString(),
+    });
+  }
 }
 
 export async function signIn(username: string, password: string): Promise<void> {
