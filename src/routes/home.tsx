@@ -68,7 +68,7 @@ function HomePage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-50 text-slate-700">
-              <th className="px-3 py-2 border-b text-right">رقم الأمر</th>
+              <th className="px-3 py-2 border-b text-right">رقم الفاتورة</th>
               <th className="px-3 py-2 border-b text-right">التاريخ</th>
               <th className="px-3 py-2 border-b text-right">المورد</th>
               <th className="px-3 py-2 border-b text-right">الإجمالي</th>

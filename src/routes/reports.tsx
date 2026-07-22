@@ -46,10 +46,10 @@ function ReportsPage() {
 
   const onExport = () => {
     let rows: any[] = [];
-    if (reportId === "purchases") rows = orders.map((o) => { const m = computePO(o); return { "رقم الأمر": o.number, "التاريخ": o.date, "المورد": suppliers.find((s) => s.code === o.supplierCode)?.name ?? "", "الأصناف": m.totalItems, "الكمية": m.totalQty, "الشراء": m.totalPurchase, "المصروفات": m.totalExpenses, "التكلفة": m.totalCost }; });
+    if (reportId === "purchases") rows = orders.map((o) => { const m = computePO(o); return { "رقم الفاتورة": o.number, "التاريخ": o.date, "المورد": suppliers.find((s) => s.code === o.supplierCode)?.name ?? "", "الأصناف": m.totalItems, "الكمية": m.totalQty, "الشراء": m.totalPurchase, "المصروفات": m.totalExpenses, "التكلفة": m.totalCost }; });
     else if (reportId === "items") rows = items.map((i) => ({ "الموديل": i.code, "الصنف": i.name, "آخر سعر": i.units[0]?.lastPrice, "آخر تكلفة": i.lastCost }));
     else if (reportId === "suppliers") rows = suppliers.map((s) => ({ "الكود": s.code, "الاسم": s.name, "الدولة": s.country, "أوامر": orders.filter((o) => o.supplierCode === s.code).length }));
-    else if (reportId === "expenses") rows = orders.flatMap((o) => o.expenses.map((e) => ({ "رقم الأمر": o.number, "النوع": e.type, "البيان": e.note, "المبلغ": e.amount, "بعملة الفاتورة": e.amount * (e.rate || 1) })));
+    else if (reportId === "expenses") rows = orders.flatMap((o) => o.expenses.map((e) => ({ "رقم الفاتورة": o.number, "النوع": e.type, "البيان": e.note, "المبلغ": e.amount, "بعملة الفاتورة": e.amount * (e.rate || 1) })));
     const ws = XLSX.utils.json_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Report");
     XLSX.writeFile(wb, `${reportId}.xlsx`); toast.success("تم التصدير");
   };
@@ -83,7 +83,7 @@ function ReportsPage() {
         </div>
         <div className="p-2">
           {reportId === "purchases" && (
-            <ErpTable headers={["م","رقم الأمر","التاريخ","المورد","الأصناف","الكمية","الشراء","المصروفات","التكلفة","الحالة"]}>
+            <ErpTable headers={["م","رقم الفاتورة","التاريخ","المورد","الأصناف","الكمية","الشراء","المصروفات","التكلفة","الحالة"]}>
               {orders.map((o, i) => { const m = computePO(o); return (
                 <tr key={o.number} className="hover:bg-blue-50/40">
                   <td className="border border-slate-200 text-center">{i + 1}</td>
@@ -130,7 +130,7 @@ function ReportsPage() {
             </ErpTable>
           )}
           {reportId === "expenses" && (
-            <ErpTable headers={["م","رقم الأمر","النوع","البيان","العملة","المبلغ","بعملة الفاتورة"]}>
+            <ErpTable headers={["م","رقم الفاتورة","النوع","البيان","العملة","المبلغ","بعملة الفاتورة"]}>
               {orders.flatMap((o) => o.expenses.map((e) => ({ o, e }))).map(({ o, e }, i) => (
                 <tr key={o.number + e.id}>
                   <td className="border border-slate-200 text-center">{i + 1}</td>
