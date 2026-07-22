@@ -392,9 +392,9 @@ function POPage() {
                 { value: "qty", label: "حسب الكمية" },
               ]} />
             </FieldRow>
-            <FieldRow label="نسبة المصروفات %">
+            <FieldRow label="سعر CBM">
               <ErpInput
-                value={`${fmt(metrics.totalPurchase > 0 ? (metrics.totalExpenses / metrics.totalPurchase) * 100 : 0, 2)} %`}
+                value={`${fmt(metrics.totalCBM > 0 ? metrics.totalExpenses / metrics.totalCBM : 0, 2)} ${po.currency}`}
                 onChange={() => {}}
                 disabled
                 highlight

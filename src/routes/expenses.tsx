@@ -114,6 +114,12 @@ function ExpensesPage() {
       if (o) totalPurchase += computePO(o).totalPurchase;
     });
     const expenseRatio = totalPurchase > 0 ? (total / totalPurchase) * 100 : 0;
+    let totalCBM = 0;
+    ordersSet.forEach((num) => {
+      const o = orders.find((x) => x.number === num);
+      if (o) totalCBM += computePO(o).totalCBM;
+    });
+    const cbmCost = totalCBM > 0 ? total / totalCBM : 0;
 
     const byType = new Map<string, number>();
     filtered.forEach((r) => byType.set(r.e.type, (byType.get(r.e.type) || 0) + r.invAmount));
@@ -166,6 +172,8 @@ function ExpensesPage() {
       avgPerLine,
       expenseRatio,
       totalPurchase,
+      cbmCost,
+      totalCBM,
       byTypeArr,
       bySupplierArr,
       byCurrencyArr,
@@ -226,7 +234,7 @@ function ExpensesPage() {
         <StatCard label="عدد الأوامر" value={fmtInt(stats.ordersCount)} icon={Package} tone="bg-indigo-50 text-indigo-700 border-indigo-200" />
         <StatCard label="متوسط/أمر شراء" value={fmt(stats.avgPerOrder)} icon={TrendingUp} tone="bg-amber-50 text-amber-700 border-amber-200" />
         <StatCard label="متوسط/بند" value={fmt(stats.avgPerLine)} icon={DollarSign} tone="bg-teal-50 text-teal-700 border-teal-200" />
-        <StatCard label="نسبة المصروفات/الشراء" value={`${fmt(stats.expenseRatio, 1)}%`} icon={BarChart3} tone="bg-rose-50 text-rose-700 border-rose-200" />
+        <StatCard label="سعر CBM" value={fmt(stats.cbmCost, 2)} icon={BarChart3} tone="bg-rose-50 text-rose-700 border-rose-200" sub={settings.defaultCurrency} />
       </div>
 
       {/* Filters */}
