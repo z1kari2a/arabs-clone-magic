@@ -35,7 +35,7 @@ const REPORTS = [
 
 function ReportsPage() {
   const { tab } = Route.useSearch();
-  const [reportId, setReportId] = useState(tab || "purchases");
+  const [reportId, setReportId] = useState<"purchases" | "items" | "expenses" | "suppliers">(tab || "purchases");
 
   useEffect(() => {
     if (tab) setReportId(tab);
@@ -77,7 +77,7 @@ function ReportsPage() {
           <BarChart3 size={16} />
           <span className="font-semibold text-slate-700">التقارير</span>
           <div className="flex-1" />
-          <select value={reportId} onChange={(e) => setReportId(e.target.value)} className="px-2 py-1 text-xs border border-slate-300 rounded bg-white text-right">
+          <select value={reportId} onChange={(e) => setReportId(e.target.value as typeof reportId)} className="px-2 py-1 text-xs border border-slate-300 rounded bg-white text-right">
             {REPORTS.map((r) => (<option key={r.id} value={r.id}>{r.label}</option>))}
           </select>
         </div>

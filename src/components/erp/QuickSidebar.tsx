@@ -99,7 +99,7 @@ export function QuickSidebar({ onClose }: { onClose?: () => void }) {
                   <TooltipTrigger asChild>
                     <Link
                       to={item.to}
-                      search={item.search}
+                      {...(item.search ? { search: item.search as any } : {})}
                       className={cn(
                         "flex items-center justify-center w-full h-10 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
                         active
