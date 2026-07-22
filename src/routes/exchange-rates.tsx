@@ -121,7 +121,7 @@ function ExchangeRatesPage() {
                       className="w-full px-2 py-1 text-right bg-transparent focus:outline-none focus:bg-blue-50/50 rounded" />
                   </td>
                   <td className="border border-slate-200 p-1">
-                    <input type="number" step="0.000001" inputMode="decimal" value={c.rate || ""}
+                    <input type="text" inputMode="decimal" value={c.rate || ""}
                       onChange={(e) => patch(c.code, { rate: parseDecimal(e.target.value) })}
                       className="w-full px-2 py-1 text-right tabular-nums bg-transparent focus:outline-none focus:bg-blue-50/50 rounded" />
                   </td>
