@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Save, RefreshCw, Star, DollarSign } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
-import { Panel, fmt } from "@/components/erp/ErpUI";
+import { Panel, fmt, parseDecimal } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore } from "@/lib/erp-store";
 import type { Currency } from "@/lib/erp-types";
 
