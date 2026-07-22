@@ -180,7 +180,7 @@ function ExpensesPage() {
 
   const onExport = () => {
     const rows = filtered.map((r) => ({
-      "رقم الأمر": r.po.number,
+      "رقم الفاتورة": r.po.number,
       "التاريخ": r.po.date,
       "المورد": r.supplierName,
       "الحالة": r.po.approved ? "معتمد" : "مسودة",
@@ -310,7 +310,7 @@ function ExpensesPage() {
             <span className="font-semibold text-slate-700 text-xs">تفاصيل بنود المصروفات ({fmtInt(filtered.length)})</span>
           </div>
           <div className="max-h-[420px] overflow-auto">
-            <ErpTable headers={["م", "رقم الأمر", "التاريخ", "المورد", "النوع", "البيان", "العملة", "المبلغ", "السعر", "بعملة الفاتورة", "الحالة"]}>
+            <ErpTable headers={["م", "رقم الفاتورة", "التاريخ", "المورد", "النوع", "البيان", "العملة", "المبلغ", "السعر", "بعملة الفاتورة", "الحالة"]}>
               {filtered.length === 0 && (
                 <tr><td colSpan={11} className="text-center py-6 text-slate-500 text-xs">لا توجد مصروفات مطابقة للفلاتر</td></tr>
               )}
@@ -343,7 +343,7 @@ function ExpensesPage() {
             <span className="font-semibold text-slate-700 text-xs">أعلى أوامر شراء بالمصروفات</span>
           </div>
           <div className="max-h-[420px] overflow-auto">
-            <ErpTable headers={["#", "رقم الأمر", "المورد", "التاريخ", "المجموع"]}>
+            <ErpTable headers={["#", "رقم الفاتورة", "المورد", "التاريخ", "المجموع"]}>
               {stats.byOrderArr.length === 0 && (
                 <tr><td colSpan={5} className="text-center py-6 text-slate-500 text-xs">لا توجد بيانات</td></tr>
               )}

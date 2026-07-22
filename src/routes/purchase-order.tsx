@@ -45,7 +45,7 @@ const blankRows = (count: number): PORow[] =>
 const emptyPO = (num: string): PurchaseOrder => ({
   number: num,
   date: new Date().toISOString().slice(0, 10).replace(/-/g, "/"),
-  invoiceNo: "",
+  invoiceNo: num,
   supplierCode: "",
   currency: "USD",
   rate: 1,
@@ -63,7 +63,7 @@ function POPage() {
   const items = useErpStore((s) => s.items);
   const orders = useErpStore((s) => s.purchaseOrders);
 
-  const [po, setPo] = useState<PurchaseOrder>(orders[0] ?? emptyPO("PO-2024-00001"));
+  const [po, setPo] = useState<PurchaseOrder>(orders[0] ?? emptyPO("INV-2026-00001"));
   const [editing, setEditing] = useState(false);
   const [openDlg, setOpenDlg] = useState(false);
   const [supDlg, setSupDlg] = useState(false);
@@ -99,7 +99,7 @@ function POPage() {
   const removeExp = (id: number) => setPo({ ...po, expenses: po.expenses.filter((e) => e.id !== id) });
 
   const onNew = () => {
-    const num = `PO-2024-${String(Math.floor(Math.random() * 90000) + 10000)}`;
+    const num = `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`;
     setPo(emptyPO(num));
     setEditing(true);
     toast.success("تم إنشاء أمر شراء جديد");
@@ -116,7 +116,7 @@ function POPage() {
   const onDelete = () => {
     if (!confirm("حذف أمر الشراء؟")) return;
     erpStore.set({ purchaseOrders: orders.filter((o) => o.number !== po.number) });
-    setPo(emptyPO(`PO-2024-${String(Math.floor(Math.random() * 90000) + 10000)}`));
+    setPo(emptyPO(`INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`));
     toast.success("تم الحذف");
   };
   const onApprove = () => {
@@ -130,8 +130,8 @@ function POPage() {
   };
   const onImport = () => fileRef.current?.click();
   const onCopy = () => {
-    const num = `PO-2024-${String(Math.floor(Math.random() * 90000) + 10000)}`;
-    setPo({ ...po, number: num, approved: false, invoiceNo: "" });
+    const num = `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`;
+    setPo({ ...po, number: num, invoiceNo: num, approved: false });
     setEditing(true);
     toast.success("تم نسخ الأمر - عدّل ثم احفظ");
   };
@@ -181,10 +181,11 @@ function POPage() {
       country: "الصين", city: "قوانغجو", phone: "", email: "",
       currency: "USD", notes: "بيانات مستوردة من فاتورة العرض", active: true,
     });
+    const seedNum = `INV-DEMO-${Date.now().toString().slice(-5)}`;
     const seeded: PurchaseOrder = {
-      number: `PO-DEMO-${Date.now().toString().slice(-5)}`,
+      number: seedNum,
       date: new Date().toISOString().slice(0, 10).replace(/-/g, "/"),
-      invoiceNo: supCode,
+      invoiceNo: seedNum,
       supplierCode: supCode,
       currency: "USD",
       rate: 1,
@@ -272,9 +273,8 @@ function POPage() {
 
         <Panel title="بيانات أمر الشراء">
           <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-            <FieldRow label="رقم الأمر"><ErpInput value={po.number} onChange={(v) => patch({ number: v })} disabled={po.approved} /></FieldRow>
+            <FieldRow label="رقم الفاتورة"><ErpInput value={po.number} onChange={(v) => patch({ number: v, invoiceNo: v })} disabled={po.approved} highlight /></FieldRow>
             <FieldRow label="التاريخ"><ErpInput value={po.date} onChange={(v) => patch({ date: v })} disabled={disabled} /></FieldRow>
-            <FieldRow label="رقم الفاتورة"><ErpInput value={po.invoiceNo} onChange={(v) => patch({ invoiceNo: v })} disabled={disabled} /></FieldRow>
             <FieldRow label="العملة">
               <ErpSelect value={po.currency} onChange={(v) => patch({ currency: v })} disabled={disabled} options={[
                 { value: "USD", label: "USD - دولار أمريكي" },
