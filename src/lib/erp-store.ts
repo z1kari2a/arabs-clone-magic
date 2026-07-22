@@ -284,11 +284,15 @@ export function useErpStore<T>(selector: (s: StoreState) => T): T {
 
 // ============ Business logic (unchanged) ============
 export function computePO(po: PurchaseOrder) {
+  // Always resolve rates from settings.currencies — never trust stored/manual rates.
+  const currencies = state.settings.currencies ?? [];
+  const rateOf = (code?: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
+  const resolvedInvRate = rateOf(po.currency) || po.rate || 1;
   const totalItems = po.rows.filter((r) => r.model || r.name).length;
   const totalQty = po.rows.reduce((s, r) => s + (r.qty || 0), 0);
-  const invRate = po.rate || 1;
+  const invRate = resolvedInvRate;
   const effPriceOf = (r: import("./erp-types").PORow) => {
-    const rate = r.rate ?? invRate;
+    const rate = rateOf(r.currency) || invRate;
     return r.price * (rate / invRate);
   };
   const totalPurchase = po.rows.reduce((s, r) => s + r.qty * effPriceOf(r), 0);
@@ -298,7 +302,7 @@ export function computePO(po: PurchaseOrder) {
   }, 0);
   const totalCartons = po.rows.reduce((s, r) => s + (r.pack ? r.qty / r.pack : 0), 0);
   const totalExpenses = po.expenses.reduce(
-    (s, e) => s + (e.amount * (e.rate || 1)) / invRate,
+    (s, e) => s + (e.amount * (rateOf(e.currency) || 0)) / invRate,
     0,
   );
   const cbmPrice = totalCBM > 0 ? totalExpenses / totalCBM : 0;
