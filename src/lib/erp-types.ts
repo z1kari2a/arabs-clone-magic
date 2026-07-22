@@ -34,6 +34,10 @@ export type PORow = {
   qty: number;
   price: number;
   cbm: number; // per carton
+  /** Currency of `price`. Defaults to invoice currency when omitted. */
+  currency?: string;
+  /** Exchange rate of the row currency (same base as settings.currencies[].rate). */
+  rate?: number;
 };
 
 export type Expense = {
@@ -97,6 +101,8 @@ export type Settings = {
   language: "ar" | "en";
   priceTiers?: PriceTier[];
   currencies?: Currency[];
+  /** Currency used to display the grand total of a purchase order. */
+  masterCurrency?: string;
 };
 
 export type Currency = {
