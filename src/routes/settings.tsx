@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, RefreshCw } from "lucide-react";
+import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, RefreshCw, Plus } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
-import { Panel, FieldRow, ErpInput, ErpSelect } from "@/components/erp/ErpUI";
+import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore } from "@/lib/erp-store";
+import type { PriceTier } from "@/lib/erp-types";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -22,6 +23,12 @@ export const Route = createFileRoute("/settings")({
 function SettingsPage() {
   const settings = useErpStore((s) => s.settings);
   const [local, setLocal] = useState(settings);
+  const tiers: PriceTier[] = local.priceTiers ?? [];
+  const setTiers = (t: PriceTier[]) => setLocal({ ...local, priceTiers: t });
+  const addTier = () => setTiers([...tiers, { id: "t_" + Date.now(), name: "تسعيرة جديدة", extraPct: 0, profitPct: 30 }]);
+  const rmTier = (id: string) => setTiers(tiers.filter((t) => t.id !== id));
+  const patchTier = (id: string, p: Partial<PriceTier>) =>
+    setTiers(tiers.map((t) => (t.id === id ? { ...t, ...p } : t)));
 
   const onSave = () => { erpStore.set({ settings: local }); toast.success("تم حفظ الإعدادات"); };
   const onReset = () => { if (confirm("إعادة تعيين كل البيانات؟")) { erpStore.reset(); toast.success("تم إعادة التعيين"); location.reload(); } };
@@ -73,6 +80,30 @@ function SettingsPage() {
           </div>
         </Panel>
       </div>
+
+      <Panel title="تسعيرات الفروع / الوجهات" className="mt-2">
+        <div className="flex justify-between items-center mb-2">
+          <div className="text-xs text-slate-600">
+            كل تسعيرة تُضيف نسبة على متوسط التكلفة (مصاريف وجهة) + نسبة ربح. تنعكس مباشرة على شاشة أمر الشراء.
+          </div>
+          <button onClick={addTier} className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-emerald-300 rounded hover:bg-emerald-50">
+            <Plus size={12} className="text-emerald-600" /> إضافة تسعيرة
+          </button>
+        </div>
+        <ErpTable headers={["م", "اسم التسعيرة", "نسبة إضافية على التكلفة %", "نسبة الربح %", "حذف"]}>
+          {tiers.map((t, i) => (
+            <tr key={t.id} className="odd:bg-white even:bg-slate-50/50">
+              <td className="border border-slate-200 text-center text-slate-500 w-10">{i + 1}</td>
+              <Cell value={t.name} onChange={(v) => patchTier(t.id, { name: v })} align="right" />
+              <Cell value={String(t.extraPct)} onChange={(v) => patchTier(t.id, { extraPct: Number(v) || 0 })} align="right" />
+              <Cell value={String(t.profitPct)} onChange={(v) => patchTier(t.id, { profitPct: Number(v) || 0 })} align="right" />
+              <td className="border border-slate-200 text-center">
+                <button onClick={() => rmTier(t.id)} className="text-rose-600 hover:bg-rose-50 px-2 rounded"><Trash2 size={12} /></button>
+              </td>
+            </tr>
+          ))}
+        </ErpTable>
+      </Panel>
     </ErpLayout>
   );
 }
