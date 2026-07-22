@@ -10,6 +10,7 @@ const TABS = [
   { to: "/purchase-order", label: "أوامر الشراء" },
   { to: "/suppliers", label: "الموردون" },
   { to: "/items", label: "دليل الأصناف" },
+  { to: "/expenses", label: "المصروفات" },
   { to: "/reports", label: "التقارير" },
   { to: "/users", label: "المستخدمون" },
   { to: "/audit-log", label: "سجل التدقيق", adminOnly: true },
