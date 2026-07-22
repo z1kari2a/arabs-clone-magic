@@ -19,6 +19,11 @@ const defaultSettings: Settings = {
   defaultCurrency: "USD",
   fiscalYear: String(new Date().getFullYear()),
   language: "ar",
+  priceTiers: [
+    { id: "base",  name: "التكلفة الأساسية", extraPct: 0,     profitPct: 30 },
+    { id: "aden",  name: "تكلفة عدن",        extraPct: 26.87, profitPct: 30 },
+    { id: "sanaa", name: "تكلفة صنعاء",      extraPct: 52.71, profitPct: 30 },
+  ],
 };
 
 const initialState: StoreState = {
