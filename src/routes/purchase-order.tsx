@@ -382,7 +382,7 @@ function POPage() {
             <FieldRow label="العملة">
               <ErpSelect value={po.currency} onChange={(v) => patch({ currency: v, rate: rateOf(v) })} disabled={disabled} options={currencyOptions} />
             </FieldRow>
-            <FieldRow label="سعر الصرف"><ErpInput value={String(po.rate)} onChange={(v) => patch({ rate: Number(v) || 0 })} disabled={disabled} /></FieldRow>
+            <FieldRow label="سعر الصرف"><ErpInput value={String(po.rate)} onChange={() => {}} disabled readOnly /></FieldRow>
             <FieldRow label="رقم الحاوية"><ErpInput value={po.containerNo} onChange={(v) => patch({ containerNo: v })} disabled={disabled} /></FieldRow>
             <FieldRow label="حجم الحاوية"><ErpInput value={po.containerSize} onChange={(v) => patch({ containerSize: v })} disabled={disabled} /></FieldRow>
             <FieldRow label="توزيع المصروفات">
@@ -461,7 +461,7 @@ function POPage() {
                   <ErpSelect value={draft.currency ?? po.currency} onChange={(v) => patchDraft({ currency: v, rate: rateOf(v) })} options={currencyOptions} />
                 </FieldRow>
                 <FieldRow label="سعر التحويل">
-                  <ErpInput value={String(draft.rate ?? po.rate)} onChange={(v) => patchDraft({ rate: Number(v) || 0 })} />
+                  <ErpInput value={String(draft.rate ?? po.rate)} onChange={() => {}} disabled readOnly />
                 </FieldRow>
                 <FieldRow label="CBM الكرتون"><ErpInput value={String(draft.cbm)} onChange={(v) => patchDraft({ cbm: Number(v) || 0 })} /></FieldRow>
                 <div className="col-span-2 md:col-span-3 grid grid-cols-3 gap-2 text-[11px]">
