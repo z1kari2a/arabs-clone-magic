@@ -74,6 +74,11 @@ function POPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [markupPct, setMarkupPct] = useState<number>(30);
   const priceTiers = useErpStore((s) => s.settings.priceTiers ?? []);
+  const currencies = useErpStore((s) => s.settings.currencies ?? []);
+  const currencyOptions = currencies.length
+    ? currencies.map((c) => ({ value: c.code, label: `${c.code} - ${c.name}` }))
+    : [{ value: "USD", label: "USD" }];
+  const rateOf = (code: string) => currencies.find((c) => c.code === code)?.rate ?? 1;
 
   // Collapsible sections — let users shrink big tables to save space.
   const [showItems, setShowItems] = useState(true);
@@ -282,13 +287,7 @@ function POPage() {
             <FieldRow label="رقم الفاتورة"><ErpInput value={po.number} onChange={(v) => patch({ number: v, invoiceNo: v })} disabled={po.approved} highlight /></FieldRow>
             <FieldRow label="التاريخ"><ErpInput value={po.date} onChange={(v) => patch({ date: v })} disabled={disabled} /></FieldRow>
             <FieldRow label="العملة">
-              <ErpSelect value={po.currency} onChange={(v) => patch({ currency: v })} disabled={disabled} options={[
-                { value: "USD", label: "USD - دولار أمريكي" },
-                { value: "EUR", label: "EUR - يورو" },
-                { value: "SAR", label: "SAR - ريال سعودي" },
-                { value: "AED", label: "AED - درهم إماراتي" },
-                { value: "JOD", label: "JOD - دينار أردني" },
-              ]} />
+              <ErpSelect value={po.currency} onChange={(v) => patch({ currency: v, rate: rateOf(v) })} disabled={disabled} options={currencyOptions} />
             </FieldRow>
             <FieldRow label="سعر الصرف"><ErpInput value={String(po.rate)} onChange={(v) => patch({ rate: Number(v) || 0 })} disabled={disabled} /></FieldRow>
             <FieldRow label="رقم الحاوية"><ErpInput value={po.containerNo} onChange={(v) => patch({ containerNo: v })} disabled={disabled} /></FieldRow>
