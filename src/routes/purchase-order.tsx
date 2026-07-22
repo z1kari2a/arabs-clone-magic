@@ -5,13 +5,13 @@ import { toast } from "sonner";
 import {
   FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer,
   FileSpreadsheet, Download, CheckCircle2, X, Plus, Wallet, Building2, Copy,
-  ChevronUp, ChevronDown,
+  ChevronUp, ChevronDown, Coins, Star,
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtInt } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore, computePO, savePurchaseOrder } from "@/lib/erp-store";
-import type { PurchaseOrder, PORow, Expense } from "@/lib/erp-types";
+import type { PurchaseOrder, PORow, Expense, Currency } from "@/lib/erp-types";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { SEED_INVOICE } from "@/lib/erp-seed";
@@ -43,13 +43,13 @@ const blankRows = (count: number): PORow[] =>
     cbm: 0,
   }));
 
-const emptyPO = (num: string): PurchaseOrder => ({
+const emptyPO = (num: string, currency = "USD", rate = 1): PurchaseOrder => ({
   number: num,
   date: new Date().toISOString().slice(0, 10).replace(/-/g, "/"),
   invoiceNo: num,
   supplierCode: "",
-  currency: "USD",
-  rate: 1,
+  currency,
+  rate,
   containerNo: "",
   containerSize: "40 قدم HQ",
   distributionType: "cbm",
@@ -63,8 +63,14 @@ function POPage() {
   const suppliers = useErpStore((s) => s.suppliers);
   const items = useErpStore((s) => s.items);
   const orders = useErpStore((s) => s.purchaseOrders);
+  const settings = useErpStore((s) => s.settings);
+  const currencies = settings.currencies ?? [];
+  const defaultCurrency = settings.defaultCurrency || currencies[0]?.code || "USD";
+  const rateOfCode = (code: string) => currencies.find((c) => c.code === code)?.rate ?? 1;
 
-  const [po, setPo] = useState<PurchaseOrder>(orders[0] ?? emptyPO("INV-2026-00001"));
+  const [po, setPo] = useState<PurchaseOrder>(
+    orders[0] ?? emptyPO("INV-2026-00001", defaultCurrency, rateOfCode(defaultCurrency)),
+  );
   const [editing, setEditing] = useState(false);
   const [openDlg, setOpenDlg] = useState(false);
   const [supDlg, setSupDlg] = useState(false);
@@ -74,11 +80,49 @@ function POPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [markupPct, setMarkupPct] = useState<number>(30);
   const priceTiers = useErpStore((s) => s.settings.priceTiers ?? []);
-  const currencies = useErpStore((s) => s.settings.currencies ?? []);
   const currencyOptions = currencies.length
     ? currencies.map((c) => ({ value: c.code, label: `${c.code} - ${c.name}` }))
     : [{ value: "USD", label: "USD" }];
-  const rateOf = (code: string) => currencies.find((c) => c.code === code)?.rate ?? 1;
+  const rateOf = rateOfCode;
+  const [tierDisplayCurrency, setTierDisplayCurrency] = useState<string>(defaultCurrency);
+
+  // Currency management (inline side panel)
+  const saveCurrencies = (list: Currency[], newDefault?: string) => {
+    erpStore.set({
+      settings: {
+        ...settings,
+        currencies: list,
+        defaultCurrency: newDefault ?? settings.defaultCurrency,
+      },
+    });
+  };
+  const [newCur, setNewCur] = useState<Currency>({ code: "", name: "", rate: 1 });
+  const addCurrency = () => {
+    const code = newCur.code.trim().toUpperCase();
+    if (!code) return toast.error("أدخل رمز العملة");
+    if (currencies.some((c) => c.code === code)) return toast.error("العملة موجودة");
+    const list = [...currencies, { ...newCur, code, rate: Number(newCur.rate) || 1 }];
+    saveCurrencies(list, currencies.length === 0 ? code : settings.defaultCurrency);
+    setNewCur({ code: "", name: "", rate: 1 });
+    toast.success(`تمت إضافة ${code}`);
+  };
+  const patchCurrency = (code: string, p: Partial<Currency>) => {
+    const list = currencies.map((c) => (c.code === code ? { ...c, ...p } : c));
+    saveCurrencies(list);
+  };
+  const removeCurrency = (code: string) => {
+    if (!confirm(`حذف العملة ${code}؟`)) return;
+    const list = currencies.filter((c) => c.code !== code);
+    const nd = settings.defaultCurrency === code ? list[0]?.code ?? "" : settings.defaultCurrency;
+    saveCurrencies(list, nd);
+    toast.success("تم الحذف");
+  };
+  const setAsDefault = (code: string) => {
+    saveCurrencies(currencies, code);
+    // If PO not yet saved and still on old default, switch it too
+    if (!po.approved) patch({ currency: code, rate: rateOfCode(code) });
+    toast.success(`العملة الافتراضية: ${code}`);
+  };
 
   // Collapsible sections — let users shrink big tables to save space.
   const [showItems, setShowItems] = useState(true);
@@ -111,7 +155,7 @@ function POPage() {
 
   const onNew = () => {
     const num = `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`;
-    setPo(emptyPO(num));
+    setPo(emptyPO(num, defaultCurrency, rateOfCode(defaultCurrency)));
     setEditing(true);
     toast.success("تم إنشاء أمر شراء جديد");
   };
@@ -127,7 +171,7 @@ function POPage() {
   const onDelete = () => {
     if (!confirm("حذف أمر الشراء؟")) return;
     erpStore.set({ purchaseOrders: orders.filter((o) => o.number !== po.number) });
-    setPo(emptyPO(`INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`));
+    setPo(emptyPO(`INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`, defaultCurrency, rateOfCode(defaultCurrency)));
     toast.success("تم الحذف");
   };
   const onApprove = () => {
