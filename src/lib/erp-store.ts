@@ -67,6 +67,7 @@ async function fetchUsers(): Promise<User[]> {
     fullName: u.fullName,
     role: u.role,
     active: u.active !== false,
+    pending: u.pending === true,
   }));
 }
 
