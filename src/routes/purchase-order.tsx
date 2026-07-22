@@ -525,10 +525,6 @@ function POPage() {
                         <span className="font-bold text-purple-700">{fmt(m?.cbmCost ?? 0, 4)} {po.currency}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-500">نسبة المصروفات</span>
-                        <span className="font-bold text-orange-700">{fmt(m?.pctCost ?? 0, 2)}%</span>
-                      </div>
-                      <div className="flex justify-between">
                         <span className="text-slate-500">سعر البيع (+{markupPct}%)</span>
                         <span className="font-bold text-emerald-700">{fmt(salePrice, 4)}</span>
                       </div>
