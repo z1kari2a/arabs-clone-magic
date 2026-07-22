@@ -273,7 +273,11 @@ export function computePO(po: PurchaseOrder) {
     return s + cartons * r.cbm;
   }, 0);
   const totalCartons = po.rows.reduce((s, r) => s + (r.pack ? r.qty / r.pack : 0), 0);
-  const totalExpenses = po.expenses.reduce((s, e) => s + e.amount * (e.rate || 1), 0);
+  const invRate = po.rate || 1;
+  const totalExpenses = po.expenses.reduce(
+    (s, e) => s + (e.amount * (e.rate || 1)) / invRate,
+    0,
+  );
   const cbmPrice = totalCBM > 0 ? totalExpenses / totalCBM : 0;
   const totalCost = totalPurchase + totalExpenses;
   const rowMetrics = po.rows.map((r) => {
