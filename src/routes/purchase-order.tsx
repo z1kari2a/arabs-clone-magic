@@ -388,16 +388,24 @@ function POPage() {
           <div className="font-semibold text-slate-700 flex items-center gap-1"><Wallet size={14} /> المصروفات</div>
           <div className="text-xs text-slate-600">الإجمالي: <span className="font-bold">{fmt(metrics.totalExpenses)}</span> {po.currency}</div>
         </div>
-        <ErpTable headers={["م","نوع المصروف","البيان","العملة","المبلغ","سعر الصرف","القيمة بعملة الفاتورة",""]}>
+        <ErpTable headers={["م","اسم المصروف","رقم الحساب","الحساب التحليلي","رقم المركز","مرفقة","المبلغ","سعر التحويل","المبلغ بعملة الفاتورة","رقم الفاتورة","تاريخ الفاتورة","البيان","الفرع المستفيد",""]}>
           {po.expenses.map((e, i) => (
             <tr key={e.id} className="hover:bg-blue-50/40">
               <td className="border border-slate-200 text-center">{i + 1}</td>
               <Cell value={e.type} onChange={(v) => patchExp(e.id, { type: v })} disabled={disabled} align="right" />
-              <Cell value={e.note} onChange={(v) => patchExp(e.id, { note: v })} disabled={disabled} align="right" />
-              <Cell value={e.currency} onChange={(v) => patchExp(e.id, { currency: v })} disabled={disabled} />
+              <Cell value={e.accountNo ?? ""} onChange={(v) => patchExp(e.id, { accountNo: v })} disabled={disabled} align="right" />
+              <Cell value={e.analyticAccount ?? ""} onChange={(v) => patchExp(e.id, { analyticAccount: v })} disabled={disabled} align="right" />
+              <Cell value={e.centerNo ?? ""} onChange={(v) => patchExp(e.id, { centerNo: v })} disabled={disabled} align="right" />
+              <td className="border border-slate-200 text-center">
+                <input type="checkbox" checked={!!e.attached} disabled={disabled} onChange={(ev) => patchExp(e.id, { attached: ev.target.checked })} />
+              </td>
               <Cell value={String(e.amount)} onChange={(v) => patchExp(e.id, { amount: Number(v) || 0 })} disabled={disabled} align="right" />
               <Cell value={String(e.rate)} onChange={(v) => patchExp(e.id, { rate: Number(v) || 0 })} disabled={disabled} align="right" />
               <Cell value={fmt((e.amount * (e.rate || 1)) / (po.rate || 1))} />
+              <Cell value={e.invoiceNo ?? ""} onChange={(v) => patchExp(e.id, { invoiceNo: v })} disabled={disabled} align="right" />
+              <Cell value={e.invoiceDate ?? ""} onChange={(v) => patchExp(e.id, { invoiceDate: v })} disabled={disabled} />
+              <Cell value={e.note} onChange={(v) => patchExp(e.id, { note: v })} disabled={disabled} align="right" />
+              <Cell value={e.branch ?? ""} onChange={(v) => patchExp(e.id, { branch: v })} disabled={disabled} align="right" />
               <td className="border border-slate-200 text-center">
                 <button disabled={disabled} onClick={() => removeExp(e.id)} className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-40"><Trash2 size={12} /></button>
               </td>
