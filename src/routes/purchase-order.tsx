@@ -413,6 +413,37 @@ function POPage() {
         </div>
       </div>
 
+      {/* Price tiers */}
+      {priceTiers.length > 0 && (
+        <div className="bg-white border border-slate-300 rounded">
+          <div className="text-center py-1 font-semibold text-slate-700 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
+            التسعيرات حسب الوجهات (تُدار من شاشة الإعدادات)
+          </div>
+          <ErpTable headers={["م", "الموديل", "اسم الصنف", "متوسط التكلفة", ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`])]}>
+            {po.rows.filter((r) => r.model || r.name).map((r, i) => {
+              const m = metrics.rowMetrics[i];
+              const avg = m?.avgCost ?? 0;
+              return (
+                <tr key={r.id} className="odd:bg-white even:bg-slate-50/50">
+                  <td className="border border-slate-200 text-center text-slate-500 w-10">{i + 1}</td>
+                  <td className="border border-slate-200 text-center px-2">{r.model}</td>
+                  <td className="border border-slate-200 text-right px-2">{r.name}</td>
+                  <td className="border border-slate-200 text-right px-2 bg-amber-50 font-semibold">{fmt(avg, 4)}</td>
+                  {priceTiers.flatMap((t) => {
+                    const tierCost = avg * (1 + (t.extraPct || 0) / 100);
+                    const salePrice = tierCost * (1 + (t.profitPct || 0) / 100);
+                    return [
+                      <td key={t.id + "c"} className="border border-slate-200 text-right px-2">{fmt(tierCost, 4)}</td>,
+                      <td key={t.id + "s"} className="border border-slate-200 text-right px-2 bg-emerald-50 font-semibold text-emerald-700">{fmt(salePrice, 4)}</td>,
+                    ];
+                  })}
+                </tr>
+              );
+            })}
+          </ErpTable>
+        </div>
+      )}
+
       {/* Dialogs */}
       <Dialog open={openDlg} onOpenChange={setOpenDlg}>
         <DialogContent dir="rtl">
