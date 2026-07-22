@@ -36,7 +36,9 @@ import {
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { ErpTable, fmt, fmtInt } from "@/components/erp/ErpUI";
-import { useErpStore, computePO } from "@/lib/erp-store";
+import { useErpStore, computePO, erpStore, savePurchaseOrder } from "@/lib/erp-store";
+import ExpensesDialog from "@/components/erp/ExpensesDialog";
+import { Plus } from "lucide-react";
 
 export const Route = createFileRoute("/expenses")({
   head: () => ({
@@ -56,6 +58,10 @@ function ExpensesPage() {
   const orders = useErpStore((s) => s.purchaseOrders);
   const suppliers = useErpStore((s) => s.suppliers);
   const settings = useErpStore((s) => s.settings);
+  const currencies = settings.currencies ?? [];
+
+  const [expDlg, setExpDlg] = useState(false);
+  const [targetPO, setTargetPO] = useState<string>("");
 
   const [q, setQ] = useState("");
   const [type, setType] = useState<string>("");
@@ -200,6 +206,10 @@ function ExpensesPage() {
 
   const actions = [
     { icon: RefreshCw, label: "تحديث", color: "text-emerald-600", onClick: () => toast.info("تم التحديث") },
+    { icon: Plus, label: "إضافة مصروف", color: "text-emerald-600", onClick: () => {
+        if (!orders.length) { toast.error("لا توجد أوامر شراء - أنشئ أمر شراء أولاً"); return; }
+        setTargetPO(orders[0].number); setExpDlg(true);
+      } },
     { icon: Filter, label: "تصفية", color: "text-blue-600", onClick: () => document.getElementById("exp-filter-q")?.focus() },
     { icon: Search, label: "بحث", hint: "F3", color: "text-indigo-500", onClick: () => document.getElementById("exp-filter-q")?.focus() },
     { icon: Printer, label: "طباعة", hint: "Ctrl+P", color: "text-slate-600", onClick: () => window.print() },
