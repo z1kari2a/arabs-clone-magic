@@ -74,6 +74,11 @@ function POPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [markupPct, setMarkupPct] = useState<number>(30);
   const priceTiers = useErpStore((s) => s.settings.priceTiers ?? []);
+  const currencies = useErpStore((s) => s.settings.currencies ?? []);
+  const currencyOptions = currencies.length
+    ? currencies.map((c) => ({ value: c.code, label: `${c.code} - ${c.name}` }))
+    : [{ value: "USD", label: "USD" }];
+  const rateOf = (code: string) => currencies.find((c) => c.code === code)?.rate ?? 1;
 
   // Collapsible sections — let users shrink big tables to save space.
   const [showItems, setShowItems] = useState(true);
@@ -100,7 +105,7 @@ function POPage() {
   const addExp = () =>
     setPo({
       ...po,
-      expenses: [...po.expenses, { id: (po.expenses.at(-1)?.id ?? 0) + 1, type: "", note: "", currency: po.currency, amount: 0, rate: 1 }],
+      expenses: [...po.expenses, { id: (po.expenses.at(-1)?.id ?? 0) + 1, type: "", note: "", currency: po.currency, amount: 0, rate: rateOf(po.currency) }],
     });
   const removeExp = (id: number) => setPo({ ...po, expenses: po.expenses.filter((e) => e.id !== id) });
 
@@ -282,13 +287,7 @@ function POPage() {
             <FieldRow label="رقم الفاتورة"><ErpInput value={po.number} onChange={(v) => patch({ number: v, invoiceNo: v })} disabled={po.approved} highlight /></FieldRow>
             <FieldRow label="التاريخ"><ErpInput value={po.date} onChange={(v) => patch({ date: v })} disabled={disabled} /></FieldRow>
             <FieldRow label="العملة">
-              <ErpSelect value={po.currency} onChange={(v) => patch({ currency: v })} disabled={disabled} options={[
-                { value: "USD", label: "USD - دولار أمريكي" },
-                { value: "EUR", label: "EUR - يورو" },
-                { value: "SAR", label: "SAR - ريال سعودي" },
-                { value: "AED", label: "AED - درهم إماراتي" },
-                { value: "JOD", label: "JOD - دينار أردني" },
-              ]} />
+              <ErpSelect value={po.currency} onChange={(v) => patch({ currency: v, rate: rateOf(v) })} disabled={disabled} options={currencyOptions} />
             </FieldRow>
             <FieldRow label="سعر الصرف"><ErpInput value={String(po.rate)} onChange={(v) => patch({ rate: Number(v) || 0 })} disabled={disabled} /></FieldRow>
             <FieldRow label="رقم الحاوية"><ErpInput value={po.containerNo} onChange={(v) => patch({ containerNo: v })} disabled={disabled} /></FieldRow>
@@ -401,7 +400,7 @@ function POPage() {
           <div className="text-xs text-slate-600">الإجمالي: <span className="font-bold">{fmt(metrics.totalExpenses)}</span> {po.currency}</div>
         </div>
         {showExpenses && (
-        <ErpTable headers={["م","اسم المصروف","رقم الحساب","الحساب التحليلي","رقم المركز","مرفقة","المبلغ","سعر التحويل","المبلغ بعملة الفاتورة","رقم الفاتورة","تاريخ الفاتورة","البيان","الفرع المستفيد",""]}>
+        <ErpTable headers={["م","اسم المصروف","رقم الحساب","الحساب التحليلي","رقم المركز","مرفقة","العملة","المبلغ","سعر التحويل","المبلغ بعملة الفاتورة","رقم الفاتورة","تاريخ الفاتورة","البيان","الفرع المستفيد",""]}>
           {po.expenses.map((e, i) => (
             <tr key={e.id} className="hover:bg-blue-50/40">
               <td className="border border-slate-200 text-center">{i + 1}</td>
@@ -411,6 +410,18 @@ function POPage() {
               <Cell value={e.centerNo ?? ""} onChange={(v) => patchExp(e.id, { centerNo: v })} disabled={disabled} align="right" />
               <td className="border border-slate-200 text-center">
                 <input type="checkbox" checked={!!e.attached} disabled={disabled} onChange={(ev) => patchExp(e.id, { attached: ev.target.checked })} />
+              </td>
+              <td className="border border-slate-200 p-0">
+                <select
+                  value={e.currency}
+                  disabled={disabled}
+                  onChange={(ev) => patchExp(e.id, { currency: ev.target.value, rate: rateOf(ev.target.value) })}
+                  className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none"
+                >
+                  {currencyOptions.map((o) => (
+                    <option key={o.value} value={o.value}>{o.value}</option>
+                  ))}
+                </select>
               </td>
               <Cell value={String(e.amount)} onChange={(v) => patchExp(e.id, { amount: Number(v) || 0 })} disabled={disabled} align="right" />
               <Cell value={String(e.rate)} onChange={(v) => patchExp(e.id, { rate: Number(v) || 0 })} disabled={disabled} align="right" />

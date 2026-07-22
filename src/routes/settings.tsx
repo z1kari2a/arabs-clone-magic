@@ -6,7 +6,7 @@ import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore } from "@/lib/erp-store";
-import type { PriceTier } from "@/lib/erp-types";
+import type { PriceTier, Currency } from "@/lib/erp-types";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -29,6 +29,13 @@ function SettingsPage() {
   const rmTier = (id: string) => setTiers(tiers.filter((t) => t.id !== id));
   const patchTier = (id: string, p: Partial<PriceTier>) =>
     setTiers(tiers.map((t) => (t.id === id ? { ...t, ...p } : t)));
+
+  const currencies: Currency[] = local.currencies ?? [];
+  const setCurrencies = (c: Currency[]) => setLocal({ ...local, currencies: c });
+  const addCurrency = () => setCurrencies([...currencies, { code: "NEW", name: "عملة جديدة", rate: 1 }]);
+  const rmCurrency = (code: string) => setCurrencies(currencies.filter((c) => c.code !== code));
+  const patchCurrency = (code: string, p: Partial<Currency>) =>
+    setCurrencies(currencies.map((c) => (c.code === code ? { ...c, ...p } : c)));
 
   const onSave = () => { erpStore.set({ settings: local }); toast.success("تم حفظ الإعدادات"); };
   const onReset = () => { if (confirm("إعادة تعيين كل البيانات؟")) { erpStore.reset(); toast.success("تم إعادة التعيين"); location.reload(); } };
@@ -99,6 +106,30 @@ function SettingsPage() {
               <Cell value={String(t.profitPct)} onChange={(v) => patchTier(t.id, { profitPct: Number(v) || 0 })} align="right" />
               <td className="border border-slate-200 text-center">
                 <button onClick={() => rmTier(t.id)} className="text-rose-600 hover:bg-rose-50 px-2 rounded"><Trash2 size={12} /></button>
+              </td>
+            </tr>
+          ))}
+        </ErpTable>
+      </Panel>
+
+      <Panel title="تهيئة العملات وأسعار الصرف" className="mt-2">
+        <div className="flex justify-between items-center mb-2">
+          <div className="text-xs text-slate-600">
+            سعر التحويل = كم يساوي وحدة واحدة من هذه العملة بالعملة الأساسية (اليمني). تظهر هذه العملات تلقائياً في المصروفات وعملة الفاتورة.
+          </div>
+          <button onClick={addCurrency} className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-emerald-300 rounded hover:bg-emerald-50">
+            <Plus size={12} className="text-emerald-600" /> إضافة عملة
+          </button>
+        </div>
+        <ErpTable headers={["م", "نوع العملة (الرمز)", "اسم العملة", "سعر التحويل", "حذف"]}>
+          {currencies.map((c, i) => (
+            <tr key={c.code + i} className="odd:bg-white even:bg-slate-50/50">
+              <td className="border border-slate-200 text-center text-slate-500 w-10">{i + 1}</td>
+              <Cell value={c.code} onChange={(v) => patchCurrency(c.code, { code: v.toUpperCase() })} />
+              <Cell value={c.name} onChange={(v) => patchCurrency(c.code, { name: v })} align="right" />
+              <Cell value={String(c.rate)} onChange={(v) => patchCurrency(c.code, { rate: Number(v) || 0 })} align="right" />
+              <td className="border border-slate-200 text-center">
+                <button onClick={() => rmCurrency(c.code)} className="text-rose-600 hover:bg-rose-50 px-2 rounded"><Trash2 size={12} /></button>
               </td>
             </tr>
           ))}

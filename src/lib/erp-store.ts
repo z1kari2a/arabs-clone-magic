@@ -24,6 +24,12 @@ const defaultSettings: Settings = {
     { id: "aden",  name: "تكلفة عدن",        extraPct: 26.87, profitPct: 30 },
     { id: "sanaa", name: "تكلفة صنعاء",      extraPct: 52.71, profitPct: 30 },
   ],
+  currencies: [
+    { code: "YER", name: "ريال يمني",  rate: 1 },
+    { code: "SAR", name: "ريال سعودي", rate: 140 },
+    { code: "CNY", name: "يوان صيني",  rate: 76 },
+    { code: "USD", name: "دولار",       rate: 530 },
+  ],
 };
 
 const initialState: StoreState = {
