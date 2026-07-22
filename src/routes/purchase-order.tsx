@@ -105,7 +105,7 @@ function POPage() {
   const addExp = () =>
     setPo({
       ...po,
-      expenses: [...po.expenses, { id: (po.expenses.at(-1)?.id ?? 0) + 1, type: "", note: "", currency: po.currency, amount: 0, rate: 1 }],
+      expenses: [...po.expenses, { id: (po.expenses.at(-1)?.id ?? 0) + 1, type: "", note: "", currency: po.currency, amount: 0, rate: rateOf(po.currency) }],
     });
   const removeExp = (id: number) => setPo({ ...po, expenses: po.expenses.filter((e) => e.id !== id) });
 
