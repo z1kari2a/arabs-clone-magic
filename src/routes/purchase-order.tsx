@@ -255,6 +255,7 @@ function POPage() {
                 { value: "cbm", label: "حسب CBM" },
                 { value: "value", label: "حسب قيمة الشراء" },
                 { value: "qty", label: "حسب الكمية" },
+                { value: "avg", label: "متوسط (CBM + القيمة) ÷ 2" },
               ]} />
             </FieldRow>
             <FieldRow label="نسبة الربح %">
