@@ -44,6 +44,12 @@ export default function ExpensesDialog({
 
   const rateOf = (code: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
   const convert = (amt: number, rate: number) => (amt * (rate || 1)) / (invoiceRate || 1);
+  // Effective rate = how many units of invoice currency equal 1 unit of source currency.
+  const effRate = (code: string) => {
+    const r = rateOf(code);
+    if (!r || !invoiceRate) return 0;
+    return r / invoiceRate;
+  };
   const total = rows.reduce((s, e) => s + convert(e.amount, e.rate), 0);
 
   const nextId = () => (rows.at(-1)?.id ?? 0) + 1;
@@ -168,9 +174,9 @@ export default function ExpensesDialog({
                     <input
                       type="number"
                       step="0.000001"
-                      value={e.rate || ""}
+                      value={effRate(e.currency) || ""}
                       readOnly
-                      title="يُقرأ من إعدادات أسعار الصرف — غير قابل للتعديل"
+                      title={`سعر تحويل 1 ${e.currency || "—"} إلى ${invoiceCurrency} — يُقرأ من الإعدادات`}
                       className="w-28 px-2 py-1.5 border border-slate-200 rounded-md bg-slate-100 text-sm text-right tabular-nums cursor-not-allowed"
                       placeholder="1.000000"
                     />
