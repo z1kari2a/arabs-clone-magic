@@ -135,43 +135,8 @@ function POPage() {
     if (editingId === id) cancelDraft();
   };
 
-  // Currency management (inline side panel)
-  const saveCurrencies = (list: Currency[], newDefault?: string) => {
-    erpStore.set({
-      settings: {
-        ...settings,
-        currencies: list,
-        defaultCurrency: newDefault ?? settings.defaultCurrency,
-      },
-    });
-  };
-  const [newCur, setNewCur] = useState<Currency>({ code: "", name: "", rate: 1 });
-  const addCurrency = () => {
-    const code = newCur.code.trim().toUpperCase();
-    if (!code) return toast.error("أدخل رمز العملة");
-    if (currencies.some((c) => c.code === code)) return toast.error("العملة موجودة");
-    const list = [...currencies, { ...newCur, code, rate: Number(newCur.rate) || 1 }];
-    saveCurrencies(list, currencies.length === 0 ? code : settings.defaultCurrency);
-    setNewCur({ code: "", name: "", rate: 1 });
-    toast.success(`تمت إضافة ${code}`);
-  };
-  const patchCurrency = (code: string, p: Partial<Currency>) => {
-    const list = currencies.map((c) => (c.code === code ? { ...c, ...p } : c));
-    saveCurrencies(list);
-  };
-  const removeCurrency = (code: string) => {
-    if (!confirm(`حذف العملة ${code}؟`)) return;
-    const list = currencies.filter((c) => c.code !== code);
-    const nd = settings.defaultCurrency === code ? list[0]?.code ?? "" : settings.defaultCurrency;
-    saveCurrencies(list, nd);
-    toast.success("تم الحذف");
-  };
-  const setAsDefault = (code: string) => {
-    saveCurrencies(currencies, code);
-    // If PO not yet saved and still on old default, switch it too
-    if (!po.approved) patch({ currency: code, rate: rateOfCode(code) });
-    toast.success(`العملة الافتراضية: ${code}`);
-  };
+  // Note: exchange-rate editing lives only in Settings → Currencies panel.
+  // Every screen reads settings.currencies read-only.
 
   // Collapsible sections — let users shrink big tables to save space.
   const [showItems, setShowItems] = useState(true);
