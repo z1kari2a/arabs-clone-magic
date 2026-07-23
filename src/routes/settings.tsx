@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, RefreshCw, Plus, Star, DollarSign, Lock } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
-import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, fmt, parseDecimal } from "@/components/erp/ErpUI";
+import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, fmt, parseDecimal, useNumericBuffer } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore } from "@/lib/erp-store";
 import type { PriceTier, Currency } from "@/lib/erp-types";
 
@@ -97,8 +97,8 @@ function SettingsPage() {
             <tr key={t.id} className="odd:bg-white even:bg-slate-50/50">
               <td className="border border-slate-200 text-center text-slate-500 w-10">{i + 1}</td>
               <Cell value={t.name} onChange={(v) => patchTier(t.id, { name: v })} align="right" />
-              <Cell value={String(t.extraPct)} onChange={(v) => patchTier(t.id, { extraPct: parseDecimal(v) })} align="right" />
-              <Cell value={String(t.profitPct)} onChange={(v) => patchTier(t.id, { profitPct: parseDecimal(v) })} align="right" />
+              <Cell value={t.extraPct} onChange={(v) => patchTier(t.id, { extraPct: parseDecimal(v) })} align="right" type="number" />
+              <Cell value={t.profitPct} onChange={(v) => patchTier(t.id, { profitPct: parseDecimal(v) })} align="right" type="number" />
               <td className="border border-slate-200 text-center">
                 <button onClick={() => rmTier(t.id)} className="text-rose-600 hover:bg-rose-50 px-2 rounded"><Trash2 size={12} /></button>
               </td>
