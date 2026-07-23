@@ -14,6 +14,86 @@ export type Database = {
   }
   public: {
     Tables: {
+      activations: {
+        Row: {
+          activated_at: string
+          device_name: string | null
+          id: string
+          last_seen_at: string
+          license_id: string
+          machine_fingerprint: string
+          revoked: boolean
+          revoked_at: string | null
+          session_token_hash: string
+        }
+        Insert: {
+          activated_at?: string
+          device_name?: string | null
+          id?: string
+          last_seen_at?: string
+          license_id: string
+          machine_fingerprint: string
+          revoked?: boolean
+          revoked_at?: string | null
+          session_token_hash: string
+        }
+        Update: {
+          activated_at?: string
+          device_name?: string | null
+          id?: string
+          last_seen_at?: string
+          license_id?: string
+          machine_fingerprint?: string
+          revoked?: boolean
+          revoked_at?: string | null
+          session_token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activations_license_id_fkey"
+            columns: ["license_id"]
+            isOneToOne: false
+            referencedRelation: "licenses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_bundles: {
+        Row: {
+          created_at: string
+          encrypted_blob: string
+          id: string
+          is_current: boolean
+          min_shell_version: string
+          notes: string | null
+          signature: string
+          size_bytes: number | null
+          version: string
+        }
+        Insert: {
+          created_at?: string
+          encrypted_blob: string
+          id?: string
+          is_current?: boolean
+          min_shell_version?: string
+          notes?: string | null
+          signature: string
+          size_bytes?: number | null
+          version: string
+        }
+        Update: {
+          created_at?: string
+          encrypted_blob?: string
+          id?: string
+          is_current?: boolean
+          min_shell_version?: string
+          notes?: string | null
+          signature?: string
+          size_bytes?: number | null
+          version?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string
@@ -49,6 +129,38 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      heartbeats: {
+        Row: {
+          activation_id: string
+          created_at: string
+          id: string
+          ip_hash: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          activation_id: string
+          created_at?: string
+          id?: string
+          ip_hash?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          activation_id?: string
+          created_at?: string
+          id?: string
+          ip_hash?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "heartbeats_activation_id_fkey"
+            columns: ["activation_id"]
+            isOneToOne: false
+            referencedRelation: "activations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       items: {
         Row: {
@@ -91,6 +203,48 @@ export type Database = {
           last_cost?: number
           name?: string
           units?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      licenses: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          created_by: string | null
+          customer_name: string | null
+          expires_at: string | null
+          id: string
+          license_type: string
+          max_devices: number
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          created_by?: string | null
+          customer_name?: string | null
+          expires_at?: string | null
+          id?: string
+          license_type: string
+          max_devices?: number
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          customer_name?: string | null
+          expires_at?: string | null
+          id?: string
+          license_type?: string
+          max_devices?: number
+          notes?: string | null
           updated_at?: string
         }
         Relationships: []
