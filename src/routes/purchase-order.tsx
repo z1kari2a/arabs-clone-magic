@@ -351,123 +351,64 @@ function POPage() {
       <div className="bg-white border border-slate-300 rounded">
         <div className="flex items-center justify-between px-2 py-1 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
           <div className="flex items-center gap-1">
-            <button onClick={startNewProduct} disabled={po.approved} className="flex items-center gap-1 px-2 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-40">
-              <Plus size={12} /> {draft ? "منتج آخر" : "إضافة منتج"}
+            <button onClick={() => { if (!editing) setEditing(true); addRow(); }} disabled={po.approved} className="flex items-center gap-1 px-2 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-40">
+              <Plus size={12} /> إضافة صنف
+            </button>
+            <button onClick={() => setSearchDlg(true)} disabled={po.approved} className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-slate-300 rounded hover:bg-blue-50 disabled:opacity-40">
+              <Search size={12} className="text-blue-600" /> بحث من الكتالوج
             </button>
           </div>
           <button type="button" onClick={() => setShowItems((v) => !v)} className="font-semibold text-slate-700 flex items-center gap-1 hover:text-blue-700" title={showItems ? "طي الجدول" : "توسيع الجدول"}>
-            {showItems ? <ChevronUp size={14} /> : <ChevronDown size={14} />} <Package size={14} /> منتجات الفاتورة ({savedRows.length})
+            {showItems ? <ChevronUp size={14} /> : <ChevronDown size={14} />} <Package size={14} /> بنود الفاتورة ({savedCount})
           </button>
           <div className="text-xs text-slate-500">{po.approved && <span className="text-emerald-600 font-semibold">✓ معتمد</span>}</div>
         </div>
         {showItems && (
-        <div className="p-2 space-y-2">
-          {/* Draft editor */}
-          {draft && (
-            <div className="border-2 border-emerald-400 bg-emerald-50/40 rounded p-2 shadow-sm">
-              <div className="flex items-center justify-between mb-2 pb-1 border-b border-emerald-200">
-                <div className="font-semibold text-emerald-800 text-xs flex items-center gap-1">
-                  <Package size={13} /> {editingId != null ? "تعديل المنتج" : "منتج جديد"}
-                </div>
-                <div className="flex gap-1">
-                  <button onClick={saveDraft} className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">
-                    <Check size={12} /> حفظ المنتج
-                  </button>
-                  <button onClick={cancelDraft} className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-slate-300 rounded hover:bg-slate-100">
-                    <X size={12} /> إلغاء
-                  </button>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 gap-y-1.5">
-                <FieldRow label="الموديل">
-                  <ErpInput value={draft.model} onChange={(v) => {
+        <div className="overflow-x-auto">
+        <ErpTable headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","العملة","سعر الشراء","تكلفة الشراء","CBM الكرتون","إجمالي CBM","مبلغ الخرج / كرتون","سعر CBM (وحدة)","متوسط التكلفة",`سعر البيع (+${markupPct}%)`,""]}>
+          {po.rows.map((r, i) => {
+            const m = metrics.rowMetrics[i];
+            const cartons = r.pack ? r.qty / r.pack : 0;
+            const expPerCarton = cartons > 0 ? (m?.allocatedExp ?? 0) / cartons : 0;
+            const rowCur = r.currency ?? po.currency;
+            const salePrice = (m?.avgCost ?? 0) * (1 + markupPct / 100);
+            return (
+              <tr key={r.id} className="hover:bg-blue-50/40">
+                <td className="border border-slate-200 text-center text-slate-500 w-8">{i + 1}</td>
+                <td className="border border-slate-200 p-0">
+                  <input value={r.model} disabled={disabled} onChange={(e) => {
+                    const v = e.target.value;
                     const it = items.find((x) => x.code === v || x.barcode === v);
-                    if (it) patchDraft({ model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? "حبة", pack: it.units[0]?.pack ?? 1, price: it.units[0]?.lastPrice ?? 0 });
-                    else patchDraft({ model: v });
-                  }} />
-                </FieldRow>
-                <FieldRow label="اسم الصنف"><ErpInput value={draft.name} onChange={(v) => patchDraft({ name: v })} align="right" /></FieldRow>
-                <FieldRow label="الوحدة"><ErpInput value={draft.unit} onChange={(v) => patchDraft({ unit: v })} /></FieldRow>
-                <FieldRow label="العبوة"><ErpInput value={String(draft.pack)} onChange={(v) => patchDraft({ pack: parseDecimal(v) })} /></FieldRow>
-                <FieldRow label="الكمية"><ErpInput value={String(draft.qty)} onChange={(v) => patchDraft({ qty: parseDecimal(v) })} highlight /></FieldRow>
-                <FieldRow label="سعر الشراء"><ErpInput value={String(draft.price)} onChange={(v) => patchDraft({ price: parseDecimal(v) })} highlight /></FieldRow>
-                <FieldRow label="عملة السعر">
-                  <ErpSelect value={draft.currency ?? po.currency} onChange={(v) => patchDraft({ currency: v, rate: rateOf(v) })} options={currencyOptions} />
-                </FieldRow>
-                <FieldRow label="سعر التحويل">
-                  <ErpInput value={String(draft.rate ?? po.rate)} onChange={() => {}} disabled />
-                </FieldRow>
-                <FieldRow label="CBM الكرتون"><ErpInput value={String(draft.cbm)} onChange={(v) => patchDraft({ cbm: parseDecimal(v) })} /></FieldRow>
-                <div className="col-span-2 md:col-span-3 grid grid-cols-3 gap-2 text-[11px]">
-                  <div className="border border-slate-200 rounded p-1.5 bg-white text-center">
-                    <div className="text-slate-500">إجمالي بعملة المنتج</div>
-                    <div className="font-bold text-slate-800">{fmt(draft.qty * draft.price)} <span className="text-[10px] text-slate-500">{draft.currency ?? po.currency}</span></div>
-                  </div>
-                  <div className="border border-slate-200 rounded p-1.5 bg-blue-50 text-center">
-                    <div className="text-slate-500">إجمالي بعملة الفاتورة</div>
-                    <div className="font-bold text-blue-700">{fmt(draft.qty * draft.price * ((draft.rate ?? po.rate) / (po.rate || 1)))} <span className="text-[10px] text-slate-500">{po.currency}</span></div>
-                  </div>
-                  <div className="border border-slate-200 rounded p-1.5 bg-amber-50 text-center">
-                    <div className="text-slate-500">إجمالي CBM</div>
-                    <div className="font-bold text-amber-700">{fmt((draft.pack ? draft.qty / draft.pack : 0) * draft.cbm, 4)}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Saved product cards */}
-          {savedRows.length === 0 && !draft && (
-            <div className="text-center text-xs text-slate-500 py-6 border border-dashed border-slate-300 rounded">
-              لا توجد منتجات في هذه الفاتورة — اضغط "إضافة منتج" للبدء
-            </div>
-          )}
-          {savedRows.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-              {savedRows.map((r, i) => {
-                const m = metrics.rowMetrics[po.rows.indexOf(r)];
-                const rowCur = r.currency ?? po.currency;
-                const salePrice = (m?.avgCost ?? 0) * (1 + markupPct / 100);
-                const isEditing = editingId === r.id;
-                return (
-                  <div key={r.id} className={`group relative border rounded-md bg-white shadow-sm hover:shadow transition text-[11px] ${isEditing ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-300"}`}>
-                    <div className="flex items-center justify-between px-2 py-1 border-b border-slate-200 bg-slate-50/70 rounded-t-md">
-                      <div className="flex items-center gap-1 min-w-0">
-                        <span className="w-5 h-5 grid place-items-center rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold shrink-0">{i + 1}</span>
-                        <span className="font-semibold text-slate-800 truncate" title={r.name}>{r.name || "—"}</span>
-                      </div>
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        <button onClick={() => removeProduct(r.id)} disabled={po.approved} className="p-1 text-rose-500 hover:bg-rose-50 rounded disabled:opacity-40" title="حذف"><Trash2 size={11} /></button>
-                        <button onClick={() => editProduct(r)} disabled={po.approved} className="p-1 text-blue-600 hover:bg-blue-50 rounded disabled:opacity-40" title="تعديل / عرض التفاصيل">
-                          <ChevronLeft size={13} />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="p-2 space-y-1">
-                      <div className="flex justify-between text-slate-500"><span>الموديل</span><span className="font-mono text-slate-700">{r.model || "—"}</span></div>
-                      <div className="flex justify-between text-slate-500"><span>الكمية × السعر</span><span className="text-slate-800"><b>{fmtInt(r.qty)}</b> × <b>{fmt(r.price)}</b> <span className="text-[10px] text-slate-500">{rowCur}</span></span></div>
-                      <div className="flex justify-between text-slate-500"><span>الإجمالي (عملة السعر)</span><span className="font-bold text-slate-800">{fmt(r.qty * r.price)} {rowCur}</span></div>
-                      {rowCur !== po.currency && (
-                        <div className="flex justify-between text-slate-500"><span>≈ بعملة الفاتورة</span><span className="font-semibold text-blue-700">{fmt(m?.linePurchase ?? 0)} {po.currency}</span></div>
-                      )}
-                      <div className="flex justify-between border-t border-dashed border-slate-200 pt-1 mt-1">
-                        <span className="text-slate-500">متوسط التكلفة</span>
-                        <span className="font-bold text-amber-700">{fmt(m?.avgCost ?? 0, 4)} {po.currency}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">سعر CBM</span>
-                        <span className="font-bold text-purple-700">{fmt(m?.cbmCost ?? 0, 4)} {po.currency}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">سعر البيع (+{markupPct}%)</span>
-                        <span className="font-bold text-emerald-700">{fmt(salePrice, 4)}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                    if (it) patchRow(r.id, { model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? r.unit, pack: it.units[0]?.pack ?? r.pack, price: it.units[0]?.lastPrice ?? r.price });
+                    else patchRow(r.id, { model: v });
+                  }} className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none text-center" />
+                </td>
+                <Cell value={r.name} onChange={(v) => patchRow(r.id, { name: v })} disabled={disabled} align="right" />
+                <Cell value={r.unit} onChange={(v) => patchRow(r.id, { unit: v })} disabled={disabled} />
+                <Cell value={String(r.pack)} onChange={(v) => patchRow(r.id, { pack: parseDecimal(v) })} disabled={disabled} align="right" />
+                <Cell value={String(r.qty)} onChange={(v) => patchRow(r.id, { qty: parseDecimal(v) })} disabled={disabled} align="right" />
+                <td className="border border-slate-200 p-0">
+                  <select value={rowCur} disabled={disabled}
+                    onChange={(ev) => patchRow(r.id, { currency: ev.target.value, rate: rateOf(ev.target.value) })}
+                    className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none">
+                    {currencyOptions.map((o) => (<option key={o.value} value={o.value}>{o.value}</option>))}
+                  </select>
+                </td>
+                <Cell value={String(r.price)} onChange={(v) => patchRow(r.id, { price: parseDecimal(v) })} disabled={disabled} align="right" />
+                <Cell value={fmt(r.qty * r.price)} align="right" />
+                <Cell value={String(r.cbm)} onChange={(v) => patchRow(r.id, { cbm: parseDecimal(v) })} disabled={disabled} align="right" />
+                <Cell value={fmt(cartons * r.cbm, 4)} align="right" />
+                <td className="border border-slate-200 text-right px-2 bg-orange-50 font-semibold text-orange-700">{fmt(expPerCarton, 4)}</td>
+                <td className="border border-slate-200 text-right px-2 bg-purple-50 text-purple-700">{fmt(m?.cbmCost ?? 0, 4)}</td>
+                <td className="border border-slate-200 text-right px-2 bg-amber-50 font-semibold text-amber-700">{fmt(m?.avgCost ?? 0, 4)}</td>
+                <td className="border border-slate-200 text-right px-2 bg-emerald-50 font-bold text-emerald-700">{fmt(salePrice, 4)}</td>
+                <td className="border border-slate-200 text-center">
+                  <button disabled={disabled} onClick={() => removeRow(r.id)} className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-40" title="حذف"><Trash2 size={12} /></button>
+                </td>
+              </tr>
+            );
+          })}
+        </ErpTable>
         </div>
         )}
       </div>
