@@ -4,6 +4,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import type { Expense, Currency } from "@/lib/erp-types";
 import { fmt, parseDecimal, useNumericBuffer } from "./ErpUI";
+import { updateCurrencyRate } from "@/lib/erp-store";
 
 type Props = {
   open: boolean;
@@ -43,6 +44,13 @@ export default function ExpensesDialog({
   useMemo(() => { if (open) { setRows(expenses); setTypes(expenseTypes); } }, [open]); // eslint-disable-line
 
   const rateOf = (code: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
+  // Effective rate → invoice currency. Editing this writes back to settings.currencies[code].rate.
+  const setEffRate = (code: string, effective: number) => {
+    if (!code) return;
+    const baseRate = effective * (invoiceRate || 1);
+    updateCurrencyRate(code, baseRate);
+    setRows(rows.map((r) => (r.currency === code ? { ...r, rate: baseRate } : r)));
+  };
   const convert = (amt: number, rate: number) => (amt * (rate || 1)) / (invoiceRate || 1);
   // Effective rate = how many units of invoice currency equal 1 unit of source currency.
   const effRate = (code: string) => {
@@ -171,14 +179,11 @@ export default function ExpensesDialog({
                     />
                   </td>
                   <td className="py-2 px-2">
-                    <input
-                      type="number"
-                      step="0.000001"
-                      value={effRate(e.currency) || ""}
-                      readOnly
-                      title={`سعر تحويل 1 ${e.currency || "—"} إلى ${invoiceCurrency} — يُقرأ من الإعدادات`}
-                      className="w-28 px-2 py-1.5 border border-slate-200 rounded-md bg-slate-100 text-sm text-right tabular-nums cursor-not-allowed"
-                      placeholder="1.000000"
+                    <RateInput
+                      value={effRate(e.currency)}
+                      disabled={disabled || !e.currency}
+                      onChange={(n) => setEffRate(e.currency, n)}
+                      title={`سعر تحويل 1 ${e.currency || "—"} إلى ${invoiceCurrency} — يُحفظ مركزياً`}
                     />
                   </td>
                   <td className="py-2 px-2">
@@ -279,6 +284,31 @@ function AmountInput({
       }}
       className="w-32 px-2 py-1.5 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-right tabular-nums"
       placeholder="0.00"
+    />
+  );
+}
+
+function RateInput({
+  value, onChange, disabled, title,
+}: { value: number; onChange: (n: number) => void; disabled?: boolean; title?: string }) {
+  const buf = useNumericBuffer(value || "", true);
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={buf.text}
+      disabled={disabled}
+      title={title}
+      onFocus={buf.onFocus}
+      onBlur={buf.onBlur}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (v !== "" && !/^-?[\d\u0660-\u0669\u06F0-\u06F9]*[.,،\u066B]?[\d\u0660-\u0669\u06F0-\u06F9]*$/.test(v)) return;
+        buf.setText(v);
+        onChange(parseDecimal(v));
+      }}
+      className="w-28 px-2 py-1.5 border border-amber-300 rounded-md bg-amber-50/40 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 text-right tabular-nums disabled:bg-slate-100 disabled:border-slate-200"
+      placeholder="1.000000"
     />
   );
 }
