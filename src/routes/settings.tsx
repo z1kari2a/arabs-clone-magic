@@ -207,8 +207,7 @@ function CurrenciesPanel() {
                     className="w-full px-2 py-1 text-right bg-transparent focus:outline-none focus:bg-blue-50/50 rounded" />
                 </td>
                 <td className="border border-slate-200 p-1">
-                  <input type="text" inputMode="decimal" value={c.rate || ""}
-                    onChange={(e) => patch(c.code, { rate: parseDecimal(e.target.value) })}
+                  <RateInput value={c.rate} onChange={(n) => patch(c.code, { rate: n })}
                     className="w-full px-2 py-1 text-right tabular-nums bg-transparent focus:outline-none focus:bg-blue-50/50 rounded" />
                 </td>
                 <td className="border border-slate-200 text-center text-slate-600 tabular-nums text-xs">
@@ -238,8 +237,7 @@ function CurrenciesPanel() {
         </div>
         <div>
           <label className="text-[11px] text-slate-600 block mb-1">سعر التحويل</label>
-          <input type="text" inputMode="decimal" value={nc.rate || ""}
-            onChange={(e) => setNc({ ...nc, rate: parseDecimal(e.target.value) })}
+          <RateInput value={nc.rate} onChange={(n) => setNc({ ...nc, rate: n })}
             placeholder="530" className="w-full px-2 py-1.5 border border-slate-300 rounded text-right tabular-nums" />
         </div>
         <button onClick={add} className="flex items-center justify-center gap-1 px-3 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-sm">
