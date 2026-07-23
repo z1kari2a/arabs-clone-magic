@@ -192,7 +192,25 @@ export async function deleteItem(code: string) {
 export async function savePurchaseOrder(po: PurchaseOrder) {
   const prev = (await localDb.purchaseOrders.list()).find((p) => p.number === po.number) ?? null;
   const validRows = po.rows.filter((r) => r.model || r.name);
-  const clean: PurchaseOrder = { ...po, rows: validRows };
+  // Pin exchange rates onto every entity so historical documents never shift
+  // when settings.currencies rates are edited later.
+  const currencies = state.settings.currencies ?? [];
+  const rateOf = (code?: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
+  const pinnedInv = po.rate || rateOf(po.currency) || 1;
+  const pinnedRows = validRows.map((r) => ({
+    ...r,
+    rate: r.rate || rateOf(r.currency) || pinnedInv,
+  }));
+  const pinnedExpenses = po.expenses.map((e) => ({
+    ...e,
+    rate: e.rate || rateOf(e.currency) || 0,
+  }));
+  const clean: PurchaseOrder = {
+    ...po,
+    rate: pinnedInv,
+    rows: pinnedRows,
+    expenses: pinnedExpenses,
+  };
   await localDb.purchaseOrders.upsert(clean);
   await logAudit({
     user_email: currentUsername(),
@@ -205,7 +223,7 @@ export async function savePurchaseOrder(po: PurchaseOrder) {
 
   // Auto-create/update items catalog
   const items = await localDb.items.list();
-  for (const row of validRows) {
+  for (const row of pinnedRows) {
     if (!row.model) continue;
     const existing = items.find((i) => i.code === row.model);
     if (!existing) {
@@ -216,6 +234,8 @@ export async function savePurchaseOrder(po: PurchaseOrder) {
         units: [{ name: row.unit, pack: row.pack || 1, lastPrice: row.price }],
         cbmPerCarton: row.cbm,
         lastCost: 0,
+        currency: row.currency || po.currency,
+        rate: row.rate,
       };
       await localDb.items.upsert(newItem);
     } else if (po.approved) {
@@ -223,15 +243,21 @@ export async function savePurchaseOrder(po: PurchaseOrder) {
       const idx = units.findIndex((u) => u.name === row.unit);
       if (idx >= 0) units[idx] = { ...units[idx], lastPrice: row.price, pack: row.pack };
       else units.push({ name: row.unit, pack: row.pack || 1, lastPrice: row.price });
-      await localDb.items.upsert({ ...existing, units, cbmPerCarton: row.cbm });
+      await localDb.items.upsert({
+        ...existing,
+        units,
+        cbmPerCarton: row.cbm,
+        currency: row.currency || existing.currency || po.currency,
+        rate: row.rate ?? existing.rate,
+      });
     }
   }
   if (po.approved) {
     const metrics = computePO(clean);
     const list = await localDb.items.list();
-    for (let i = 0; i < validRows.length; i++) {
+    for (let i = 0; i < pinnedRows.length; i++) {
       const m = metrics.rowMetrics[i];
-      const it = list.find((x) => x.code === validRows[i].model);
+      const it = list.find((x) => x.code === pinnedRows[i].model);
       if (m && it) await localDb.items.upsert({ ...it, lastCost: m.avgCost });
     }
   }
@@ -295,15 +321,16 @@ export function useErpStore<T>(selector: (s: StoreState) => T): T {
 
 // ============ Business logic (unchanged) ============
 export function computePO(po: PurchaseOrder) {
-  // Always resolve rates from settings.currencies — never trust stored/manual rates.
+  // Prefer PINNED rates stored on the document — fall back to live settings only
+  // when the row/expense/header has no rate yet (e.g. a brand-new unsaved line).
   const currencies = state.settings.currencies ?? [];
-  const rateOf = (code?: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
-  const resolvedInvRate = rateOf(po.currency) || po.rate || 1;
+  const liveRate = (code?: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
+  const resolvedInvRate = po.rate || liveRate(po.currency) || 1;
   const totalItems = po.rows.filter((r) => r.model || r.name).length;
   const totalQty = po.rows.reduce((s, r) => s + (r.qty || 0), 0);
   const invRate = resolvedInvRate;
   const effPriceOf = (r: import("./erp-types").PORow) => {
-    const rate = rateOf(r.currency) || invRate;
+    const rate = r.rate || liveRate(r.currency) || invRate;
     return r.price * (rate / invRate);
   };
   const totalPurchase = po.rows.reduce((s, r) => s + r.qty * effPriceOf(r), 0);
@@ -313,7 +340,7 @@ export function computePO(po: PurchaseOrder) {
   }, 0);
   const totalCartons = po.rows.reduce((s, r) => s + (r.pack ? r.qty / r.pack : 0), 0);
   const totalExpenses = po.expenses.reduce(
-    (s, e) => s + (e.amount * (rateOf(e.currency) || 0)) / invRate,
+    (s, e) => s + (e.amount * (e.rate || liveRate(e.currency) || 0)) / invRate,
     0,
   );
   const cbmPrice = totalCBM > 0 ? totalExpenses / totalCBM : 0;
