@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, Package } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
-import { ErpTable, Cell, fmt } from "@/components/erp/ErpUI";
+import { ErpTable, Cell, fmt, parseDecimal } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore } from "@/lib/erp-store";
 import type { Item } from "@/lib/erp-types";
 
@@ -71,9 +71,9 @@ function ItemsPage() {
                 <Cell value={it.name} onChange={(v) => patch(idx, { name: v })} disabled={!editing} align="right" />
                 <Cell value={it.barcode} onChange={(v) => patch(idx, { barcode: v })} disabled={!editing} />
                 <Cell value={u0.name} onChange={(v) => patch(idx, { units: [{ ...u0, name: v }] })} disabled={!editing} />
-                <Cell value={String(u0.pack)} onChange={(v) => patch(idx, { units: [{ ...u0, pack: Number(v) || 0 }] })} disabled={!editing} align="right" />
+                <Cell value={u0.pack} onChange={(v) => patch(idx, { units: [{ ...u0, pack: parseDecimal(v) }] })} disabled={!editing} align="right" />
                 <td className="border border-slate-200 text-right px-2 bg-slate-50">{fmt(u0.lastPrice)}</td>
-                <Cell value={String(it.cbmPerCarton)} onChange={(v) => patch(idx, { cbmPerCarton: Number(v) || 0 })} disabled={!editing} align="right" />
+                <Cell value={it.cbmPerCarton} onChange={(v) => patch(idx, { cbmPerCarton: parseDecimal(v) })} disabled={!editing} align="right" />
                 <td className="border border-slate-200 text-right px-2 bg-amber-50 font-semibold">{fmt(it.lastCost, 4)}</td>
               </tr>
             );

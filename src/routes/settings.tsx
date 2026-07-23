@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, RefreshCw, Plus, Star, DollarSign, Lock } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
-import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, fmt, parseDecimal } from "@/components/erp/ErpUI";
+import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, fmt, parseDecimal, useNumericBuffer } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore } from "@/lib/erp-store";
 import type { PriceTier, Currency } from "@/lib/erp-types";
 
@@ -97,8 +97,8 @@ function SettingsPage() {
             <tr key={t.id} className="odd:bg-white even:bg-slate-50/50">
               <td className="border border-slate-200 text-center text-slate-500 w-10">{i + 1}</td>
               <Cell value={t.name} onChange={(v) => patchTier(t.id, { name: v })} align="right" />
-              <Cell value={String(t.extraPct)} onChange={(v) => patchTier(t.id, { extraPct: parseDecimal(v) })} align="right" />
-              <Cell value={String(t.profitPct)} onChange={(v) => patchTier(t.id, { profitPct: parseDecimal(v) })} align="right" />
+              <Cell value={t.extraPct} onChange={(v) => patchTier(t.id, { extraPct: parseDecimal(v) })} align="right" type="number" />
+              <Cell value={t.profitPct} onChange={(v) => patchTier(t.id, { profitPct: parseDecimal(v) })} align="right" type="number" />
               <td className="border border-slate-200 text-center">
                 <button onClick={() => rmTier(t.id)} className="text-rose-600 hover:bg-rose-50 px-2 rounded"><Trash2 size={12} /></button>
               </td>
@@ -109,6 +109,29 @@ function SettingsPage() {
 
       <CurrenciesPanel />
     </ErpLayout>
+  );
+}
+
+function RateInput({
+  value, onChange, className, placeholder,
+}: { value: number; onChange: (n: number) => void; className?: string; placeholder?: string }) {
+  const buf = useNumericBuffer(value || "", true);
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={buf.text}
+      onFocus={buf.onFocus}
+      onBlur={buf.onBlur}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (v !== "" && !/^-?[\d]*[.,]?[\d]*$/.test(v)) return;
+        buf.setText(v);
+        onChange(parseDecimal(v));
+      }}
+      placeholder={placeholder}
+      className={className}
+    />
   );
 }
 
@@ -207,8 +230,7 @@ function CurrenciesPanel() {
                     className="w-full px-2 py-1 text-right bg-transparent focus:outline-none focus:bg-blue-50/50 rounded" />
                 </td>
                 <td className="border border-slate-200 p-1">
-                  <input type="text" inputMode="decimal" value={c.rate || ""}
-                    onChange={(e) => patch(c.code, { rate: parseDecimal(e.target.value) })}
+                  <RateInput value={c.rate} onChange={(n) => patch(c.code, { rate: n })}
                     className="w-full px-2 py-1 text-right tabular-nums bg-transparent focus:outline-none focus:bg-blue-50/50 rounded" />
                 </td>
                 <td className="border border-slate-200 text-center text-slate-600 tabular-nums text-xs">
@@ -238,8 +260,7 @@ function CurrenciesPanel() {
         </div>
         <div>
           <label className="text-[11px] text-slate-600 block mb-1">سعر التحويل</label>
-          <input type="text" inputMode="decimal" value={nc.rate || ""}
-            onChange={(e) => setNc({ ...nc, rate: parseDecimal(e.target.value) })}
+          <RateInput value={nc.rate} onChange={(n) => setNc({ ...nc, rate: n })}
             placeholder="530" className="w-full px-2 py-1.5 border border-slate-300 rounded text-right tabular-nums" />
         </div>
         <button onClick={add} className="flex items-center justify-center gap-1 px-3 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-sm">

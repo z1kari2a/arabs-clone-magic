@@ -336,7 +336,7 @@ function POPage() {
               />
             </FieldRow>
             <FieldRow label="نسبة الربح %">
-              <ErpInput value={String(markupPct)} onChange={(v) => setMarkupPct(parseDecimal(v))} disabled={disabled} />
+              <ErpInput value={markupPct} onChange={(v) => setMarkupPct(parseDecimal(v))} disabled={disabled} type="number" />
             </FieldRow>
             <div className="col-span-2">
               <FieldRow label="الملاحظات">
@@ -388,8 +388,8 @@ function POPage() {
                 </td>
                 <Cell value={r.name} onChange={(v) => patchRow(r.id, { name: v })} disabled={disabled} align="right" />
                 <Cell value={r.unit} onChange={(v) => patchRow(r.id, { unit: v })} disabled={disabled} />
-                <Cell value={String(r.pack)} onChange={(v) => patchRow(r.id, { pack: parseDecimal(v) })} disabled={disabled} align="right" />
-                <Cell value={String(r.qty)} onChange={(v) => patchRow(r.id, { qty: parseDecimal(v) })} disabled={disabled} align="right" />
+                <Cell value={r.pack} onChange={(v) => patchRow(r.id, { pack: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
+                <Cell value={r.qty} onChange={(v) => patchRow(r.id, { qty: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
                 <td className="border border-slate-200 p-0">
                   <select value={rowCur} disabled={disabled}
                     onChange={(ev) => patchRow(r.id, { currency: ev.target.value, rate: rateOf(ev.target.value) })}
@@ -397,9 +397,9 @@ function POPage() {
                     {currencyOptions.map((o) => (<option key={o.value} value={o.value}>{o.value}</option>))}
                   </select>
                 </td>
-                <Cell value={String(r.price)} onChange={(v) => patchRow(r.id, { price: parseDecimal(v) })} disabled={disabled} align="right" />
+                <Cell value={r.price} onChange={(v) => patchRow(r.id, { price: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
                 <Cell value={fmt(r.qty * r.price)} align="right" />
-                <Cell value={String(r.cbm)} onChange={(v) => patchRow(r.id, { cbm: parseDecimal(v) })} disabled={disabled} align="right" />
+                <Cell value={r.cbm} onChange={(v) => patchRow(r.id, { cbm: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
                 <Cell value={fmt(cartons * r.cbm, 4)} align="right" />
                 <td className="border border-slate-200 text-right px-2 bg-orange-50 font-semibold text-orange-700">{fmt(expPerCarton, 4)}</td>
                 <td className="border border-slate-200 text-right px-2 bg-purple-50 text-purple-700">{fmt(m?.cbmCost ?? 0, 4)}</td>
@@ -451,7 +451,7 @@ function POPage() {
                   ))}
                 </select>
               </td>
-              <Cell value={String(e.amount)} onChange={(v) => patchExp(e.id, { amount: parseDecimal(v) })} disabled={disabled} align="right" />
+              <Cell value={e.amount} onChange={(v) => patchExp(e.id, { amount: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
               <Cell value={fmt(rateOf(e.currency), 4)} align="right" />
               <Cell value={fmt((e.amount * (rateOf(e.currency) || 0)) / (po.rate || 1))} />
               <Cell value={e.type} onChange={(v) => patchExp(e.id, { type: v })} disabled={disabled} align="right" />
