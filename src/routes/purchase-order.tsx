@@ -73,6 +73,8 @@ function POPage() {
     orders[0] ?? emptyPO("INV-2026-00001", defaultCurrency, rateOfCode(defaultCurrency)),
   );
   const [editing, setEditing] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const DRAFT_KEY = "erp:po-draft-v1";
   const [openDlg, setOpenDlg] = useState(false);
   const [supDlg, setSupDlg] = useState(false);
   const [expDlg, setExpDlg] = useState(false);
@@ -140,6 +142,7 @@ function POPage() {
     if (!filled.length) return toast.error("يجب إضافة صنف واحد على الأقل");
     savePurchaseOrder({ ...po, rows: filled });
     setEditing(false);
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
     toast.success("تم حفظ أمر الشراء");
   };
   const onEdit = () => { setEditing(true); toast.info("وضع التعديل مفعّل"); };
@@ -274,6 +277,31 @@ function POPage() {
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [po, editing]);
+
+  // ── Draft autosave: restore on mount, save on every edit ──
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw) as PurchaseOrder;
+        if (draft && !draft.approved) {
+          setPo(draft);
+          setEditing(true);
+          toast.info("تم استرجاع مسودة الفاتورة");
+        }
+      }
+    } catch { /* ignore */ }
+    setDraftRestored(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!draftRestored || !editing || po.approved) return;
+    const t = setTimeout(() => {
+      try { localStorage.setItem(DRAFT_KEY, JSON.stringify(po)); } catch { /* ignore */ }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [po, editing, draftRestored]);
 
   return (
     <ErpLayout title="أمر شراء" ribbon={<Ribbon actions={actions} />}>
