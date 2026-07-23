@@ -111,6 +111,17 @@ export function useHydrate() {
   useEffect(() => { void hydrateStore(); }, []);
 }
 
+// ============ Currency rate helper ============
+/** Update the exchange rate of a currency inline (from any screen that shows the currency). */
+export function updateCurrencyRate(code: string, rate: number) {
+  const list = state.settings.currencies ?? [];
+  if (!list.some((c) => c.code === code)) return;
+  const nextList = list.map((c) => (c.code === code ? { ...c, rate } : c));
+  const nextSettings = { ...state.settings, currencies: nextList };
+  void localDb.settings.set(nextSettings);
+  setState({ settings: nextSettings });
+}
+
 // ============ Mutations ============
 function currentUsername(): string | null {
   if (state.session?.username) return state.session.username;
