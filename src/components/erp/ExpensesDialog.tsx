@@ -252,3 +252,27 @@ export default function ExpensesDialog({
     </Dialog>
   );
 }
+
+function AmountInput({
+  value, onChange, disabled,
+}: { value: number; onChange: (n: number) => void; disabled?: boolean }) {
+  const buf = useNumericBuffer(value || "", true);
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={buf.text}
+      disabled={disabled}
+      onFocus={buf.onFocus}
+      onBlur={buf.onBlur}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (v !== "" && !/^-?[\d]*[.,]?[\d]*$/.test(v)) return;
+        buf.setText(v);
+        onChange(parseDecimal(v));
+      }}
+      className="w-32 px-2 py-1.5 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-right tabular-nums"
+      placeholder="0.00"
+    />
+  );
+}
