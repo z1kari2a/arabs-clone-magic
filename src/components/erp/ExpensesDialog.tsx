@@ -3,7 +3,7 @@ import { Plus, Trash2, X, RefreshCw, Check, Wallet } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import type { Expense, Currency } from "@/lib/erp-types";
-import { fmt } from "./ErpUI";
+import { fmt, parseDecimal } from "./ErpUI";
 
 type Props = {
   open: boolean;
