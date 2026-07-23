@@ -133,7 +133,7 @@ export default function ExpensesDialog({
                 <th className="text-right py-2 px-2 font-medium">البيان</th>
                 <th className="text-right py-2 px-2 font-medium">العملة</th>
                 <th className="text-right py-2 px-2 font-medium">المبلغ</th>
-                <th className="text-right py-2 px-2 font-medium">سعر الصرف</th>
+                <th className="text-right py-2 px-2 font-medium">سعر التحويل (1 → {invoiceCurrency})</th>
                 <th className="text-right py-2 px-2 font-medium">بعد التحويل ({invoiceCurrency})</th>
                 <th className="w-12"></th>
               </tr>
