@@ -21,6 +21,7 @@ import { Route as ExchangeRatesRouteImport } from './routes/exchange-rates'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicLicenseHeartbeatRouteImport } from './routes/api/public/license/heartbeat'
+import { Route as ApiPublicLicenseDeactivateRouteImport } from './routes/api/public/license/deactivate'
 import { Route as ApiPublicLicenseBundleRouteImport } from './routes/api/public/license/bundle'
 import { Route as ApiPublicLicenseActivateRouteImport } from './routes/api/public/license/activate'
 
@@ -85,6 +86,12 @@ const ApiPublicLicenseHeartbeatRoute =
     path: '/api/public/license/heartbeat',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicLicenseDeactivateRoute =
+  ApiPublicLicenseDeactivateRouteImport.update({
+    id: '/api/public/license/deactivate',
+    path: '/api/public/license/deactivate',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicLicenseBundleRoute = ApiPublicLicenseBundleRouteImport.update({
   id: '/api/public/license/bundle',
   path: '/api/public/license/bundle',
@@ -111,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/users': typeof UsersRoute
   '/api/public/license/activate': typeof ApiPublicLicenseActivateRoute
   '/api/public/license/bundle': typeof ApiPublicLicenseBundleRoute
+  '/api/public/license/deactivate': typeof ApiPublicLicenseDeactivateRoute
   '/api/public/license/heartbeat': typeof ApiPublicLicenseHeartbeatRoute
 }
 export interface FileRoutesByTo {
@@ -127,6 +135,7 @@ export interface FileRoutesByTo {
   '/users': typeof UsersRoute
   '/api/public/license/activate': typeof ApiPublicLicenseActivateRoute
   '/api/public/license/bundle': typeof ApiPublicLicenseBundleRoute
+  '/api/public/license/deactivate': typeof ApiPublicLicenseDeactivateRoute
   '/api/public/license/heartbeat': typeof ApiPublicLicenseHeartbeatRoute
 }
 export interface FileRoutesById {
@@ -144,6 +153,7 @@ export interface FileRoutesById {
   '/users': typeof UsersRoute
   '/api/public/license/activate': typeof ApiPublicLicenseActivateRoute
   '/api/public/license/bundle': typeof ApiPublicLicenseBundleRoute
+  '/api/public/license/deactivate': typeof ApiPublicLicenseDeactivateRoute
   '/api/public/license/heartbeat': typeof ApiPublicLicenseHeartbeatRoute
 }
 export interface FileRouteTypes {
@@ -162,6 +172,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/api/public/license/activate'
     | '/api/public/license/bundle'
+    | '/api/public/license/deactivate'
     | '/api/public/license/heartbeat'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/api/public/license/activate'
     | '/api/public/license/bundle'
+    | '/api/public/license/deactivate'
     | '/api/public/license/heartbeat'
   id:
     | '__root__'
@@ -194,6 +206,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/api/public/license/activate'
     | '/api/public/license/bundle'
+    | '/api/public/license/deactivate'
     | '/api/public/license/heartbeat'
   fileRoutesById: FileRoutesById
 }
@@ -211,6 +224,7 @@ export interface RootRouteChildren {
   UsersRoute: typeof UsersRoute
   ApiPublicLicenseActivateRoute: typeof ApiPublicLicenseActivateRoute
   ApiPublicLicenseBundleRoute: typeof ApiPublicLicenseBundleRoute
+  ApiPublicLicenseDeactivateRoute: typeof ApiPublicLicenseDeactivateRoute
   ApiPublicLicenseHeartbeatRoute: typeof ApiPublicLicenseHeartbeatRoute
 }
 
@@ -300,6 +314,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicLicenseHeartbeatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/license/deactivate': {
+      id: '/api/public/license/deactivate'
+      path: '/api/public/license/deactivate'
+      fullPath: '/api/public/license/deactivate'
+      preLoaderRoute: typeof ApiPublicLicenseDeactivateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/license/bundle': {
       id: '/api/public/license/bundle'
       path: '/api/public/license/bundle'
@@ -331,6 +352,7 @@ const rootRouteChildren: RootRouteChildren = {
   UsersRoute: UsersRoute,
   ApiPublicLicenseActivateRoute: ApiPublicLicenseActivateRoute,
   ApiPublicLicenseBundleRoute: ApiPublicLicenseBundleRoute,
+  ApiPublicLicenseDeactivateRoute: ApiPublicLicenseDeactivateRoute,
   ApiPublicLicenseHeartbeatRoute: ApiPublicLicenseHeartbeatRoute,
 }
 export const routeTree = rootRouteImport
