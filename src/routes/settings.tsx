@@ -107,7 +107,6 @@ function SettingsPage() {
         </ErpTable>
       </Panel>
 
-      <CurrenciesPanel />
     </ErpLayout>
   );
 }
