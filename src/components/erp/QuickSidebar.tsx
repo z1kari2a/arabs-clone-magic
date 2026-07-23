@@ -9,6 +9,7 @@ import {
   Users,
   Settings,
   ShieldCheck,
+  DollarSign,
   LogOut,
   PanelRightClose,
   type LucideIcon,
@@ -46,6 +47,7 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
     icon: Wallet,
     color: "text-orange-600",
   },
+  { id: "rates", to: "/rates", label: "أسعار الصرف", icon: DollarSign, color: "text-emerald-600" },
   { id: "users", to: "/users", label: "المستخدمون", icon: Users },
   { id: "settings", to: "/settings", label: "الإعدادات", icon: Settings },
   {
