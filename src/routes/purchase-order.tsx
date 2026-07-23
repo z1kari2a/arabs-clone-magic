@@ -12,7 +12,7 @@ import Ribbon from "@/components/erp/Ribbon";
 import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
 import ExpensesDialog from "@/components/erp/ExpensesDialog";
 import { erpStore, useErpStore, computePO, savePurchaseOrder } from "@/lib/erp-store";
-import type { PurchaseOrder, PORow, Expense, Currency } from "@/lib/erp-types";
+import type { PurchaseOrder, PORow, Expense } from "@/lib/erp-types";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { SEED_INVOICE } from "@/lib/erp-seed";
