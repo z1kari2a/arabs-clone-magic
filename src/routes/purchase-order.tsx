@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
-import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtInt } from "@/components/erp/ErpUI";
+import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
 import ExpensesDialog from "@/components/erp/ExpensesDialog";
 import { erpStore, useErpStore, computePO, savePurchaseOrder } from "@/lib/erp-store";
 import type { PurchaseOrder, PORow, Expense, Currency } from "@/lib/erp-types";
@@ -400,8 +400,16 @@ function POPage() {
                 highlight
               />
             </FieldRow>
+            <FieldRow label="نسبة المصاريف %">
+              <ErpInput
+                value={`${fmt(metrics.totalPurchase > 0 ? (metrics.totalExpenses / metrics.totalPurchase) * 100 : 0, 2)} %`}
+                onChange={() => {}}
+                disabled
+                highlight
+              />
+            </FieldRow>
             <FieldRow label="نسبة الربح %">
-              <ErpInput value={String(markupPct)} onChange={(v) => setMarkupPct(Number(v) || 0)} disabled={disabled} />
+              <ErpInput value={String(markupPct)} onChange={(v) => setMarkupPct(parseDecimal(v))} disabled={disabled} />
             </FieldRow>
             <div className="col-span-2">
               <FieldRow label="الملاحظات">
@@ -454,16 +462,16 @@ function POPage() {
                 </FieldRow>
                 <FieldRow label="اسم الصنف"><ErpInput value={draft.name} onChange={(v) => patchDraft({ name: v })} align="right" /></FieldRow>
                 <FieldRow label="الوحدة"><ErpInput value={draft.unit} onChange={(v) => patchDraft({ unit: v })} /></FieldRow>
-                <FieldRow label="العبوة"><ErpInput value={String(draft.pack)} onChange={(v) => patchDraft({ pack: Number(v) || 0 })} /></FieldRow>
-                <FieldRow label="الكمية"><ErpInput value={String(draft.qty)} onChange={(v) => patchDraft({ qty: Number(v) || 0 })} highlight /></FieldRow>
-                <FieldRow label="سعر الشراء"><ErpInput value={String(draft.price)} onChange={(v) => patchDraft({ price: Number(v) || 0 })} highlight /></FieldRow>
+                <FieldRow label="العبوة"><ErpInput value={String(draft.pack)} onChange={(v) => patchDraft({ pack: parseDecimal(v) })} /></FieldRow>
+                <FieldRow label="الكمية"><ErpInput value={String(draft.qty)} onChange={(v) => patchDraft({ qty: parseDecimal(v) })} highlight /></FieldRow>
+                <FieldRow label="سعر الشراء"><ErpInput value={String(draft.price)} onChange={(v) => patchDraft({ price: parseDecimal(v) })} highlight /></FieldRow>
                 <FieldRow label="عملة السعر">
                   <ErpSelect value={draft.currency ?? po.currency} onChange={(v) => patchDraft({ currency: v, rate: rateOf(v) })} options={currencyOptions} />
                 </FieldRow>
                 <FieldRow label="سعر التحويل">
                   <ErpInput value={String(draft.rate ?? po.rate)} onChange={() => {}} disabled />
                 </FieldRow>
-                <FieldRow label="CBM الكرتون"><ErpInput value={String(draft.cbm)} onChange={(v) => patchDraft({ cbm: Number(v) || 0 })} /></FieldRow>
+                <FieldRow label="CBM الكرتون"><ErpInput value={String(draft.cbm)} onChange={(v) => patchDraft({ cbm: parseDecimal(v) })} /></FieldRow>
                 <div className="col-span-2 md:col-span-3 grid grid-cols-3 gap-2 text-[11px]">
                   <div className="border border-slate-200 rounded p-1.5 bg-white text-center">
                     <div className="text-slate-500">إجمالي بعملة المنتج</div>
@@ -571,7 +579,7 @@ function POPage() {
                   ))}
                 </select>
               </td>
-              <Cell value={String(e.amount)} onChange={(v) => patchExp(e.id, { amount: Number(v) || 0 })} disabled={disabled} align="right" />
+              <Cell value={String(e.amount)} onChange={(v) => patchExp(e.id, { amount: parseDecimal(v) })} disabled={disabled} align="right" />
               <Cell value={fmt(rateOf(e.currency), 4)} align="right" />
               <Cell value={fmt((e.amount * (rateOf(e.currency) || 0)) / (po.rate || 1))} />
               <Cell value={e.type} onChange={(v) => patchExp(e.id, { type: v })} disabled={disabled} align="right" />
