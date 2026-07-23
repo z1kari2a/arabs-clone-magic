@@ -524,7 +524,7 @@ function POPage() {
             </select>
           </div>
           <div className="flex items-center gap-1"><StepBadge n={5} /> احتساب التكلفة النهائية</div>
-          <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt((po.rate || 1) / (rateOfCode(masterCurrency) || 1), 4)} {masterCurrency}</div>
+          <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt(po.currency === masterCurrency ? 1 : ((po.rate || rateOfCode(po.currency) || 1) / (rateOfCode(masterCurrency) || 1)), 4)} {masterCurrency}</div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 p-2">
           <SummaryStat label="عدد الأصناف" value={fmtInt(metrics.totalItems)} unit="صنف" />
@@ -540,7 +540,7 @@ function POPage() {
             الإجمالي النهائي محوّل تلقائيًا إلى <b className="text-amber-700">{masterCurrency}</b>
           </div>
           <div className="text-lg font-black text-emerald-700">
-            {fmt(metrics.totalCost * ((po.rate || 1) / (rateOfCode(masterCurrency) || 1)))}
+            {fmt(metrics.totalCost * (po.currency === masterCurrency ? 1 : ((po.rate || rateOfCode(po.currency) || 1) / (rateOfCode(masterCurrency) || 1))))}
             <span className="text-xs text-slate-500 mr-2">{masterCurrency}</span>
           </div>
         </div>
@@ -566,7 +566,7 @@ function POPage() {
               {showTiers ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               <StepBadge n={6} /> التسعيرات حسب الوجهات
             </button>
-            <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt((po.rate || 1) / (rateOfCode(tierDisplayCurrency) || 1), 4)} {tierDisplayCurrency}</div>
+            <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt(po.currency === tierDisplayCurrency ? 1 : ((po.rate || rateOfCode(po.currency) || 1) / (rateOfCode(tierDisplayCurrency) || 1)), 4)} {tierDisplayCurrency}</div>
           </div>
           {showTiers && (
           <ErpTable headers={["م", "الموديل", "اسم الصنف", `متوسط التكلفة (${tierDisplayCurrency})`, ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`])]}>
