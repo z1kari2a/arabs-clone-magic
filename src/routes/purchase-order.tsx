@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer,
   FileSpreadsheet, Download, CheckCircle2, X, Plus, Wallet, Building2, Copy,
-  ChevronUp, ChevronDown, Coins, Star, Package, ChevronLeft, Check,
+  ChevronUp, ChevronDown, Coins, Package,
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
@@ -93,47 +93,8 @@ function POPage() {
     erpStore.set({ settings: { ...settings, masterCurrency: code } });
   };
 
-  // Product editor draft — one product at a time; save then add another.
-  const [draft, setDraft] = useState<PORow | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const savedRows = po.rows.filter((r) => r.model || r.name || r.qty > 0);
-
-  const startNewProduct = () => {
-    if (disabled && !editing) { setEditing(true); }
-    const id = (po.rows.at(-1)?.id ?? 0) + 1;
-    setDraft({
-      id, model: "", name: "", unit: "حبة", pack: 1, qty: 0, price: 0, cbm: 0,
-      currency: po.currency, rate: po.rate,
-    });
-    setEditingId(null);
-  };
-  const patchDraft = (p: Partial<PORow>) => setDraft((d) => (d ? { ...d, ...p } : d));
-  const cancelDraft = () => { setDraft(null); setEditingId(null); };
-  const saveDraft = () => {
-    if (!draft) return;
-    if (!draft.name && !draft.model) return toast.error("أدخل اسم أو موديل الصنف");
-    if (!draft.qty || draft.qty <= 0) return toast.error("أدخل كمية صحيحة");
-    if (editingId != null) {
-      setPo({ ...po, rows: po.rows.map((r) => (r.id === editingId ? draft : r)) });
-      toast.success("تم تحديث المنتج");
-    } else {
-      const cleaned = po.rows.filter((r) => r.model || r.name || r.qty > 0);
-      setPo({ ...po, rows: [...cleaned, draft] });
-      toast.success("تم حفظ المنتج - أضف منتج جديد");
-    }
-    setDraft(null);
-    setEditingId(null);
-  };
-  const editProduct = (r: PORow) => {
-    if (!editing) setEditing(true);
-    setDraft({ ...r, currency: r.currency ?? po.currency, rate: r.rate ?? po.rate });
-    setEditingId(r.id);
-  };
-  const removeProduct = (id: number) => {
-    if (!confirm("حذف هذا المنتج؟")) return;
-    setPo({ ...po, rows: po.rows.filter((r) => r.id !== id) });
-    if (editingId === id) cancelDraft();
-  };
+  // Row-by-row editable table (classic ERP style).
+  const savedCount = po.rows.filter((r) => r.model || r.name || r.qty > 0).length;
 
   // Note: exchange-rate editing lives only in Settings → Currencies panel.
   // Every screen reads settings.currencies read-only.
