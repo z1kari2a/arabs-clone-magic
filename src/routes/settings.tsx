@@ -112,6 +112,29 @@ function SettingsPage() {
   );
 }
 
+function RateInput({
+  value, onChange, className, placeholder,
+}: { value: number; onChange: (n: number) => void; className?: string; placeholder?: string }) {
+  const buf = useNumericBuffer(value || "", true);
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={buf.text}
+      onFocus={buf.onFocus}
+      onBlur={buf.onBlur}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (v !== "" && !/^-?[\d]*[.,]?[\d]*$/.test(v)) return;
+        buf.setText(v);
+        onChange(parseDecimal(v));
+      }}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
+}
+
 // ============ Currencies (single source of truth) ============
 // This is the ONLY place in the app where exchange rates can be edited.
 // All other screens read rates from settings.currencies read-only.
