@@ -20,6 +20,7 @@ import { Route as ExpensesRouteImport } from './routes/expenses'
 import { Route as ExchangeRatesRouteImport } from './routes/exchange-rates'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicLicenseHeartbeatRouteImport } from './routes/api/public/license/heartbeat'
 import { Route as ApiPublicLicenseActivateRouteImport } from './routes/api/public/license/activate'
 
 const UsersRoute = UsersRouteImport.update({
@@ -77,6 +78,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicLicenseHeartbeatRoute =
+  ApiPublicLicenseHeartbeatRouteImport.update({
+    id: '/api/public/license/heartbeat',
+    path: '/api/public/license/heartbeat',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicLicenseActivateRoute =
   ApiPublicLicenseActivateRouteImport.update({
     id: '/api/public/license/activate',
@@ -97,6 +104,7 @@ export interface FileRoutesByFullPath {
   '/suppliers': typeof SuppliersRoute
   '/users': typeof UsersRoute
   '/api/public/license/activate': typeof ApiPublicLicenseActivateRoute
+  '/api/public/license/heartbeat': typeof ApiPublicLicenseHeartbeatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -111,6 +119,7 @@ export interface FileRoutesByTo {
   '/suppliers': typeof SuppliersRoute
   '/users': typeof UsersRoute
   '/api/public/license/activate': typeof ApiPublicLicenseActivateRoute
+  '/api/public/license/heartbeat': typeof ApiPublicLicenseHeartbeatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -126,6 +135,7 @@ export interface FileRoutesById {
   '/suppliers': typeof SuppliersRoute
   '/users': typeof UsersRoute
   '/api/public/license/activate': typeof ApiPublicLicenseActivateRoute
+  '/api/public/license/heartbeat': typeof ApiPublicLicenseHeartbeatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -142,6 +152,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/users'
     | '/api/public/license/activate'
+    | '/api/public/license/heartbeat'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -156,6 +167,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/users'
     | '/api/public/license/activate'
+    | '/api/public/license/heartbeat'
   id:
     | '__root__'
     | '/'
@@ -170,6 +182,7 @@ export interface FileRouteTypes {
     | '/suppliers'
     | '/users'
     | '/api/public/license/activate'
+    | '/api/public/license/heartbeat'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -185,6 +198,7 @@ export interface RootRouteChildren {
   SuppliersRoute: typeof SuppliersRoute
   UsersRoute: typeof UsersRoute
   ApiPublicLicenseActivateRoute: typeof ApiPublicLicenseActivateRoute
+  ApiPublicLicenseHeartbeatRoute: typeof ApiPublicLicenseHeartbeatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -266,6 +280,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/license/heartbeat': {
+      id: '/api/public/license/heartbeat'
+      path: '/api/public/license/heartbeat'
+      fullPath: '/api/public/license/heartbeat'
+      preLoaderRoute: typeof ApiPublicLicenseHeartbeatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/license/activate': {
       id: '/api/public/license/activate'
       path: '/api/public/license/activate'
@@ -289,6 +310,7 @@ const rootRouteChildren: RootRouteChildren = {
   SuppliersRoute: SuppliersRoute,
   UsersRoute: UsersRoute,
   ApiPublicLicenseActivateRoute: ApiPublicLicenseActivateRoute,
+  ApiPublicLicenseHeartbeatRoute: ApiPublicLicenseHeartbeatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
