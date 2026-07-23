@@ -87,11 +87,17 @@ export function ErpInput({
   className?: string;
   type?: string;
 }) {
+  const isNumeric = type === "number";
   return (
     <input
       value={value}
-      type={type}
-      onChange={(e) => onChange(e.target.value)}
+      type={isNumeric ? "text" : type}
+      inputMode={isNumeric ? "decimal" : undefined}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (isNumeric && v !== "" && !/^-?[\d]*[.,]?[\d]*$/.test(v)) return;
+        onChange(v);
+      }}
       disabled={disabled}
       className={`w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-slate-50 disabled:text-slate-700 text-${align} ${highlight ? "!bg-[var(--color-erp-highlight)]" : ""} ${className}`}
     />
@@ -156,12 +162,18 @@ export function Cell({
   if (!onChange) {
     return <td className={`border border-slate-200 px-2 py-1 text-${align} bg-slate-50`}>{value}</td>;
   }
+  const isNumeric = type === "number";
   return (
     <td className="border border-slate-200 p-0">
       <input
         value={value}
-        type={type}
-        onChange={(e) => onChange(e.target.value)}
+        type={isNumeric ? "text" : type}
+        inputMode={isNumeric ? "decimal" : undefined}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (isNumeric && v !== "" && !/^-?[\d]*[.,]?[\d]*$/.test(v)) return;
+          onChange(v);
+        }}
         disabled={disabled}
         className={`w-full px-2 py-1 bg-transparent outline-none focus:bg-blue-50 disabled:text-slate-700 text-${align}`}
       />
