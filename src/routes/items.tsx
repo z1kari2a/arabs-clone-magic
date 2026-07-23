@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, Package } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
-import { ErpTable, Cell, fmt } from "@/components/erp/ErpUI";
+import { ErpTable, Cell, fmt, parseDecimal } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore } from "@/lib/erp-store";
 import type { Item } from "@/lib/erp-types";
 
