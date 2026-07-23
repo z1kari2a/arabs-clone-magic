@@ -3,7 +3,7 @@ import { Plus, Trash2, X, RefreshCw, Check, Wallet } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import type { Expense, Currency } from "@/lib/erp-types";
-import { fmt, parseDecimal } from "./ErpUI";
+import { fmt, parseDecimal, useNumericBuffer } from "./ErpUI";
 
 type Props = {
   open: boolean;
@@ -158,14 +158,10 @@ export default function ExpensesDialog({
                     </select>
                   </td>
                   <td className="py-2 px-2">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={e.amount || ""}
+                    <AmountInput
+                      value={e.amount}
                       disabled={disabled}
-                      onChange={(ev) => patch(e.id, { amount: parseDecimal(ev.target.value) })}
-                      className="w-32 px-2 py-1.5 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-right tabular-nums"
-                      placeholder="0.00"
+                      onChange={(n) => patch(e.id, { amount: n })}
                     />
                   </td>
                   <td className="py-2 px-2">
