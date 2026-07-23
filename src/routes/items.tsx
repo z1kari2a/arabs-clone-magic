@@ -23,6 +23,9 @@ export const Route = createFileRoute("/items")({
 
 function ItemsPage() {
   const items = useErpStore((s) => s.items);
+  const settings = useErpStore((s) => s.settings);
+  const currencies = settings.currencies ?? [];
+  const defaultCurrency = settings.defaultCurrency || currencies[0]?.code || "USD";
   const [list, setList] = useState<Item[]>(items);
   const [editing, setEditing] = useState(false);
   const [search, setSearch] = useState("");
@@ -30,10 +33,10 @@ function ItemsPage() {
   const filtered = list.filter((it) => !search || it.name.includes(search) || it.code.includes(search) || it.barcode.includes(search));
   const patch = (i: number, p: Partial<Item>) => setList(list.map((it, idx) => (idx === i ? { ...it, ...p } : it)));
 
-  const onNew = () => { setList([...list, { code: `MOD-${1000 + list.length + 1}`, name: "", barcode: "", units: [{ name: "حبة", pack: 1, lastPrice: 0 }], cbmPerCarton: 0, lastCost: 0 }]); setEditing(true); };
+  const onNew = () => { setList([...list, { code: `MOD-${1000 + list.length + 1}`, name: "", barcode: "", units: [{ name: "حبة", pack: 1, lastPrice: 0 }], cbmPerCarton: 0, lastCost: 0, currency: defaultCurrency }]); setEditing(true); };
   const onSave = () => { erpStore.set({ items: list }); setEditing(false); toast.success("تم الحفظ"); };
   const onExport = () => {
-    const ws = XLSX.utils.json_to_sheet(list.map((i) => ({ "الموديل": i.code, "اسم الصنف": i.name, "الباركود": i.barcode, "الوحدة": i.units[0]?.name, "العبوة": i.units[0]?.pack, "آخر سعر": i.units[0]?.lastPrice, "CBM": i.cbmPerCarton, "آخر تكلفة": i.lastCost })));
+    const ws = XLSX.utils.json_to_sheet(list.map((i) => ({ "الموديل": i.code, "اسم الصنف": i.name, "الباركود": i.barcode, "الوحدة": i.units[0]?.name, "العبوة": i.units[0]?.pack, "آخر سعر": i.units[0]?.lastPrice, "العملة": i.currency ?? defaultCurrency, "CBM": i.cbmPerCarton, "آخر تكلفة": i.lastCost })));
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Items");
     XLSX.writeFile(wb, "items.xlsx");
   };
@@ -60,10 +63,11 @@ function ItemsPage() {
           <div className="flex items-center gap-2 font-semibold text-slate-700"><Package size={16} /> الأصناف ({filtered.length})</div>
           <input id="it-search" placeholder="بحث بالموديل أو الباركود أو الاسم..." value={search} onChange={(e) => setSearch(e.target.value)} className="px-2 py-1 text-xs border border-slate-300 rounded w-72 text-right" />
         </div>
-        <ErpTable headers={["م","الموديل","اسم الصنف","الباركود","الوحدة","العبوة","آخر سعر","CBM الكرتون","آخر تكلفة"]}>
+        <ErpTable headers={["م","الموديل","اسم الصنف","الباركود","الوحدة","العبوة","آخر سعر","العملة","CBM الكرتون","آخر تكلفة"]}>
           {filtered.map((it, i) => {
             const idx = list.indexOf(it);
             const u0 = it.units[0] ?? { name: "حبة", pack: 1, lastPrice: 0 };
+            const cur = it.currency ?? defaultCurrency;
             return (
               <tr key={it.code + i} className="hover:bg-blue-50/40">
                 <td className="border border-slate-200 text-center">{i + 1}</td>
@@ -73,6 +77,18 @@ function ItemsPage() {
                 <Cell value={u0.name} onChange={(v) => patch(idx, { units: [{ ...u0, name: v }] })} disabled={!editing} />
                 <Cell value={u0.pack} onChange={(v) => patch(idx, { units: [{ ...u0, pack: parseDecimal(v) }] })} disabled={!editing} align="right" />
                 <td className="border border-slate-200 text-right px-2 bg-slate-50">{fmt(u0.lastPrice)}</td>
+                <td className="border border-slate-200 p-0">
+                  <select
+                    value={cur}
+                    disabled={!editing}
+                    onChange={(e) => patch(idx, { currency: e.target.value })}
+                    className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none text-center"
+                  >
+                    {currencies.map((c) => (
+                      <option key={c.code} value={c.code}>{c.code}</option>
+                    ))}
+                  </select>
+                </td>
                 <Cell value={it.cbmPerCarton} onChange={(v) => patch(idx, { cbmPerCarton: parseDecimal(v) })} disabled={!editing} align="right" />
                 <td className="border border-slate-200 text-right px-2 bg-amber-50 font-semibold">{fmt(it.lastCost, 4)}</td>
               </tr>
