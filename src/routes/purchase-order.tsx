@@ -55,7 +55,7 @@ const emptyPO = (num: string, currency = "USD", rate = 1): PurchaseOrder => ({
   containerSize: "40 قدم HQ",
   distributionType: "cbm",
   notes: "",
-  rows: blankRows(MIN_ROWS),
+  rows: [],
   expenses: [],
   approved: false,
 });
