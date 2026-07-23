@@ -161,9 +161,8 @@ function CurrenciesPanel() {
     const code = nc.code.trim().toUpperCase();
     if (!code) return toast.error("أدخل رمز العملة");
     if (!nc.name.trim()) return toast.error("أدخل اسم العملة");
-    if (!(Number(nc.rate) > 0)) return toast.error("أدخل سعر صرف صالح");
     if (rows.some((r) => r.code === code)) return toast.error("العملة موجودة مسبقاً");
-    setRows([...rows, { code, name: nc.name.trim(), rate: Number(nc.rate) }]);
+    setRows([...rows, { code, name: nc.name.trim(), rate: Number(nc.rate) || 0 }]);
     setNc({ code: "", name: "", rate: 0 });
   };
 
@@ -177,13 +176,12 @@ function CurrenciesPanel() {
     const codes = new Set<string>();
     for (const r of rows) {
       if (!r.code) return toast.error("يوجد عملة بدون رمز");
-      if (!(r.rate > 0)) return toast.error(`سعر الصرف للعملة ${r.code} غير صالح`);
       if (codes.has(r.code)) return toast.error(`رمز مكرر: ${r.code}`);
       codes.add(r.code);
     }
     if (!codes.has(defCode)) return toast.error("اختر عملة افتراضية موجودة في القائمة");
     erpStore.set({ settings: { ...settings, currencies: rows, defaultCurrency: defCode } });
-    toast.success("تم حفظ أسعار الصرف — تم تطبيقها في كامل النظام");
+    toast.success("تم حفظ قائمة العملات");
   };
 
   const reset = () => setRows(settings.currencies ?? []);
@@ -191,11 +189,11 @@ function CurrenciesPanel() {
   return (
     <Panel
       className="mt-2"
-      title={<span className="flex items-center gap-2"><DollarSign size={14} className="text-emerald-600" /> العملات وأسعار الصرف (المصدر الوحيد المعتمد) <Lock size={11} className="text-amber-600" /></span>}
+      title={<span className="flex items-center gap-2"><DollarSign size={14} className="text-emerald-600" /> العملات المعتمدة</span>}
     >
       <div className="text-[11px] text-slate-500 mb-2 leading-relaxed">
-        هذه هي الشاشة الوحيدة في النظام لتعديل أسعار الصرف. أي عملة أو سعر غير موجود هنا لن يُقبل في أي حساب
-        (أوامر الشراء، المصروفات، التسعيرات). سعر الصرف = كم يساوي 1 من العملة بالعملة الأساسية {baseCode && <b>({baseCode})</b>}.
+        هنا تُدار قائمة العملات المعتمدة فقط (رمز واسم). سعر الصرف يُدخَل مباشرة بجانب العملة في الشاشات التي تستعملها (أمر الشراء، المصروفات، دليل الأصناف) لتفادي التعارضات.
+        {baseCode && <> العملة الأساسية للنظام: <b>{baseCode}</b>.</>}
       </div>
 
       <div className="overflow-auto">
@@ -206,8 +204,6 @@ function CurrenciesPanel() {
               <th className="border border-slate-200 py-1.5 w-20">افتراضي</th>
               <th className="border border-slate-200 py-1.5 w-28">الرمز</th>
               <th className="border border-slate-200 py-1.5">اسم العملة</th>
-              <th className="border border-slate-200 py-1.5 w-40">سعر التحويل</th>
-              <th className="border border-slate-200 py-1.5 w-40">مثال: 100 → {baseCode}</th>
               <th className="border border-slate-200 py-1.5 w-16">حذف</th>
             </tr>
           </thead>
@@ -229,13 +225,6 @@ function CurrenciesPanel() {
                   <input value={c.name} onChange={(e) => patch(c.code, { name: e.target.value })}
                     className="w-full px-2 py-1 text-right bg-transparent focus:outline-none focus:bg-blue-50/50 rounded" />
                 </td>
-                <td className="border border-slate-200 p-1">
-                  <RateInput value={c.rate} onChange={(n) => patch(c.code, { rate: n })}
-                    className="w-full px-2 py-1 text-right tabular-nums bg-transparent focus:outline-none focus:bg-blue-50/50 rounded" />
-                </td>
-                <td className="border border-slate-200 text-center text-slate-600 tabular-nums text-xs">
-                  100 {c.code} = {fmt(100 * (c.rate || 0))} {baseCode}
-                </td>
                 <td className="border border-slate-200 text-center">
                   <button onClick={() => remove(c.code)} className="text-rose-600 hover:bg-rose-50 px-2 py-1 rounded">
                     <Trash2 size={14} />
@@ -247,7 +236,7 @@ function CurrenciesPanel() {
         </table>
       </div>
 
-      <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2 items-end p-3 bg-slate-50 border border-slate-200 rounded">
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 items-end p-3 bg-slate-50 border border-slate-200 rounded">
         <div>
           <label className="text-[11px] text-slate-600 block mb-1">الرمز</label>
           <input value={nc.code} onChange={(e) => setNc({ ...nc, code: e.target.value.toUpperCase() })}
@@ -258,11 +247,6 @@ function CurrenciesPanel() {
           <input value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })}
             placeholder="دولار" className="w-full px-2 py-1.5 border border-slate-300 rounded text-right" />
         </div>
-        <div>
-          <label className="text-[11px] text-slate-600 block mb-1">سعر التحويل</label>
-          <RateInput value={nc.rate} onChange={(n) => setNc({ ...nc, rate: n })}
-            placeholder="530" className="w-full px-2 py-1.5 border border-slate-300 rounded text-right tabular-nums" />
-        </div>
         <button onClick={add} className="flex items-center justify-center gap-1 px-3 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-sm">
           <Plus size={14} /> إضافة عملة
         </button>
@@ -271,9 +255,9 @@ function CurrenciesPanel() {
       <div className="mt-3 flex items-center justify-between gap-2 p-3 border rounded bg-gradient-to-l from-blue-50 to-white border-blue-200">
         <div className="text-[12px] text-slate-600">
           {dirty ? (
-            <span className="text-amber-700 font-semibold">● يوجد تعديلات لم تُحفظ — اضغط «حفظ وتعديل الأسعار» لتطبيقها على كامل النظام.</span>
+            <span className="text-amber-700 font-semibold">● يوجد تعديلات لم تُحفظ.</span>
           ) : (
-            <span className="text-emerald-700">✓ الأسعار محفوظة ومُطبَّقة في كامل النظام.</span>
+            <span className="text-emerald-700">✓ قائمة العملات محفوظة.</span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -283,7 +267,7 @@ function CurrenciesPanel() {
           </button>
           <button onClick={save}
             className={`flex items-center gap-1 px-4 py-2 rounded text-white text-sm font-semibold shadow-sm ${dirty ? "bg-blue-600 hover:bg-blue-700" : "bg-emerald-600 hover:bg-emerald-700"}`}>
-            <Save size={15} /> {dirty ? "حفظ وتعديل الأسعار" : "حفظ الأسعار"}
+            <Save size={15} /> {dirty ? "حفظ التعديلات" : "محفوظ"}
           </button>
         </div>
       </div>

@@ -11,7 +11,7 @@ import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
 import ExpensesDialog from "@/components/erp/ExpensesDialog";
-import { erpStore, useErpStore, computePO, savePurchaseOrder } from "@/lib/erp-store";
+import { erpStore, useErpStore, computePO, savePurchaseOrder, updateCurrencyRate } from "@/lib/erp-store";
 import type { PurchaseOrder, PORow, Expense } from "@/lib/erp-types";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -337,7 +337,18 @@ function POPage() {
             <FieldRow label="العملة">
               <ErpSelect value={po.currency} onChange={(v) => patch({ currency: v, rate: rateOf(v) })} disabled={disabled} options={currencyOptions} />
             </FieldRow>
-            <FieldRow label="سعر الصرف"><ErpInput value={String(po.rate)} onChange={() => {}} disabled /></FieldRow>
+            <FieldRow label={`سعر صرف 1 ${po.currency} → أساسية`}>
+              <ErpInput
+                value={String(po.rate)}
+                onChange={(v) => {
+                  const n = parseDecimal(v);
+                  if (!(n > 0)) return;
+                  updateCurrencyRate(po.currency, n);
+                  patch({ rate: n });
+                }}
+                disabled={disabled}
+              />
+            </FieldRow>
             <FieldRow label="رقم الحاوية"><ErpInput value={po.containerNo} onChange={(v) => patch({ containerNo: v })} disabled={disabled} /></FieldRow>
             <FieldRow label="حجم الحاوية"><ErpInput value={po.containerSize} onChange={(v) => patch({ containerSize: v })} disabled={disabled} /></FieldRow>
             <FieldRow label="توزيع المصروفات">

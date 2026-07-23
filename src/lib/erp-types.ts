@@ -23,6 +23,8 @@ export type Item = {
   units: ItemUnit[];
   cbmPerCarton: number;
   lastCost: number;
+  /** Currency code the item is priced in (defaults to settings.defaultCurrency). */
+  currency?: string;
 };
 
 export type PORow = {
