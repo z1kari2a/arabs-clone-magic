@@ -20,6 +20,7 @@ import { Route as ExpensesRouteImport } from './routes/expenses'
 import { Route as ExchangeRatesRouteImport } from './routes/exchange-rates'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminLicensesRouteImport } from './routes/admin.licenses'
 import { Route as ApiPublicLicenseHeartbeatRouteImport } from './routes/api/public/license/heartbeat'
 import { Route as ApiPublicLicenseDeactivateRouteImport } from './routes/api/public/license/deactivate'
 import { Route as ApiPublicLicenseBundleRouteImport } from './routes/api/public/license/bundle'
@@ -80,6 +81,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminLicensesRoute = AdminLicensesRouteImport.update({
+  id: '/admin/licenses',
+  path: '/admin/licenses',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicLicenseHeartbeatRoute =
   ApiPublicLicenseHeartbeatRouteImport.update({
     id: '/api/public/license/heartbeat',
@@ -116,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/suppliers': typeof SuppliersRoute
   '/users': typeof UsersRoute
+  '/admin/licenses': typeof AdminLicensesRoute
   '/api/public/license/activate': typeof ApiPublicLicenseActivateRoute
   '/api/public/license/bundle': typeof ApiPublicLicenseBundleRoute
   '/api/public/license/deactivate': typeof ApiPublicLicenseDeactivateRoute
@@ -133,6 +140,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/suppliers': typeof SuppliersRoute
   '/users': typeof UsersRoute
+  '/admin/licenses': typeof AdminLicensesRoute
   '/api/public/license/activate': typeof ApiPublicLicenseActivateRoute
   '/api/public/license/bundle': typeof ApiPublicLicenseBundleRoute
   '/api/public/license/deactivate': typeof ApiPublicLicenseDeactivateRoute
@@ -151,6 +159,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/suppliers': typeof SuppliersRoute
   '/users': typeof UsersRoute
+  '/admin/licenses': typeof AdminLicensesRoute
   '/api/public/license/activate': typeof ApiPublicLicenseActivateRoute
   '/api/public/license/bundle': typeof ApiPublicLicenseBundleRoute
   '/api/public/license/deactivate': typeof ApiPublicLicenseDeactivateRoute
@@ -170,6 +179,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/suppliers'
     | '/users'
+    | '/admin/licenses'
     | '/api/public/license/activate'
     | '/api/public/license/bundle'
     | '/api/public/license/deactivate'
@@ -187,6 +197,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/suppliers'
     | '/users'
+    | '/admin/licenses'
     | '/api/public/license/activate'
     | '/api/public/license/bundle'
     | '/api/public/license/deactivate'
@@ -204,6 +215,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/suppliers'
     | '/users'
+    | '/admin/licenses'
     | '/api/public/license/activate'
     | '/api/public/license/bundle'
     | '/api/public/license/deactivate'
@@ -222,6 +234,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SuppliersRoute: typeof SuppliersRoute
   UsersRoute: typeof UsersRoute
+  AdminLicensesRoute: typeof AdminLicensesRoute
   ApiPublicLicenseActivateRoute: typeof ApiPublicLicenseActivateRoute
   ApiPublicLicenseBundleRoute: typeof ApiPublicLicenseBundleRoute
   ApiPublicLicenseDeactivateRoute: typeof ApiPublicLicenseDeactivateRoute
@@ -307,6 +320,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/licenses': {
+      id: '/admin/licenses'
+      path: '/admin/licenses'
+      fullPath: '/admin/licenses'
+      preLoaderRoute: typeof AdminLicensesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/license/heartbeat': {
       id: '/api/public/license/heartbeat'
       path: '/api/public/license/heartbeat'
@@ -350,6 +370,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SuppliersRoute: SuppliersRoute,
   UsersRoute: UsersRoute,
+  AdminLicensesRoute: AdminLicensesRoute,
   ApiPublicLicenseActivateRoute: ApiPublicLicenseActivateRoute,
   ApiPublicLicenseBundleRoute: ApiPublicLicenseBundleRoute,
   ApiPublicLicenseDeactivateRoute: ApiPublicLicenseDeactivateRoute,
