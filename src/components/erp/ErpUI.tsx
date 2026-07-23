@@ -29,7 +29,7 @@ export const formatDecimalDisplay = (value: string | number): string => {
 const NUMERIC_RE = /^-?[\d]*[.,]?[\d]*$/;
 
 /** Shared local-buffer hook so numeric inputs accept "," and don't lose caret while typing. */
-function useNumericBuffer(value: string | number, isNumeric: boolean) {
+export function useNumericBuffer(value: string | number, isNumeric: boolean) {
   const initial = () => {
     if (!isNumeric) return String(value ?? "");
     if (value === "" || value == null) return "";
