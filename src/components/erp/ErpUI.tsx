@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 export const fmt = (n: number, d = 2) =>
@@ -16,6 +16,50 @@ export const parseDecimal = (value: string | number): number => {
   const num = Number(cleaned);
   return isFinite(num) ? num : 0;
 };
+
+/** Ensure a numeric value is displayed with at least one decimal (e.g. 2 → "2.0"). */
+export const formatDecimalDisplay = (value: string | number): string => {
+  if (value === "" || value == null) return "";
+  const n = typeof value === "number" ? value : parseDecimal(value);
+  if (!isFinite(n)) return "";
+  if (n === 0 && typeof value === "string" && value.trim() === "") return "";
+  return Number.isInteger(n) ? `${n}.0` : String(n);
+};
+
+const NUMERIC_RE = /^-?[\d]*[.,]?[\d]*$/;
+
+/** Shared local-buffer hook so numeric inputs accept "," and don't lose caret while typing. */
+function useNumericBuffer(value: string | number, isNumeric: boolean) {
+  const initial = () => {
+    if (!isNumeric) return String(value ?? "");
+    if (value === "" || value == null) return "";
+    const n = typeof value === "number" ? value : parseDecimal(value);
+    if (!n && typeof value === "string" && value.trim() === "") return "";
+    return formatDecimalDisplay(n);
+  };
+  const [text, setText] = useState<string>(initial);
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!isNumeric) { setText(String(value ?? "")); return; }
+    if (focused.current) return;
+    const propNum = typeof value === "number" ? value : parseDecimal(String(value ?? ""));
+    const curNum = parseDecimal(text);
+    if (propNum !== curNum) setText(value === "" || value == null ? "" : formatDecimalDisplay(propNum));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return {
+    text,
+    setText,
+    onFocus: () => { focused.current = true; },
+    onBlur: () => {
+      focused.current = false;
+      if (isNumeric && text !== "") {
+        const n = parseDecimal(text);
+        setText(formatDecimalDisplay(n));
+      }
+    },
+  };
+}
 
 export function Panel({
   title,
@@ -87,15 +131,19 @@ export function ErpInput({
   className?: string;
   type?: string;
 }) {
-  const isNumeric = type === "number";
+  const isNumeric = type === "number" || typeof value === "number";
+  const buf = useNumericBuffer(value, isNumeric);
   return (
     <input
-      value={value}
+      value={buf.text}
       type={isNumeric ? "text" : type}
       inputMode={isNumeric ? "decimal" : undefined}
+      onFocus={buf.onFocus}
+      onBlur={buf.onBlur}
       onChange={(e) => {
         const v = e.target.value;
-        if (isNumeric && v !== "" && !/^-?[\d]*[.,]?[\d]*$/.test(v)) return;
+        if (isNumeric && v !== "" && !NUMERIC_RE.test(v)) return;
+        buf.setText(v);
         onChange(v);
       }}
       disabled={disabled}
@@ -162,16 +210,32 @@ export function Cell({
   if (!onChange) {
     return <td className={`border border-slate-200 px-2 py-1 text-${align} bg-slate-50`}>{value}</td>;
   }
-  const isNumeric = type === "number";
+  return <CellInput value={value} onChange={onChange} disabled={disabled} align={align} type={type} />;
+}
+
+function CellInput({
+  value, onChange, disabled, align, type,
+}: {
+  value: string | number;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  align: "right" | "left" | "center";
+  type: string;
+}) {
+  const isNumeric = type === "number" || typeof value === "number";
+  const buf = useNumericBuffer(value, isNumeric);
   return (
     <td className="border border-slate-200 p-0">
       <input
-        value={value}
+        value={buf.text}
         type={isNumeric ? "text" : type}
         inputMode={isNumeric ? "decimal" : undefined}
+        onFocus={buf.onFocus}
+        onBlur={buf.onBlur}
         onChange={(e) => {
           const v = e.target.value;
-          if (isNumeric && v !== "" && !/^-?[\d]*[.,]?[\d]*$/.test(v)) return;
+          if (isNumeric && v !== "" && !NUMERIC_RE.test(v)) return;
+          buf.setText(v);
           onChange(v);
         }}
         disabled={disabled}
