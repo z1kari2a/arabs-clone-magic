@@ -25,6 +25,8 @@ export type Item = {
   lastCost: number;
   /** Currency code the item is priced in (defaults to settings.defaultCurrency). */
   currency?: string;
+  /** Pinned exchange rate captured at last purchase (same base as settings.currencies[].rate). */
+  rate?: number;
 };
 
 export type PORow = {
