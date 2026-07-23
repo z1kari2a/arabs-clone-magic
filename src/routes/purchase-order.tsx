@@ -573,7 +573,7 @@ function POPage() {
             {po.rows.filter((r) => r.model || r.name).map((r, i) => {
               const m = metrics.rowMetrics[i];
               // convert avgCost (in invoice currency) into display currency
-              const conv = (po.rate || 1) / (rateOfCode(tierDisplayCurrency) || 1);
+              const conv = po.currency === tierDisplayCurrency ? 1 : ((po.rate || rateOfCode(po.currency) || 1) / (rateOfCode(tierDisplayCurrency) || 1));
               const avg = (m?.avgCost ?? 0) * conv;
               return (
                 <tr key={r.id} className="odd:bg-white even:bg-slate-50/50">
