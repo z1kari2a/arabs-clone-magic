@@ -267,7 +267,7 @@ function AmountInput({
       onBlur={buf.onBlur}
       onChange={(e) => {
         const v = e.target.value;
-        if (v !== "" && !/^-?[\d]*[.,]?[\d]*$/.test(v)) return;
+        if (v !== "" && !/^-?[\d\u0660-\u0669\u06F0-\u06F9]*[.,،\u066B]?[\d\u0660-\u0669\u06F0-\u06F9]*$/.test(v)) return;
         buf.setText(v);
         onChange(parseDecimal(v));
       }}

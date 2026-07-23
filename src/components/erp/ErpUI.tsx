@@ -11,7 +11,16 @@ export const fmtInt = (n: number) => (isFinite(n) ? n : 0).toLocaleString("en-US
 /** Parse a decimal number written with either `.` or `,` as decimal separator. */
 export const parseDecimal = (value: string | number): number => {
   if (typeof value === "number") return isFinite(value) ? value : 0;
-  const cleaned = value.trim().replace(/\s/g, "").replace(/,/g, ".");
+  // Normalize Arabic-Indic digits (٠-٩ and ۰-۹) to Latin, and any
+  // decimal-comma variant (Latin `,`, Arabic `٫` U+066B, Arabic `،` U+060C)
+  // to a dot — so users can type in any keyboard layout / direction.
+  const normalized = value
+    .trim()
+    .replace(/\s/g, "")
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/[،,\u066B]/g, ".");
+  const cleaned = normalized;
   if (!cleaned || isNaN(Number(cleaned))) return 0;
   const num = Number(cleaned);
   return isFinite(num) ? num : 0;
@@ -26,7 +35,7 @@ export const formatDecimalDisplay = (value: string | number): string => {
   return Number.isInteger(n) ? `${n}.0` : String(n);
 };
 
-const NUMERIC_RE = /^-?[\d]*[.,]?[\d]*$/;
+const NUMERIC_RE = /^-?[\d\u0660-\u0669\u06F0-\u06F9]*[.,،\u066B]?[\d\u0660-\u0669\u06F0-\u06F9]*$/;
 
 /** Shared local-buffer hook so numeric inputs accept "," and don't lose caret while typing. */
 export function useNumericBuffer(value: string | number, isNumeric: boolean) {
