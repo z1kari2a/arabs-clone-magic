@@ -30,8 +30,6 @@ function SettingsPage() {
   const patchTier = (id: string, p: Partial<PriceTier>) =>
     setTiers(tiers.map((t) => (t.id === id ? { ...t, ...p } : t)));
 
-  const currencies: Currency[] = local.currencies ?? [];
-
   const onSave = () => { erpStore.set({ settings: local }); toast.success("تم حفظ الإعدادات"); };
   const onReset = () => { if (confirm("إعادة تعيين كل البيانات؟")) { erpStore.reset(); toast.success("تم إعادة التعيين"); location.reload(); } };
   const noop = () => {};
