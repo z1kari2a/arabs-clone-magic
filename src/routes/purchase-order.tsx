@@ -628,6 +628,33 @@ function POPage() {
 function SummaryStat({ label, value, unit, highlight }: { label: string; value: string; unit?: string; highlight?: boolean }) {
   return (
     <div className={`border rounded p-2 text-center shadow-sm ${highlight ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"}`}>
+      <div className="text-[10px] text-slate-500">{label}</div>
+      <div className="font-bold text-slate-800 text-sm tabular-nums">{value} {unit && <span className="text-[10px] text-slate-500 font-normal">{unit}</span>}</div>
+    </div>
+  );
+}
+
+function StepBadge({ n }: { n: number }) {
+  return (
+    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold shadow-sm">
+      {n}
+    </span>
+  );
+}
+
+function StepTitle({ n, label, hint }: { n: number; label: string; hint?: string }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <StepBadge n={n} />
+      <span>{label}</span>
+      {hint && <span className="text-[10px] text-slate-500 font-normal">— {hint}</span>}
+    </span>
+  );
+}
+
+function _OldSummaryStat({ label, value, unit, highlight }: { label: string; value: string; unit?: string; highlight?: boolean }) {
+  return (
+    <div className={`border rounded p-2 text-center shadow-sm ${highlight ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"}`}>
       <div className="text-[11px] text-slate-600">{label}</div>
       <div className="text-lg font-bold text-slate-800 leading-tight">{value}</div>
       {unit && <div className="text-[10px] text-slate-500">{unit}</div>}
