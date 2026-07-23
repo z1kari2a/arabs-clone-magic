@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, RefreshCw, Plus, Star, DollarSign, Lock } from "lucide-react";
+import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, RefreshCw, Plus } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
-import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, fmt, parseDecimal, useNumericBuffer } from "@/components/erp/ErpUI";
+import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, parseDecimal } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore } from "@/lib/erp-store";
-import type { PriceTier, Currency } from "@/lib/erp-types";
+import type { PriceTier } from "@/lib/erp-types";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
