@@ -279,8 +279,9 @@ function POPage() {
     <ErpLayout title="أمر شراء" ribbon={<Ribbon actions={actions} />}>
       <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={onFile} className="hidden" />
 
+      {/* Workflow order: 1) Supplier → 2) Order data → 3) Items → 4) Expenses → 5) Cost → 6) Tiers */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-        <Panel title="بيانات المورد">
+        <Panel title={<StepTitle n={1} label="بيانات المورد" hint="اختر المورد أولاً" />}>
           <div className="flex gap-3 items-start">
             <div className="w-16 h-20 bg-slate-100 border border-slate-300 rounded flex items-center justify-center text-slate-400 shrink-0">
               <Building2 size={36} strokeWidth={1.2} />
@@ -301,7 +302,7 @@ function POPage() {
           </div>
         </Panel>
 
-        <Panel title="بيانات أمر الشراء">
+        <Panel title={<StepTitle n={2} label="بيانات أمر الشراء" hint="رقم الفاتورة، العملة، طريقة التوزيع" />}>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
             <FieldRow label="رقم الفاتورة"><ErpInput value={po.number} onChange={(v) => patch({ number: v, invoiceNo: v })} disabled={po.approved} highlight /></FieldRow>
             <FieldRow label="التاريخ"><ErpInput value={po.date} onChange={(v) => patch({ date: v })} disabled={disabled} /></FieldRow>
@@ -359,7 +360,9 @@ function POPage() {
             </button>
           </div>
           <button type="button" onClick={() => setShowItems((v) => !v)} className="font-semibold text-slate-700 flex items-center gap-1 hover:text-blue-700" title={showItems ? "طي الجدول" : "توسيع الجدول"}>
-            {showItems ? <ChevronUp size={14} /> : <ChevronDown size={14} />} <Package size={14} /> بنود الفاتورة ({savedCount})
+            {showItems ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            <StepBadge n={3} />
+            <Package size={14} /> بنود الفاتورة ({savedCount})
           </button>
           <div className="text-xs text-slate-500">{po.approved && <span className="text-emerald-600 font-semibold">✓ معتمد</span>}</div>
         </div>
@@ -425,7 +428,9 @@ function POPage() {
             </button>
           </div>
           <button type="button" onClick={() => setShowExpenses((v) => !v)} className="font-semibold text-slate-700 flex items-center gap-1 hover:text-blue-700" title={showExpenses ? "طي" : "توسيع"}>
-            {showExpenses ? <ChevronUp size={14} /> : <ChevronDown size={14} />} <Wallet size={14} /> المصروفات ({po.expenses.length})
+            {showExpenses ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            <StepBadge n={4} />
+            <Wallet size={14} /> المصروفات ({po.expenses.length})
           </button>
           <div className="text-xs text-slate-600">الإجمالي: <span className="font-bold">{fmt(metrics.totalExpenses)}</span> {po.currency}</div>
         </div>
@@ -479,7 +484,7 @@ function POPage() {
               {currencyOptions.map((o) => (<option key={o.value} value={o.value}>{o.value}</option>))}
             </select>
           </div>
-          <div>ملخص أمر الشراء</div>
+          <div className="flex items-center gap-1"><StepBadge n={5} /> احتساب التكلفة النهائية</div>
           <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt((po.rate || 1) / (rateOfCode(masterCurrency) || 1), 4)} {masterCurrency}</div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 p-2">
@@ -519,7 +524,8 @@ function POPage() {
               </select>
             </div>
             <button type="button" onClick={() => setShowTiers((v) => !v)} className="font-semibold text-slate-700 flex items-center gap-1 hover:text-blue-700" title={showTiers ? "طي" : "توسيع"}>
-              {showTiers ? <ChevronUp size={14} /> : <ChevronDown size={14} />} التسعيرات حسب الوجهات
+              {showTiers ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              <StepBadge n={6} /> التسعيرات حسب الوجهات
             </button>
             <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt((po.rate || 1) / (rateOfCode(tierDisplayCurrency) || 1), 4)} {tierDisplayCurrency}</div>
           </div>
