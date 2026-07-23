@@ -68,7 +68,7 @@ export const Route = createFileRoute("/api/public/license/bundle")({
 
         const { data: bundle } = await supabaseAdmin
           .from("app_bundles")
-          .select("version, encrypted_payload, signature")
+          .select("version, encrypted_blob, signature")
           .eq("is_current", true)
           .maybeSingle();
         if (!bundle) {
@@ -82,7 +82,7 @@ export const Route = createFileRoute("/api/public/license/bundle")({
           JSON.stringify({
             ok: true,
             version: bundle.version,
-            payload_b64: bundle.encrypted_payload,
+            payload_b64: bundle.encrypted_blob,
             signature_b64: bundle.signature,
           }),
           { status: 200, headers: cors },
