@@ -25,10 +25,12 @@ const defaultSettings: Settings = {
     { id: "sanaa", name: "تكلفة صنعاء",      extraPct: 52.71, profitPct: 30 },
   ],
   currencies: [
-    { code: "YER", name: "ريال يمني",  rate: 1 },
-    { code: "SAR", name: "ريال سعودي", rate: 140 },
-    { code: "CNY", name: "يوان صيني",  rate: 76 },
-    { code: "USD", name: "دولار",       rate: 530 },
+    // Base currency is USD. `rate` = how many units of the currency equal 1 USD.
+    // Example: 1 USD = 536 YER, 1 USD = 3.75 SAR, 1 USD = 7.18 CNY.
+    { code: "USD", name: "دولار أمريكي", rate: 1 },
+    { code: "YER", name: "ريال يمني",    rate: 536 },
+    { code: "SAR", name: "ريال سعودي",   rate: 3.75 },
+    { code: "CNY", name: "يوان صيني",    rate: 7.18 },
   ],
   expenseTypes: [
     "شحن بحري",
@@ -321,6 +323,9 @@ export function useErpStore<T>(selector: (s: StoreState) => T): T {
 
 // ============ Business logic (unchanged) ============
 export function computePO(po: PurchaseOrder) {
+  // Base currency = USD. `rate` on any currency = units-per-USD.
+  //   amount_in_USD          = amount / rate
+  //   amount_in_invoiceCcy   = amount * (invoiceRate / rate)
   // Prefer PINNED rates stored on the document — fall back to live settings only
   // when the row/expense/header has no rate yet (e.g. a brand-new unsaved line).
   const currencies = state.settings.currencies ?? [];
@@ -331,7 +336,7 @@ export function computePO(po: PurchaseOrder) {
   const invRate = resolvedInvRate;
   const effPriceOf = (r: import("./erp-types").PORow) => {
     const rate = r.rate || liveRate(r.currency) || invRate;
-    return r.price * (rate / invRate);
+    return rate > 0 ? r.price * (invRate / rate) : 0;
   };
   const totalPurchase = po.rows.reduce((s, r) => s + r.qty * effPriceOf(r), 0);
   const totalCBM = po.rows.reduce((s, r) => {
@@ -339,10 +344,10 @@ export function computePO(po: PurchaseOrder) {
     return s + cartons * r.cbm;
   }, 0);
   const totalCartons = po.rows.reduce((s, r) => s + (r.pack ? r.qty / r.pack : 0), 0);
-  const totalExpenses = po.expenses.reduce(
-    (s, e) => s + (e.amount * (e.rate || liveRate(e.currency) || 0)) / invRate,
-    0,
-  );
+  const totalExpenses = po.expenses.reduce((s, e) => {
+    const er = e.rate || liveRate(e.currency) || 0;
+    return s + (er > 0 ? e.amount * (invRate / er) : 0);
+  }, 0);
   const cbmPrice = totalCBM > 0 ? totalExpenses / totalCBM : 0;
   const totalCost = totalPurchase + totalExpenses;
   const rowMetrics = po.rows.map((r) => {

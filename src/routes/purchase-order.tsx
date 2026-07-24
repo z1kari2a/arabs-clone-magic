@@ -492,7 +492,7 @@ function POPage() {
               </td>
               <Cell value={e.amount} onChange={(v) => patchExp(e.id, { amount: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
               <Cell value={fmt(rateOf(e.currency), 4)} align="right" />
-              <Cell value={fmt((e.amount * (rateOf(e.currency) || 0)) / (po.rate || 1))} />
+              <Cell value={fmt(rateOf(e.currency) > 0 ? (e.amount * (po.rate || 1)) / rateOf(e.currency) : 0)} />
               <Cell value={e.type} onChange={(v) => patchExp(e.id, { type: v })} disabled={disabled} align="right" />
               <Cell value={e.accountNo ?? ""} onChange={(v) => patchExp(e.id, { accountNo: v })} disabled={disabled} align="right" />
               <Cell value={e.analyticAccount ?? ""} onChange={(v) => patchExp(e.id, { analyticAccount: v })} disabled={disabled} align="right" />
@@ -524,7 +524,7 @@ function POPage() {
             </select>
           </div>
           <div className="flex items-center gap-1"><StepBadge n={5} /> احتساب التكلفة النهائية</div>
-          <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt(po.currency === masterCurrency ? 1 : ((po.rate || rateOfCode(po.currency) || 1) / (rateOfCode(masterCurrency) || 1)), 4)} {masterCurrency}</div>
+          <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt(po.currency === masterCurrency ? 1 : ((rateOfCode(masterCurrency) || 1) / (po.rate || rateOfCode(po.currency) || 1)), 4)} {masterCurrency}</div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 p-2">
           <SummaryStat label="عدد الأصناف" value={fmtInt(metrics.totalItems)} unit="صنف" />
@@ -540,7 +540,7 @@ function POPage() {
             الإجمالي النهائي محوّل تلقائيًا إلى <b className="text-amber-700">{masterCurrency}</b>
           </div>
           <div className="text-lg font-black text-emerald-700">
-            {fmt(metrics.totalCost * (po.currency === masterCurrency ? 1 : ((po.rate || rateOfCode(po.currency) || 1) / (rateOfCode(masterCurrency) || 1))))}
+            {fmt(metrics.totalCost * (po.currency === masterCurrency ? 1 : ((rateOfCode(masterCurrency) || 1) / (po.rate || rateOfCode(po.currency) || 1))))}
             <span className="text-xs text-slate-500 mr-2">{masterCurrency}</span>
           </div>
         </div>
@@ -566,14 +566,14 @@ function POPage() {
               {showTiers ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               <StepBadge n={6} /> التسعيرات حسب الوجهات
             </button>
-            <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt(po.currency === tierDisplayCurrency ? 1 : ((po.rate || rateOfCode(po.currency) || 1) / (rateOfCode(tierDisplayCurrency) || 1)), 4)} {tierDisplayCurrency}</div>
+            <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt(po.currency === tierDisplayCurrency ? 1 : ((rateOfCode(tierDisplayCurrency) || 1) / (po.rate || rateOfCode(po.currency) || 1)), 4)} {tierDisplayCurrency}</div>
           </div>
           {showTiers && (
           <ErpTable headers={["م", "الموديل", "اسم الصنف", `متوسط التكلفة (${tierDisplayCurrency})`, ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`])]}>
             {po.rows.filter((r) => r.model || r.name).map((r, i) => {
               const m = metrics.rowMetrics[i];
               // convert avgCost (in invoice currency) into display currency
-              const conv = po.currency === tierDisplayCurrency ? 1 : ((po.rate || rateOfCode(po.currency) || 1) / (rateOfCode(tierDisplayCurrency) || 1));
+              const conv = po.currency === tierDisplayCurrency ? 1 : ((rateOfCode(tierDisplayCurrency) || 1) / (po.rate || rateOfCode(po.currency) || 1));
               const avg = (m?.avgCost ?? 0) * conv;
               return (
                 <tr key={r.id} className="odd:bg-white even:bg-slate-50/50">

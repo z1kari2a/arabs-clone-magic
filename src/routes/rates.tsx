@@ -34,7 +34,7 @@ function RatesPage() {
   const dirty =
     JSON.stringify(rows) !== JSON.stringify(settings.currencies ?? []) ||
     defCode !== (settings.defaultCurrency || "");
-  const baseCode = rows[0]?.code ?? "";
+  const baseCode = "USD";
 
   const patch = (code: string, p: Partial<Currency>) =>
     setRows(rows.map((r) => (r.code === code ? { ...r, ...p } : r)));
@@ -81,8 +81,9 @@ function RatesPage() {
         <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded flex items-start gap-2 text-[12px] text-amber-800">
           <Info size={14} className="mt-0.5 shrink-0" />
           <span>
-            السعر هنا يُستخدم للمستندات الجديدة فقط. كل فاتورة/أمر شراء/سطر مصروف تخزن سعر صرفها لحظة الحفظ،
-            فلن تتغير حساباتها عند تعديل الأسعار لاحقاً. العملة الأساسية للنظام: <b>{baseCode || "—"}</b>.
+            العملة الأساسية للنظام: <b>USD</b>. كل قيمة تُدخل بأي عملة تُحوّل داخلياً إلى الدولار عبر المعادلة:
+            <b> المبلغ ÷ سعر الصرف = المبلغ بالدولار</b>. الأسعار هنا للمستندات الجديدة فقط —
+            كل فاتورة/أمر شراء/مصروف يخزّن سعر صرفه لحظة الحفظ فلا تتأثر حساباته لاحقاً.
           </span>
         </div>
 
@@ -94,8 +95,8 @@ function RatesPage() {
                 <th className="border border-slate-200 py-1.5 w-20">افتراضي</th>
                 <th className="border border-slate-200 py-1.5 w-28">الرمز</th>
                 <th className="border border-slate-200 py-1.5">اسم العملة</th>
-                <th className="border border-slate-200 py-1.5 w-44">سعر التحويل (مقابل {baseCode})</th>
-                <th className="border border-slate-200 py-1.5 w-44">مثال: 100 → {baseCode}</th>
+                <th className="border border-slate-200 py-1.5 w-44">سعر الصرف (1 USD =)</th>
+                <th className="border border-slate-200 py-1.5 w-44">مثال: 100 {'{'}العملة{'}'} → USD</th>
                 <th className="border border-slate-200 py-1.5 w-16">حذف</th>
               </tr>
             </thead>
@@ -134,7 +135,7 @@ function RatesPage() {
                     />
                   </td>
                   <td className="border border-slate-200 text-center text-slate-600 tabular-nums text-xs">
-                    100 {c.code} = {fmt(100 * (c.rate || 0))} {baseCode}
+                    {c.code === "USD" ? `100 USD = 100.00 USD` : `100 ${c.code} = ${fmt(c.rate ? 100 / c.rate : 0)} USD`}
                   </td>
                   <td className="border border-slate-200 text-center">
                     <button
