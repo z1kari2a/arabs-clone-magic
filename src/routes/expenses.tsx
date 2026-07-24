@@ -71,15 +71,20 @@ function ExpensesPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "approved" | "draft">("all");
 
   const allExpenses = useMemo(() => {
-    return orders.flatMap((o) =>
-      o.expenses.map((e) => ({
-        po: o,
-        e,
-        invAmount: e.amount * (e.rate || 1),
-        supplierName: suppliers.find((s) => s.code === o.supplierCode)?.name ?? "-",
-      }))
-    );
-  }, [orders, suppliers]);
+    return orders.flatMap((o) => {
+      const invRate = o.rate || currencies.find((c) => c.code === o.currency)?.rate || 1;
+      return o.expenses.map((e) => {
+        const er = e.rate || currencies.find((c) => c.code === e.currency)?.rate || 0;
+        return {
+          po: o,
+          e,
+          // Base = USD, rate = units-per-USD → invoice amount = amount * (invRate / sourceRate)
+          invAmount: er > 0 ? e.amount * (invRate / er) : 0,
+          supplierName: suppliers.find((s) => s.code === o.supplierCode)?.name ?? "-",
+        };
+      });
+    });
+  }, [orders, suppliers, currencies]);
 
   const filtered = useMemo(() => {
     return allExpenses.filter(({ po, e, supplierName }) => {
