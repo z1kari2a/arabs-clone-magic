@@ -44,19 +44,21 @@ export default function ExpensesDialog({
   useMemo(() => { if (open) { setRows(expenses); setTypes(expenseTypes); } }, [open]); // eslint-disable-line
 
   const rateOf = (code: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
-  // Effective rate → invoice currency. Editing this writes back to settings.currencies[code].rate.
+  // Base currency = USD. `rate` = units-per-USD.
+  //   amount_in_invoice = amount * (invoiceRate / rate)
+  // Effective rate below = "invoice units per 1 unit of source" = invoiceRate / sourceRate.
   const setEffRate = (code: string, effective: number) => {
-    if (!code) return;
-    const baseRate = effective * (invoiceRate || 1);
+    if (!code || !effective) return;
+    const baseRate = (invoiceRate || 1) / effective;
     updateCurrencyRate(code, baseRate);
     setRows(rows.map((r) => (r.currency === code ? { ...r, rate: baseRate } : r)));
   };
-  const convert = (amt: number, rate: number) => (amt * (rate || 1)) / (invoiceRate || 1);
-  // Effective rate = how many units of invoice currency equal 1 unit of source currency.
+  const convert = (amt: number, rate: number) =>
+    rate > 0 ? amt * ((invoiceRate || 1) / rate) : 0;
   const effRate = (code: string) => {
     const r = rateOf(code);
     if (!r || !invoiceRate) return 0;
-    return r / invoiceRate;
+    return invoiceRate / r;
   };
   const total = rows.reduce((s, e) => s + convert(e.amount, e.rate), 0);
 
