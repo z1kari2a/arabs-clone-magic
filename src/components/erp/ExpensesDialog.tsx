@@ -4,7 +4,6 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import type { Expense, Currency } from "@/lib/erp-types";
 import { fmt, parseDecimal, useNumericBuffer } from "./ErpUI";
-import { updateCurrencyRate } from "@/lib/erp-store";
 
 type Props = {
   open: boolean;
@@ -47,18 +46,20 @@ export default function ExpensesDialog({
   // Base currency = USD. `rate` = units-per-USD.
   //   amount_in_invoice = amount * (invoiceRate / rate)
   // Effective rate below = "invoice units per 1 unit of source" = invoiceRate / sourceRate.
-  const setEffRate = (code: string, effective: number) => {
-    if (!code || !effective) return;
-    const baseRate = (invoiceRate || 1) / effective;
-    updateCurrencyRate(code, baseRate);
-    setRows(rows.map((r) => (r.currency === code ? { ...r, rate: baseRate } : r)));
+  // Edits only the row being changed — pinned rates on other rows (this PO or
+  // others sharing the currency) must never shift as a side effect.
+  const setEffRate = (id: number, effective: number) => {
+    if (!effective || !invoiceRate) return;
+    const baseRate = invoiceRate / effective;
+    setRows(rows.map((r) => (r.id === id ? { ...r, rate: baseRate } : r)));
   };
   const convert = (amt: number, rate: number) =>
     rate > 0 ? amt * ((invoiceRate || 1) / rate) : 0;
-  const effRate = (code: string) => {
-    const r = rateOf(code);
-    if (!r || !invoiceRate) return 0;
-    return invoiceRate / r;
+  // Derived from the row's own PINNED rate so it always matches convert()
+  // for that row — never from the live settings rate for the currency.
+  const effRateOfRow = (rate: number) => {
+    if (!rate || !invoiceRate) return 0;
+    return invoiceRate / rate;
   };
   const total = rows.reduce((s, e) => s + convert(e.amount, e.rate), 0);
 
@@ -182,10 +183,10 @@ export default function ExpensesDialog({
                   </td>
                   <td className="py-2 px-2">
                     <RateInput
-                      value={effRate(e.currency)}
+                      value={effRateOfRow(e.rate)}
                       disabled={disabled || !e.currency}
-                      onChange={(n) => setEffRate(e.currency, n)}
-                      title={`سعر تحويل 1 ${e.currency || "—"} إلى ${invoiceCurrency} — يُحفظ مركزياً`}
+                      onChange={(n) => setEffRate(e.id, n)}
+                      title={`سعر تحويل 1 ${e.currency || "—"} إلى ${invoiceCurrency}`}
                     />
                   </td>
                   <td className="py-2 px-2">

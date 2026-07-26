@@ -491,8 +491,10 @@ function POPage() {
                 </select>
               </td>
               <Cell value={e.amount} onChange={(v) => patchExp(e.id, { amount: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
-              <Cell value={fmt(rateOf(e.currency), 4)} align="right" />
-              <Cell value={fmt(rateOf(e.currency) > 0 ? (e.amount * (po.rate || 1)) / rateOf(e.currency) : 0)} />
+              {/* Pinned e.rate, not the live rateOf(e.currency) — must match
+                  the totals in computePO(), which are also pinned-rate based. */}
+              <Cell value={fmt(e.rate, 4)} align="right" />
+              <Cell value={fmt(e.rate > 0 ? (e.amount * (po.rate || 1)) / e.rate : 0)} />
               <Cell value={e.type} onChange={(v) => patchExp(e.id, { type: v })} disabled={disabled} align="right" />
               <Cell value={e.accountNo ?? ""} onChange={(v) => patchExp(e.id, { accountNo: v })} disabled={disabled} align="right" />
               <Cell value={e.analyticAccount ?? ""} onChange={(v) => patchExp(e.id, { analyticAccount: v })} disabled={disabled} align="right" />
