@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, type ReactNode, type FocusEvent } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 export const fmt = (n: number, d = 2) =>
@@ -59,7 +59,14 @@ export function useNumericBuffer(value: string | number, isNumeric: boolean) {
   return {
     text,
     setText,
-    onFocus: () => { focused.current = true; },
+    // Select the whole pre-filled value on focus so typing REPLACES it
+    // instead of inserting into it (e.g. a field auto-filled with a long
+    // decimal like "0.0018656716417910447" would otherwise silently turn a
+    // typed "2" into "20.0018656716417910447").
+    onFocus: (e: FocusEvent<HTMLInputElement>) => {
+      focused.current = true;
+      e.target.select();
+    },
     onBlur: () => {
       focused.current = false;
       if (isNumeric && text !== "") {

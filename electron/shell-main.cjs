@@ -14,6 +14,7 @@ const os = require("os");
 const crypto = require("crypto");
 const zlib = require("zlib");
 const https = require("https");
+const db = require("./db.cjs");
 
 // ---- Configuration ---------------------------------------------------------
 
@@ -24,6 +25,7 @@ const HEARTBEAT_MS = 30 * 60 * 1000; // 30 minutes
 
 let mainWindow = null;
 let heartbeatTimer = null;
+let backupTimer = null;
 
 // ---- Machine fingerprint ---------------------------------------------------
 
@@ -50,6 +52,39 @@ function licensePath() {
 }
 function bundleDir() {
   return path.join(app.getPath("userData"), "current-bundle");
+}
+
+// ---- Local SQLite backups (userData/backups/) -------------------------------
+// Distinct from the bundle download below: this backs up business DATA
+// (erp.db), not UI code. Kept independent of the cloud backup in cloud-sync.ts
+// so data survives even with no network connection.
+
+const BACKUP_KEEP = 14;
+const AUTO_BACKUP_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+function backupsDir() {
+  return path.join(app.getPath("userData"), "backups");
+}
+
+function autoBackup() {
+  try {
+    const dir = backupsDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const dest = path.join(dir, `erp-${stamp}.db`);
+    db.backup(dest);
+    const files = fs
+      .readdirSync(dir)
+      .filter((f) => f.startsWith("erp-") && f.endsWith(".db"))
+      .sort();
+    while (files.length > BACKUP_KEEP) {
+      fs.unlinkSync(path.join(dir, files.shift()));
+    }
+    return dest;
+  } catch (e) {
+    console.error("autoBackup failed", e);
+    return null;
+  }
 }
 function readLicense() {
   try {
@@ -132,6 +167,10 @@ async function downloadAndInstallBundle(license) {
   const raw = zlib.gunzipSync(decrypted);
   const manifest = JSON.parse(raw.toString("utf8"));
   if (!manifest?.files) throw new Error("invalid_manifest");
+
+  // Snapshot erp.db right before swapping in new UI code, so a bad update
+  // never leaves the user without a recent recovery point for their data.
+  autoBackup();
 
   fs.rmSync(bundleDir(), { recursive: true, force: true });
   fs.mkdirSync(bundleDir(), { recursive: true });
@@ -222,6 +261,7 @@ function createWindow() {
 // ---- App bootstrap ---------------------------------------------------------
 
 app.whenReady().then(() => {
+  db.init(path.join(app.getPath("userData"), "erp.db"));
   registerIpc();
   createWindow();
 
@@ -242,6 +282,9 @@ app.whenReady().then(() => {
   heartbeatTimer = setInterval(() => { heartbeat().catch(() => {}); }, HEARTBEAT_MS);
   heartbeat().catch(() => {}); // fire once on start
 
+  autoBackup();
+  backupTimer = setInterval(autoBackup, AUTO_BACKUP_MS);
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -249,8 +292,11 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
+  if (backupTimer) clearInterval(backupTimer);
   if (process.platform !== "darwin") app.quit();
 });
+
+app.on("before-quit", () => db.close());
 
 // ---- IPC (activation UI ↔ shell) -------------------------------------------
 
@@ -273,4 +319,16 @@ function registerIpc() {
     if (mainWindow) mainWindow.loadFile(path.join(__dirname, "..", "electron-shell", "index.html"));
     return { ok: true };
   });
+  ipcMain.handle("license:serverBase", () => SERVER_BASE);
+
+  // Local SQLite bridge (erp.db) — same contract as electron/main.cjs.
+  ipcMain.handle("db:getAll", (_e, table) => db.getAll(table));
+  ipcMain.handle("db:setAll", (_e, table, rows) => db.setAll(table, rows));
+  ipcMain.handle("db:getKV", (_e, key) => db.getKV(key));
+  ipcMain.handle("db:setKV", (_e, key, value) => db.setKV(key, value));
+  ipcMain.handle("db:hashPassword", (_e, pw, salt) => db.hashPassword(pw, salt));
+  ipcMain.handle("db:randomSalt", () => db.randomSalt());
+  ipcMain.handle("db:backup", (_e, dest) => db.backup(dest));
+  ipcMain.handle("db:restore", (_e, src) => db.restore(src));
+  ipcMain.handle("db:backupNow", () => autoBackup());
 }

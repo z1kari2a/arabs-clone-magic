@@ -36,7 +36,7 @@ function ItemsPage() {
   const onNew = () => { setList([...list, { code: `MOD-${1000 + list.length + 1}`, name: "", barcode: "", units: [{ name: "حبة", pack: 1, lastPrice: 0 }], cbmPerCarton: 0, lastCost: 0, currency: defaultCurrency }]); setEditing(true); };
   const onSave = () => { erpStore.set({ items: list }); setEditing(false); toast.success("تم الحفظ"); };
   const onExport = () => {
-    const ws = XLSX.utils.json_to_sheet(list.map((i) => ({ "الموديل": i.code, "اسم الصنف": i.name, "الباركود": i.barcode, "الوحدة": i.units[0]?.name, "العبوة": i.units[0]?.pack, "آخر سعر": i.units[0]?.lastPrice, "العملة": i.currency ?? defaultCurrency, "CBM": i.cbmPerCarton, "آخر تكلفة": i.lastCost })));
+    const ws = XLSX.utils.json_to_sheet(list.map((i) => ({ "الموديل": i.code, "اسم الصنف": i.name, "الباركود": i.barcode, "الوحدة": i.units[0]?.name, "العبوة": i.units[0]?.pack, "آخر سعر": i.units[0]?.lastPrice, "العملة": i.currency ?? defaultCurrency, "CBM": i.cbmPerCarton, "آخر تكلفة (USD)": i.lastCost })));
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Items");
     XLSX.writeFile(wb, "items.xlsx");
   };
@@ -63,7 +63,7 @@ function ItemsPage() {
           <div className="flex items-center gap-2 font-semibold text-slate-700"><Package size={16} /> الأصناف ({filtered.length})</div>
           <input id="it-search" placeholder="بحث بالموديل أو الباركود أو الاسم..." value={search} onChange={(e) => setSearch(e.target.value)} className="px-2 py-1 text-xs border border-slate-300 rounded w-72 text-right" />
         </div>
-        <ErpTable headers={["م","الموديل","اسم الصنف","الباركود","الوحدة","العبوة","آخر سعر","العملة","CBM الكرتون","آخر تكلفة"]}>
+        <ErpTable headers={["م","الموديل","اسم الصنف","الباركود","الوحدة","العبوة","آخر سعر","العملة","CBM الكرتون","آخر تكلفة (USD)"]}>
           {filtered.map((it, i) => {
             const idx = list.indexOf(it);
             const u0 = it.units[0] ?? { name: "حبة", pack: 1, lastPrice: 0 };

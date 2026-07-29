@@ -43,13 +43,21 @@ function ReportsPage() {
   const orders = useErpStore((s) => s.purchaseOrders);
   const suppliers = useErpStore((s) => s.suppliers);
   const items = useErpStore((s) => s.items);
+  const currencies = useErpStore((s) => s.settings.currencies) ?? [];
+
+  // Base = USD, rate = units-per-USD → expenses always convert straight to USD.
+  // Same formula as expenses.tsx / ExpensesDialog.tsx.
+  const invAmountOf = (o: (typeof orders)[number], e: (typeof o.expenses)[number]) => {
+    const er = e.rate || currencies.find((c) => c.code === e.currency)?.rate || 0;
+    return er > 0 ? e.amount / er : 0;
+  };
 
   const onExport = () => {
     let rows: any[] = [];
-    if (reportId === "purchases") rows = orders.map((o) => { const m = computePO(o); return { "رقم الفاتورة": o.number, "التاريخ": o.date, "المورد": suppliers.find((s) => s.code === o.supplierCode)?.name ?? "", "الأصناف": m.totalItems, "الكمية": m.totalQty, "الشراء": m.totalPurchase, "المصروفات": m.totalExpenses, "التكلفة": m.totalCost }; });
-    else if (reportId === "items") rows = items.map((i) => ({ "الموديل": i.code, "الصنف": i.name, "آخر سعر": i.units[0]?.lastPrice, "آخر تكلفة": i.lastCost }));
+    if (reportId === "purchases") rows = orders.map((o) => { const m = computePO(o); return { "رقم الفاتورة": o.number, "التاريخ": o.date, "المورد": suppliers.find((s) => s.code === o.supplierCode)?.name ?? "", "الأصناف": m.totalItems, "الكمية": m.totalQty, "الشراء (USD)": m.totalPurchase, "المصروفات (USD)": m.totalExpenses, "التكلفة (USD)": m.totalCost }; });
+    else if (reportId === "items") rows = items.map((i) => ({ "الموديل": i.code, "الصنف": i.name, "آخر سعر": i.units[0]?.lastPrice, "آخر تكلفة (USD)": i.lastCost }));
     else if (reportId === "suppliers") rows = suppliers.map((s) => ({ "الكود": s.code, "الاسم": s.name, "الدولة": s.country, "أوامر": orders.filter((o) => o.supplierCode === s.code).length }));
-    else if (reportId === "expenses") rows = orders.flatMap((o) => o.expenses.map((e) => ({ "رقم الفاتورة": o.number, "النوع": e.type, "البيان": e.note, "المبلغ": e.amount, "بعملة الفاتورة": e.amount * (e.rate || 1) })));
+    else if (reportId === "expenses") rows = orders.flatMap((o) => o.expenses.map((e) => ({ "رقم الفاتورة": o.number, "النوع": e.type, "البيان": e.note, "المبلغ": e.amount, "بالدولار": invAmountOf(o, e) })));
     const ws = XLSX.utils.json_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Report");
     XLSX.writeFile(wb, `${reportId}.xlsx`); toast.success("تم التصدير");
   };
@@ -83,7 +91,7 @@ function ReportsPage() {
         </div>
         <div className="p-2">
           {reportId === "purchases" && (
-            <ErpTable headers={["م","رقم الفاتورة","التاريخ","المورد","الأصناف","الكمية","الشراء","المصروفات","التكلفة","الحالة"]}>
+            <ErpTable headers={["م","رقم الفاتورة","التاريخ","المورد","الأصناف","الكمية","الشراء (USD)","المصروفات (USD)","التكلفة (USD)","الحالة"]}>
               {orders.map((o, i) => { const m = computePO(o); return (
                 <tr key={o.number} className="hover:bg-blue-50/40">
                   <td className="border border-slate-200 text-center">{i + 1}</td>
@@ -101,7 +109,7 @@ function ReportsPage() {
             </ErpTable>
           )}
           {reportId === "items" && (
-            <ErpTable headers={["م","الموديل","اسم الصنف","الباركود","آخر سعر","آخر تكلفة"]}>
+            <ErpTable headers={["م","الموديل","اسم الصنف","الباركود","آخر سعر","آخر تكلفة (USD)"]}>
               {items.map((it, i) => (
                 <tr key={it.code}>
                   <td className="border border-slate-200 text-center">{i + 1}</td>
@@ -130,7 +138,7 @@ function ReportsPage() {
             </ErpTable>
           )}
           {reportId === "expenses" && (
-            <ErpTable headers={["م","رقم الفاتورة","النوع","البيان","العملة","المبلغ","بعملة الفاتورة"]}>
+            <ErpTable headers={["م","رقم الفاتورة","النوع","البيان","العملة","المبلغ","بالدولار"]}>
               {orders.flatMap((o) => o.expenses.map((e) => ({ o, e }))).map(({ o, e }, i) => (
                 <tr key={o.number + e.id}>
                   <td className="border border-slate-200 text-center">{i + 1}</td>
@@ -139,7 +147,7 @@ function ReportsPage() {
                   <td className="border border-slate-200 px-2 text-right">{e.note}</td>
                   <td className="border border-slate-200 px-2 text-center">{e.currency}</td>
                   <td className="border border-slate-200 px-2 text-right">{fmt(e.amount)}</td>
-                  <td className="border border-slate-200 px-2 text-right bg-amber-50 font-semibold">{fmt(e.amount * (e.rate || 1))}</td>
+                  <td className="border border-slate-200 px-2 text-right bg-amber-50 font-semibold">{fmt(invAmountOf(o, e))}</td>
                 </tr>
               ))}
             </ErpTable>

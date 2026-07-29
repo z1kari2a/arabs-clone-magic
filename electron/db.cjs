@@ -72,6 +72,9 @@ function randomSalt() {
 
 function backup(dest) {
   const fs = require("fs");
+  // WAL mode keeps recent commits in a separate -wal file; checkpoint first so
+  // the .db file being copied actually contains the latest writes.
+  db.pragma("wal_checkpoint(TRUNCATE)");
   fs.copyFileSync(currentPath, dest);
 }
 function restore(src) {

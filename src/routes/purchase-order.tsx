@@ -5,18 +5,17 @@ import { toast } from "sonner";
 import {
   FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer,
   FileSpreadsheet, Download, CheckCircle2, X, Plus, Wallet, Building2, Copy,
-  ChevronUp, ChevronDown, Coins, Package,
+  ChevronUp, ChevronDown, Coins, Package, RefreshCcw,
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
 import ExpensesDialog from "@/components/erp/ExpensesDialog";
-import { erpStore, useErpStore, computePO, savePurchaseOrder, updateCurrencyRate } from "@/lib/erp-store";
+import { erpStore, useErpStore, computePO, savePurchaseOrder } from "@/lib/erp-store";
+import { getCurrentScope } from "@/lib/local-db";
 import type { PurchaseOrder, PORow, Expense } from "@/lib/erp-types";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { SEED_INVOICE } from "@/lib/erp-seed";
-import { upsertSupplier } from "@/lib/erp-store";
 
 export const Route = createFileRoute("/purchase-order")({
   head: () => ({
@@ -64,33 +63,45 @@ function POPage() {
   const suppliers = useErpStore((s) => s.suppliers);
   const items = useErpStore((s) => s.items);
   const orders = useErpStore((s) => s.purchaseOrders);
+  const hydrated = useErpStore((s) => s.hydrated);
   const settings = useErpStore((s) => s.settings);
   const currencies = settings.currencies ?? [];
-  const defaultCurrency = settings.defaultCurrency || currencies[0]?.code || "USD";
   const rateOfCode = (code: string) => currencies.find((c) => c.code === code)?.rate ?? 1;
 
+  // Purchase orders anchor to USD — the system's base accounting currency (see
+  // "أسعار الصرف": rate = units of a currency per 1 USD). `settings.defaultCurrency`
+  // is a separate, user-editable preference for OTHER screens (items, suppliers) and
+  // must not leak into new invoices / totals here, or the grand total silently drifts
+  // to whatever that unrelated setting happens to be.
   const [po, setPo] = useState<PurchaseOrder>(
-    orders[0] ?? emptyPO("INV-2026-00001", defaultCurrency, rateOfCode(defaultCurrency)),
+    orders[0] ?? emptyPO("INV-2026-00001", "USD", rateOfCode("USD")),
   );
   const [editing, setEditing] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
-  const DRAFT_KEY = "erp:po-draft-v1";
+  // Scoped per signed-in user so a draft started by one account never bleeds
+  // into another account's session on the same machine.
+  const DRAFT_KEY = `erp:po-draft-v1:${getCurrentScope() ?? "anon"}`;
   const [openDlg, setOpenDlg] = useState(false);
   const [supDlg, setSupDlg] = useState(false);
   const [expDlg, setExpDlg] = useState(false);
   const [searchDlg, setSearchDlg] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  // Guards the one-time "load the last saved PO once the store hydrates" effect
+  // below — any explicit user action (draft restore, new/copy/delete) disarms it
+  // so it never clobbers a PO the user is already looking at.
+  const autoLoadedRef = useRef(false);
   const [markupPct, setMarkupPct] = useState<number>(30);
   const priceTiers = useErpStore((s) => s.settings.priceTiers ?? []);
   const currencyOptions = currencies.length
     ? currencies.map((c) => ({ value: c.code, label: `${c.code} - ${c.name}` }))
     : [{ value: "USD", label: "USD" }];
   const rateOf = rateOfCode;
-  const [tierDisplayCurrency, setTierDisplayCurrency] = useState<string>(defaultCurrency);
+  const [tierDisplayCurrency, setTierDisplayCurrency] = useState<string>("USD");
 
-  // Master (grand-total) currency — used to display totals converted from invoice currency
-  const masterCurrency = settings.masterCurrency || defaultCurrency;
+  // Master (grand-total) currency — used to display totals converted from invoice currency.
+  // Defaults to USD (the system's base currency), not settings.defaultCurrency.
+  const masterCurrency = settings.masterCurrency || "USD";
   const setMasterCurrency = (code: string) => {
     erpStore.set({ settings: { ...settings, masterCurrency: code } });
   };
@@ -131,8 +142,9 @@ function POPage() {
   const removeExp = (id: number) => setPo({ ...po, expenses: po.expenses.filter((e) => e.id !== id) });
 
   const onNew = () => {
+    autoLoadedRef.current = true;
     const num = `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`;
-    setPo(emptyPO(num, defaultCurrency, rateOfCode(defaultCurrency)));
+    setPo(emptyPO(num, "USD", rateOfCode("USD")));
     setEditing(true);
     toast.success("تم إنشاء أمر شراء جديد");
   };
@@ -148,8 +160,9 @@ function POPage() {
   const onEdit = () => { setEditing(true); toast.info("وضع التعديل مفعّل"); };
   const onDelete = () => {
     if (!confirm("حذف أمر الشراء؟")) return;
+    autoLoadedRef.current = true;
     erpStore.set({ purchaseOrders: orders.filter((o) => o.number !== po.number) });
-    setPo(emptyPO(`INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`, defaultCurrency, rateOfCode(defaultCurrency)));
+    setPo(emptyPO(`INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`, "USD", rateOfCode("USD")));
     toast.success("تم الحذف");
   };
   const onApprove = () => {
@@ -163,6 +176,7 @@ function POPage() {
   };
   const onImport = () => fileRef.current?.click();
   const onCopy = () => {
+    autoLoadedRef.current = true;
     const num = `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`;
     setPo({ ...po, number: num, invoiceNo: num, approved: false });
     setEditing(true);
@@ -195,50 +209,19 @@ function POPage() {
       "العبوة": r.pack,
       "الكمية": r.qty,
       "سعر الشراء": r.price,
-      "تكلفة الشراء": r.qty * r.price,
+      "تكلفة الشراء (USD)": metrics.rowMetrics[i]?.purchaseCost ?? 0,
       "CBM الكرتون": r.cbm,
       "إجمالي CBM": (r.pack ? r.qty / r.pack : 0) * r.cbm,
-      "متوسط التكلفة": metrics.rowMetrics[i]?.avgCost ?? 0,
+      "تكلفة CBM (USD)": metrics.rowMetrics[i]?.cbmCost ?? 0,
+      "التكلفة المئوية (USD)": metrics.rowMetrics[i]?.pctCost ?? 0,
+      "متوسط التكلفة (USD)": metrics.rowMetrics[i]?.avgCost ?? 0,
+      "مبلغ المصروف للكرتون (USD)": metrics.rowMetrics[i]?.allocatedExpPerCarton ?? 0,
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "أمر الشراء");
     XLSX.writeFile(wb, `${po.number}.xlsx`);
     toast.success("تم التصدير إلى Excel");
-  };
-
-  const onLoadSeed = async () => {
-    const supCode = "PCIU8480987";
-    await upsertSupplier({
-      code: supCode, name: "المورد الصيني - حاوية PCIU8480987",
-      country: "الصين", city: "قوانغجو", phone: "", email: "",
-      currency: "USD", notes: "بيانات مستوردة من فاتورة العرض", active: true,
-    });
-    const seedNum = `INV-DEMO-${Date.now().toString().slice(-5)}`;
-    const seeded: PurchaseOrder = {
-      number: seedNum,
-      date: new Date().toISOString().slice(0, 10).replace(/-/g, "/"),
-      invoiceNo: seedNum,
-      supplierCode: supCode,
-      currency: "USD",
-      rate: 1,
-      containerNo: supCode,
-      containerSize: "40 قدم HQ",
-      distributionType: "avg",
-      notes: "الاتفاق: 30% قبل التصنيع، 30% عند التحميل، 40% قبل وصول الميناء",
-      rows: SEED_INVOICE.rows.map((r, i) => ({
-        id: i + 1, model: r.model, name: r.name, unit: "حبة",
-        pack: r.pack, qty: r.qty, price: r.price, cbm: r.cbm,
-      })),
-      expenses: SEED_INVOICE.expenses.map((e, i) => ({
-        id: i + 1, type: e.type, note: e.note,
-        currency: e.currency, amount: e.amount, rate: e.rate,
-      })),
-      approved: false,
-    };
-    setPo(seeded);
-    setEditing(true);
-    toast.success(`تم تحميل بيانات العرض (${seeded.rows.length} صنف، ${seeded.expenses.length} مصروف)`);
   };
 
   const actions = [
@@ -254,7 +237,6 @@ function POPage() {
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
     { icon: Wallet, label: "المصروفات", hint: "F4", color: "text-orange-600", onClick: () => setExpDlg(true) },
     { icon: CheckCircle2, label: "اعتماد", hint: "F9", color: "text-emerald-700", onClick: onApprove, disabled: po.approved },
-    { icon: FileSpreadsheet, label: "بيانات العرض", color: "text-fuchsia-600", onClick: onLoadSeed },
     { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: () => history.back() },
   ];
 
@@ -285,6 +267,7 @@ function POPage() {
       if (raw) {
         const draft = JSON.parse(raw) as PurchaseOrder;
         if (draft && !draft.approved) {
+          autoLoadedRef.current = true;
           setPo(draft);
           setEditing(true);
           toast.info("تم استرجاع مسودة الفاتورة");
@@ -294,6 +277,19 @@ function POPage() {
     setDraftRestored(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // `orders` is still [] on the very first render — hydrateStore() reads
+  // purchase orders from local storage asynchronously — so the `po` state above
+  // captures a blank placeholder invoice before the real saved data arrives.
+  // Once hydration finishes, load the most recently saved order exactly once,
+  // unless something else (a restored draft, "جديد"/"نسخ"/"حذف"/"فتح") already
+  // took over `po` first. Without this, reloading the page after saving a
+  // purchase order silently shows a blank new invoice instead of what was saved.
+  useEffect(() => {
+    if (!hydrated || autoLoadedRef.current) return;
+    autoLoadedRef.current = true;
+    if (orders.length > 0) setPo(orders[0]);
+  }, [hydrated, orders]);
 
   useEffect(() => {
     if (!draftRestored || !editing || po.approved) return;
@@ -337,13 +333,14 @@ function POPage() {
             <FieldRow label="العملة">
               <ErpSelect value={po.currency} onChange={(v) => patch({ currency: v, rate: rateOf(v) })} disabled={disabled} options={currencyOptions} />
             </FieldRow>
-            <FieldRow label={`سعر صرف 1 ${po.currency} → أساسية`}>
+            <FieldRow label={`سعر صرف ⁦1 USD = ? ${po.currency}⁩`}>
               <ErpInput
                 value={String(po.rate)}
                 onChange={(v) => {
                   const n = parseDecimal(v);
                   if (!(n > 0)) return;
-                  updateCurrencyRate(po.currency, n);
+                  // Pin this rate on THIS document only — do not touch the
+                  // global currency table (that's Settings → أسعار الصرف's job).
                   patch({ rate: n });
                 }}
                 disabled={disabled}
@@ -353,26 +350,38 @@ function POPage() {
             <FieldRow label="حجم الحاوية"><ErpInput value={po.containerSize} onChange={(v) => patch({ containerSize: v })} disabled={disabled} /></FieldRow>
             <FieldRow label="توزيع المصروفات">
               <ErpSelect value={po.distributionType} onChange={(v) => patch({ distributionType: v as any })} disabled={disabled} options={[
-                { value: "cbm", label: "حسب CBM" },
-                { value: "value", label: "حسب قيمة الشراء" },
-                { value: "qty", label: "حسب الكمية" },
+                { value: "cbm", label: "حسب تكلفة CBM" },
+                { value: "percentage", label: "حسب التكلفة المئوية" },
+                { value: "average", label: "حسب متوسط التكلفة" },
               ]} />
             </FieldRow>
             <FieldRow label="سعر CBM">
               <ErpInput
-                value={`${fmt(metrics.totalCBM > 0 ? metrics.totalExpenses / metrics.totalCBM : 0, 2)} ${po.currency}`}
+                value={`${fmt(metrics.cbmPrice, 2)} USD`}
                 onChange={() => {}}
                 disabled
                 highlight
               />
             </FieldRow>
             <FieldRow label="نسبة المصاريف %">
-              <ErpInput
-                value={`${fmt(metrics.totalPurchase > 0 ? (metrics.totalExpenses / metrics.totalPurchase) * 100 : 0, 2)} %`}
-                onChange={() => {}}
-                disabled
-                highlight
-              />
+              <div className="flex gap-1">
+                <ErpInput
+                  value={fmt(po.expensePercentage ?? metrics.suggestedPct, 2)}
+                  onChange={(v) => patch({ expensePercentage: parseDecimal(v) })}
+                  disabled={disabled}
+                  type="number"
+                  highlight
+                />
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => patch({ expensePercentage: undefined })}
+                  title="إعادة الاحتساب تلقائياً = (إجمالي المصروفات ÷ إجمالي الشراء) × 100"
+                  className="px-2 border border-slate-300 bg-slate-50 rounded disabled:opacity-40 shrink-0"
+                >
+                  <RefreshCcw size={12} />
+                </button>
+              </div>
             </FieldRow>
             <FieldRow label="نسبة الربح %">
               <ErpInput value={markupPct} onChange={(v) => setMarkupPct(parseDecimal(v))} disabled={disabled} type="number" />
@@ -407,13 +416,13 @@ function POPage() {
         </div>
         {showItems && (
         <div className="overflow-x-auto">
-        <ErpTable headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","العملة","سعر الشراء","تكلفة الشراء","CBM الكرتون","إجمالي CBM","مبلغ الخرج / كرتون","سعر CBM (وحدة)","متوسط التكلفة",`سعر البيع (+${markupPct}%)`,""]}>
+        <ErpTable headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","العملة","سعر الشراء","تكلفة الشراء (USD)","CBM الكرتون","إجمالي CBM","تكلفة CBM (USD)","التكلفة المئوية (USD)","متوسط التكلفة (USD)","مبلغ المصروف/كرتون (USD)",`سعر البيع (+${markupPct}%)`,""]}>
           {po.rows.map((r, i) => {
             const m = metrics.rowMetrics[i];
             const cartons = r.pack ? r.qty / r.pack : 0;
-            const expPerCarton = cartons > 0 ? (m?.allocatedExp ?? 0) / cartons : 0;
             const rowCur = r.currency ?? po.currency;
-            const salePrice = (m?.avgCost ?? 0) * (1 + markupPct / 100);
+            const salePrice = (m?.selectedCost ?? 0) * (1 + markupPct / 100);
+            const dt = po.distributionType;
             return (
               <tr key={r.id} className="hover:bg-blue-50/40">
                 <td className="border border-slate-200 text-center text-slate-500 w-8">{i + 1}</td>
@@ -421,7 +430,7 @@ function POPage() {
                   <input value={r.model} disabled={disabled} onChange={(e) => {
                     const v = e.target.value;
                     const it = items.find((x) => x.code === v || x.barcode === v);
-                    if (it) patchRow(r.id, { model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? r.unit, pack: it.units[0]?.pack ?? r.pack, price: it.units[0]?.lastPrice ?? r.price });
+                    if (it) patchRow(r.id, { model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? r.unit, pack: it.units[0]?.pack ?? r.pack, price: it.units[0]?.lastPrice ?? r.price, currency: it.currency ?? r.currency, rate: it.rate ?? rateOf(it.currency ?? po.currency) });
                     else patchRow(r.id, { model: v });
                   }} className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none text-center" />
                 </td>
@@ -437,12 +446,13 @@ function POPage() {
                   </select>
                 </td>
                 <Cell value={r.price} onChange={(v) => patchRow(r.id, { price: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
-                <Cell value={fmt(r.qty * r.price)} align="right" />
+                <Cell value={fmt(m?.purchaseCost ?? 0, 4)} align="right" />
                 <Cell value={r.cbm} onChange={(v) => patchRow(r.id, { cbm: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
                 <Cell value={fmt(cartons * r.cbm, 4)} align="right" />
-                <td className="border border-slate-200 text-right px-2 bg-orange-50 font-semibold text-orange-700">{fmt(expPerCarton, 4)}</td>
-                <td className="border border-slate-200 text-right px-2 bg-purple-50 text-purple-700">{fmt(m?.cbmCost ?? 0, 4)}</td>
-                <td className="border border-slate-200 text-right px-2 bg-amber-50 font-semibold text-amber-700">{fmt(m?.avgCost ?? 0, 4)}</td>
+                <td className={`border border-slate-200 text-right px-2 bg-purple-50 text-purple-700 ${dt === "cbm" ? "font-bold ring-1 ring-inset ring-purple-400" : ""}`}>{fmt(m?.cbmCost ?? 0, 4)}</td>
+                <td className={`border border-slate-200 text-right px-2 bg-sky-50 text-sky-700 ${dt === "percentage" ? "font-bold ring-1 ring-inset ring-sky-400" : ""}`}>{fmt(m?.pctCost ?? 0, 4)}</td>
+                <td className={`border border-slate-200 text-right px-2 bg-amber-50 text-amber-700 ${dt === "average" ? "font-bold ring-1 ring-inset ring-amber-400" : ""}`}>{fmt(m?.avgCost ?? 0, 4)}</td>
+                <td className="border border-slate-200 text-right px-2 bg-orange-50 font-semibold text-orange-700">{fmt(m?.allocatedExpPerCarton ?? 0, 4)}</td>
                 <td className="border border-slate-200 text-right px-2 bg-emerald-50 font-bold text-emerald-700">{fmt(salePrice, 4)}</td>
                 <td className="border border-slate-200 text-center">
                   <button disabled={disabled} onClick={() => removeRow(r.id)} className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-40" title="حذف"><Trash2 size={12} /></button>
@@ -471,10 +481,10 @@ function POPage() {
             <StepBadge n={4} />
             <Wallet size={14} /> المصروفات ({po.expenses.length})
           </button>
-          <div className="text-xs text-slate-600">الإجمالي: <span className="font-bold">{fmt(metrics.totalExpenses)}</span> {po.currency}</div>
+          <div className="text-xs text-slate-600">الإجمالي: <span className="font-bold">{fmt(metrics.totalExpenses)}</span> USD</div>
         </div>
         {showExpenses && (
-        <ErpTable headers={["م","العملة","المبلغ","سعر التحويل","المبلغ بعملة الفاتورة","اسم المصروف","رقم الحساب","الحساب التحليلي","رقم المركز","مرفقة","رقم الفاتورة","تاريخ الفاتورة","البيان","الفرع المستفيد",""]}>
+        <ErpTable headers={["م","العملة","المبلغ","سعر الصرف","المبلغ بالدولار","اسم المصروف","رقم الحساب","الحساب التحليلي","رقم المركز","مرفقة","رقم الفاتورة","تاريخ الفاتورة","البيان","الفرع المستفيد",""]}>
           {po.expenses.map((e, i) => (
             <tr key={e.id} className="hover:bg-blue-50/40">
               <td className="border border-slate-200 text-center">{i + 1}</td>
@@ -492,7 +502,7 @@ function POPage() {
               </td>
               <Cell value={e.amount} onChange={(v) => patchExp(e.id, { amount: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
               <Cell value={fmt(rateOf(e.currency), 4)} align="right" />
-              <Cell value={fmt(rateOf(e.currency) > 0 ? (e.amount * (po.rate || 1)) / rateOf(e.currency) : 0)} />
+              <Cell value={fmt(rateOf(e.currency) > 0 ? e.amount / rateOf(e.currency) : 0)} />
               <Cell value={e.type} onChange={(v) => patchExp(e.id, { type: v })} disabled={disabled} align="right" />
               <Cell value={e.accountNo ?? ""} onChange={(v) => patchExp(e.id, { accountNo: v })} disabled={disabled} align="right" />
               <Cell value={e.analyticAccount ?? ""} onChange={(v) => patchExp(e.id, { analyticAccount: v })} disabled={disabled} align="right" />
@@ -524,23 +534,23 @@ function POPage() {
             </select>
           </div>
           <div className="flex items-center gap-1"><StepBadge n={5} /> احتساب التكلفة النهائية</div>
-          <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt(po.currency === masterCurrency ? 1 : ((rateOfCode(masterCurrency) || 1) / (po.rate || rateOfCode(po.currency) || 1)), 4)} {masterCurrency}</div>
+          <div className="text-[10px] text-slate-500">1 USD = {fmt(masterCurrency === "USD" ? 1 : (rateOfCode(masterCurrency) || 1), 4)} {masterCurrency}</div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 p-2">
           <SummaryStat label="عدد الأصناف" value={fmtInt(metrics.totalItems)} unit="صنف" />
           <SummaryStat label="إجمالي الكمية" value={fmtInt(metrics.totalQty)} />
-          <SummaryStat label="إجمالي الشراء" value={fmt(metrics.totalPurchase)} unit={po.currency} />
+          <SummaryStat label="إجمالي الشراء" value={fmt(metrics.totalPurchase)} unit="USD" />
           <SummaryStat label="إجمالي CBM" value={fmt(metrics.totalCBM, 4)} unit="CBM" />
-          <SummaryStat label="إجمالي المصروفات" value={fmt(metrics.totalExpenses)} unit={po.currency} />
-          <SummaryStat label="سعر CBM" value={fmt(metrics.cbmPrice)} unit={po.currency} />
-          <SummaryStat label="إجمالي التكلفة" value={fmt(metrics.totalCost)} unit={po.currency} highlight />
+          <SummaryStat label="إجمالي المصروفات" value={fmt(metrics.totalExpenses)} unit="USD" />
+          <SummaryStat label="سعر CBM" value={fmt(metrics.cbmPrice)} unit="USD" />
+          <SummaryStat label="إجمالي التكلفة" value={fmt(metrics.totalCost)} unit="USD" highlight />
         </div>
         <div className="border-t border-slate-200 bg-gradient-to-l from-amber-50 to-emerald-50 px-3 py-2 flex items-center justify-between">
           <div className="text-[11px] text-slate-600">
-            الإجمالي النهائي محوّل تلقائيًا إلى <b className="text-amber-700">{masterCurrency}</b>
+            الإجمالي النهائي (بالدولار) محوّل تلقائيًا إلى <b className="text-amber-700">{masterCurrency}</b>
           </div>
           <div className="text-lg font-black text-emerald-700">
-            {fmt(metrics.totalCost * (po.currency === masterCurrency ? 1 : ((rateOfCode(masterCurrency) || 1) / (po.rate || rateOfCode(po.currency) || 1))))}
+            {fmt(metrics.totalCost * (masterCurrency === "USD" ? 1 : (rateOfCode(masterCurrency) || 1)))}
             <span className="text-xs text-slate-500 mr-2">{masterCurrency}</span>
           </div>
         </div>
@@ -566,15 +576,15 @@ function POPage() {
               {showTiers ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               <StepBadge n={6} /> التسعيرات حسب الوجهات
             </button>
-            <div className="text-[10px] text-slate-500">1 {po.currency} = {fmt(po.currency === tierDisplayCurrency ? 1 : ((rateOfCode(tierDisplayCurrency) || 1) / (po.rate || rateOfCode(po.currency) || 1)), 4)} {tierDisplayCurrency}</div>
+            <div className="text-[10px] text-slate-500">1 USD = {fmt(tierDisplayCurrency === "USD" ? 1 : (rateOfCode(tierDisplayCurrency) || 1), 4)} {tierDisplayCurrency}</div>
           </div>
           {showTiers && (
-          <ErpTable headers={["م", "الموديل", "اسم الصنف", `متوسط التكلفة (${tierDisplayCurrency})`, ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`])]}>
+          <ErpTable headers={["م", "الموديل", "اسم الصنف", `التكلفة المعتمدة (${tierDisplayCurrency})`, ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`])]}>
             {po.rows.filter((r) => r.model || r.name).map((r, i) => {
               const m = metrics.rowMetrics[i];
-              // convert avgCost (in invoice currency) into display currency
-              const conv = po.currency === tierDisplayCurrency ? 1 : ((rateOfCode(tierDisplayCurrency) || 1) / (po.rate || rateOfCode(po.currency) || 1));
-              const avg = (m?.avgCost ?? 0) * conv;
+              // selectedCost is always in USD — convert into the chosen display currency.
+              const conv = tierDisplayCurrency === "USD" ? 1 : (rateOfCode(tierDisplayCurrency) || 1);
+              const avg = (m?.selectedCost ?? 0) * conv;
               return (
                 <tr key={r.id} className="odd:bg-white even:bg-slate-50/50">
                   <td className="border border-slate-200 text-center text-slate-500 w-10">{i + 1}</td>
@@ -603,7 +613,7 @@ function POPage() {
           <DialogHeader><DialogTitle>فتح أمر شراء</DialogTitle></DialogHeader>
           <div className="max-h-80 overflow-auto space-y-1">
             {orders.map((o) => (
-              <button key={o.number} onClick={() => { setPo(o); setOpenDlg(false); setEditing(false); }} className="w-full text-right px-3 py-2 border border-slate-200 rounded hover:bg-blue-50 flex justify-between">
+              <button key={o.number} onClick={() => { autoLoadedRef.current = true; setPo(o); setOpenDlg(false); setEditing(false); }} className="w-full text-right px-3 py-2 border border-slate-200 rounded hover:bg-blue-50 flex justify-between">
                 <span className="text-xs text-slate-500">{o.date}</span>
                 <span className="font-semibold">{o.number}</span>
               </button>
@@ -636,7 +646,7 @@ function POPage() {
                 addRow();
                 setTimeout(() => setPo((cur) => {
                   const last = cur.rows[cur.rows.length - 1];
-                  return { ...cur, rows: cur.rows.map((r) => r.id === last.id ? { ...r, model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? "حبة", pack: it.units[0]?.pack ?? 1, price: it.units[0]?.lastPrice ?? 0 } : r) };
+                  return { ...cur, rows: cur.rows.map((r) => r.id === last.id ? { ...r, model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? "حبة", pack: it.units[0]?.pack ?? 1, price: it.units[0]?.lastPrice ?? 0, currency: it.currency ?? r.currency, rate: it.rate ?? rateOf(it.currency ?? cur.currency) } : r) };
                 }), 0);
                 setSearchDlg(false);
               }} className="w-full text-right p-2 border border-slate-200 rounded hover:bg-blue-50">
@@ -653,7 +663,6 @@ function POPage() {
         onOpenChange={setExpDlg}
         expenses={po.expenses}
         invoiceCurrency={po.currency}
-        invoiceRate={po.rate}
         currencies={currencies}
         expenseTypes={settings.expenseTypes ?? []}
         disabled={disabled}

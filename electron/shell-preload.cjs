@@ -1,4 +1,4 @@
-// Preload for the activation window. Exposes a minimal, typed API.
+// Preload for the shell window. Exposes a minimal, typed API.
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("erpLicense", {
@@ -6,4 +6,21 @@ contextBridge.exposeInMainWorld("erpLicense", {
   status: () => ipcRenderer.invoke("license:status"),
   activate: (code, deviceName) => ipcRenderer.invoke("license:activate", code, deviceName),
   deactivate: () => ipcRenderer.invoke("license:deactivate"),
+  serverBase: () => ipcRenderer.invoke("license:serverBase"),
+});
+
+// Same local SQLite bridge as the non-shell build (electron/preload.cjs) — the
+// shell was previously missing this, so all business data silently fell back
+// to renderer localStorage instead of the erp.db file shell-main.cjs now wires up.
+contextBridge.exposeInMainWorld("erpNative", {
+  isElectron: true,
+  getAll: (table) => ipcRenderer.invoke("db:getAll", table),
+  setAll: (table, rows) => ipcRenderer.invoke("db:setAll", table, rows),
+  getKV: (key) => ipcRenderer.invoke("db:getKV", key),
+  setKV: (key, value) => ipcRenderer.invoke("db:setKV", key, value),
+  hashPassword: (pw, salt) => ipcRenderer.invoke("db:hashPassword", pw, salt),
+  randomSalt: () => ipcRenderer.invoke("db:randomSalt"),
+  backupTo: (dest) => ipcRenderer.invoke("db:backup", dest),
+  restoreFrom: (src) => ipcRenderer.invoke("db:restore", src),
+  backupNow: () => ipcRenderer.invoke("db:backupNow"),
 });

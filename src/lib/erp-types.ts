@@ -22,6 +22,7 @@ export type Item = {
   barcode: string;
   units: ItemUnit[];
   cbmPerCarton: number;
+  /** Landed cost of one carton in USD (purchase cost + allocated expenses), from the last approved PO. */
   lastCost: number;
   /** Currency code the item is priced in (defaults to settings.defaultCurrency). */
   currency?: string;
@@ -50,7 +51,7 @@ export type Expense = {
   note: string;
   currency: string;
   amount: number;
-  rate: number; // to invoice currency
+  rate: number; // units of `currency` per 1 USD — expenses always convert straight to USD (amount / rate), never to invoice currency
   accountNo?: string;
   analyticAccount?: string;
   centerNo?: string;
@@ -69,7 +70,9 @@ export type PurchaseOrder = {
   rate: number;
   containerNo: string;
   containerSize: string;
-  distributionType: "cbm" | "value" | "qty" | "avg";
+  distributionType: "cbm" | "percentage" | "average";
+  /** Manual override for "نسبة المصروفات %". Defaults to (totalExpenses/totalPurchase)*100 when unset. */
+  expensePercentage?: number;
   notes: string;
   rows: PORow[];
   expenses: Expense[];
@@ -114,7 +117,7 @@ export type Settings = {
 export type Currency = {
   code: string; // YER, SAR, CNY, USD...
   name: string; // ريال, يوان...
-  rate: number; // مقابل العملة الأساسية (يمني)
+  rate: number; // مقابل العملة الأساسية (الدولار الأمريكي)
 };
 
 export type PriceTier = {

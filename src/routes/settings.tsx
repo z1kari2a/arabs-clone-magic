@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, RefreshCw, Plus } from "lucide-react";
+import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, RefreshCw, Plus, HardDriveDownload, CloudDownload } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, parseDecimal } from "@/components/erp/ErpUI";
-import { erpStore, useErpStore } from "@/lib/erp-store";
+import { erpStore, useErpStore, hydrateStore } from "@/lib/erp-store";
+import { pullLatestCloudBackup, restoreFromCloudBackup, getLastCloudPushAt } from "@/lib/cloud-sync";
 import type { PriceTier } from "@/lib/erp-types";
 
 export const Route = createFileRoute("/settings")({
@@ -30,9 +31,80 @@ function SettingsPage() {
   const patchTier = (id: string, p: Partial<PriceTier>) =>
     setTiers(tiers.map((t) => (t.id === id ? { ...t, ...p } : t)));
 
-  const onSave = () => { erpStore.set({ settings: local }); toast.success("تم حفظ الإعدادات"); };
+  // Merge only the fields this page actually edits onto the LATEST live settings —
+  // never overwrite the whole object. `local` was seeded from `settings` at mount
+  // time (possibly before store hydration finished), so writing it back as-is would
+  // silently revert currencies/masterCurrency/expenseTypes to that stale snapshot,
+  // undoing rate edits made on "أسعار الصرف" (or anywhere else) in the meantime.
+  const onSave = () => {
+    const liveCurrencies = settings.currencies ?? [];
+    const defaultCurrency = liveCurrencies.some((c) => c.code === local.defaultCurrency)
+      ? local.defaultCurrency
+      : settings.defaultCurrency;
+    erpStore.set({
+      settings: {
+        ...settings,
+        companyName: local.companyName,
+        fiscalYear: local.fiscalYear,
+        defaultCurrency,
+        language: local.language,
+        priceTiers: local.priceTiers,
+      },
+    });
+    toast.success("تم حفظ الإعدادات");
+  };
   const onReset = () => { if (confirm("إعادة تعيين كل البيانات؟")) { erpStore.reset(); toast.success("تم إعادة التعيين"); location.reload(); } };
   const noop = () => {};
+
+  const [lastLocalBackup, setLastLocalBackup] = useState<string | null>(null);
+  const [lastCloudBackup, setLastCloudBackup] = useState<string | null>(getLastCloudPushAt());
+  const [backingUp, setBackingUp] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+
+  // pushCloudBackup() runs on a background debounce/interval (see erp-store.ts's
+  // notify()), outside React — poll its last-success timestamp so this screen
+  // reflects a push that happened while the user was looking at this page.
+  useEffect(() => {
+    const t = setInterval(() => setLastCloudBackup(getLastCloudPushAt()), 5000);
+    return () => clearInterval(t);
+  }, []);
+
+  const onBackupNow = async () => {
+    const bridge = window.erpNative;
+    if (!bridge?.backupNow) {
+      toast.error("النسخ الاحتياطي المحلي متاح فقط داخل تطبيق سطح المكتب");
+      return;
+    }
+    setBackingUp(true);
+    try {
+      const dest = await bridge.backupNow();
+      setLastLocalBackup(new Date().toLocaleString("ar"));
+      toast.success(dest ? "تم إنشاء نسخة احتياطية محلية" : "تعذر إنشاء نسخة احتياطية");
+    } catch {
+      toast.error("تعذر إنشاء نسخة احتياطية");
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
+  const onRestoreFromCloud = async () => {
+    if (!confirm("سيتم استبدال كل البيانات المحلية الحالية بآخر نسخة سحابية محفوظة. هل أنت متأكد؟")) return;
+    setRestoring(true);
+    try {
+      const payload = await pullLatestCloudBackup();
+      if (!payload) {
+        toast.error("لا توجد نسخة سحابية محفوظة لهذا الترخيص");
+        return;
+      }
+      await restoreFromCloudBackup(payload);
+      await hydrateStore();
+      toast.success("تم استرجاع البيانات من السحابة");
+    } catch {
+      toast.error("تعذر الاتصال بالسحابة (تأكد من تفعيل الترخيص واتصال الإنترنت)");
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   const actions = [
     { icon: FilePlus2, label: "جديد", color: "text-emerald-600", onClick: noop },
@@ -56,12 +128,14 @@ function SettingsPage() {
             <FieldRow label="اسم الشركة"><ErpInput value={local.companyName} onChange={(v) => setLocal({ ...local, companyName: v })} align="right" /></FieldRow>
             <FieldRow label="السنة المالية"><ErpInput value={local.fiscalYear} onChange={(v) => setLocal({ ...local, fiscalYear: v })} align="right" /></FieldRow>
             <FieldRow label="العملة الافتراضية">
-              <ErpSelect value={local.defaultCurrency} onChange={(v) => setLocal({ ...local, defaultCurrency: v })} options={[
-                { value: "USD", label: "USD - دولار أمريكي" },
-                { value: "EUR", label: "EUR - يورو" },
-                { value: "SAR", label: "SAR - ريال سعودي" },
-                { value: "JOD", label: "JOD - دينار أردني" },
-              ]} />
+              <ErpSelect
+                value={local.defaultCurrency}
+                onChange={(v) => setLocal({ ...local, defaultCurrency: v })}
+                // Sourced from the LIVE store (not `local`) so a currency added/removed/renamed
+                // on "أسعار الصرف" shows up immediately — an option here that isn't in
+                // settings.currencies has no exchange rate, so every screen silently falls back to 1:1.
+                options={(settings.currencies ?? []).map((c) => ({ value: c.code, label: `${c.code} - ${c.name}` }))}
+              />
             </FieldRow>
             <FieldRow label="اللغة">
               <ErpSelect value={local.language} onChange={(v) => setLocal({ ...local, language: v as any })} options={[
@@ -73,10 +147,33 @@ function SettingsPage() {
         </Panel>
         <Panel title="إدارة البيانات">
           <div className="space-y-3 text-xs text-slate-600">
-            <p>يتم تخزين بيانات النظام محلياً في المتصفح.</p>
-            <button onClick={onReset} className="flex items-center gap-2 px-3 py-2 bg-rose-50 border border-rose-200 rounded text-rose-700 hover:bg-rose-100">
-              <RefreshCw size={14} /> إعادة تعيين النظام
-            </button>
+            <p>
+              يتم تخزين بيانات النظام محلياً على هذا الجهاز، مع نسخ احتياطي تلقائي دوري
+              {lastLocalBackup ? ` — آخر نسخة يدوية: ${lastLocalBackup}` : ""}.
+            </p>
+            <p>
+              النسخ السحابي (يتطلب ترخيصاً فعّالاً واتصال إنترنت):{" "}
+              {lastCloudBackup ? new Date(lastCloudBackup).toLocaleString("ar") : "لم تتم أي مزامنة بعد"}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={onBackupNow}
+                disabled={backingUp}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+              >
+                <HardDriveDownload size={14} /> {backingUp ? "جارٍ النسخ..." : "نسخ احتياطي الآن"}
+              </button>
+              <button
+                onClick={onRestoreFromCloud}
+                disabled={restoring}
+                className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+              >
+                <CloudDownload size={14} /> {restoring ? "جارٍ الاسترجاع..." : "استعادة من السحابة"}
+              </button>
+              <button onClick={onReset} className="flex items-center gap-2 px-3 py-2 bg-rose-50 border border-rose-200 rounded text-rose-700 hover:bg-rose-100">
+                <RefreshCw size={14} /> إعادة تعيين النظام
+              </button>
+            </div>
           </div>
         </Panel>
       </div>

@@ -24,6 +24,7 @@ import { Route as AdminLicensesRouteImport } from './routes/admin.licenses'
 import { Route as ApiPublicLicenseHeartbeatRouteImport } from './routes/api/public/license/heartbeat'
 import { Route as ApiPublicLicenseDeactivateRouteImport } from './routes/api/public/license/deactivate'
 import { Route as ApiPublicLicenseBundleRouteImport } from './routes/api/public/license/bundle'
+import { Route as ApiPublicLicenseBackupRouteImport } from './routes/api/public/license/backup'
 import { Route as ApiPublicLicenseActivateRouteImport } from './routes/api/public/license/activate'
 
 const UsersRoute = UsersRouteImport.update({
@@ -103,6 +104,11 @@ const ApiPublicLicenseBundleRoute = ApiPublicLicenseBundleRouteImport.update({
   path: '/api/public/license/bundle',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicLicenseBackupRoute = ApiPublicLicenseBackupRouteImport.update({
+  id: '/api/public/license/backup',
+  path: '/api/public/license/backup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicLicenseActivateRoute =
   ApiPublicLicenseActivateRouteImport.update({
     id: '/api/public/license/activate',
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/users': typeof UsersRoute
   '/admin/licenses': typeof AdminLicensesRoute
   '/api/public/license/activate': typeof ApiPublicLicenseActivateRoute
+  '/api/public/license/backup': typeof ApiPublicLicenseBackupRoute
   '/api/public/license/bundle': typeof ApiPublicLicenseBundleRoute
   '/api/public/license/deactivate': typeof ApiPublicLicenseDeactivateRoute
   '/api/public/license/heartbeat': typeof ApiPublicLicenseHeartbeatRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/users': typeof UsersRoute
   '/admin/licenses': typeof AdminLicensesRoute
   '/api/public/license/activate': typeof ApiPublicLicenseActivateRoute
+  '/api/public/license/backup': typeof ApiPublicLicenseBackupRoute
   '/api/public/license/bundle': typeof ApiPublicLicenseBundleRoute
   '/api/public/license/deactivate': typeof ApiPublicLicenseDeactivateRoute
   '/api/public/license/heartbeat': typeof ApiPublicLicenseHeartbeatRoute
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/users': typeof UsersRoute
   '/admin/licenses': typeof AdminLicensesRoute
   '/api/public/license/activate': typeof ApiPublicLicenseActivateRoute
+  '/api/public/license/backup': typeof ApiPublicLicenseBackupRoute
   '/api/public/license/bundle': typeof ApiPublicLicenseBundleRoute
   '/api/public/license/deactivate': typeof ApiPublicLicenseDeactivateRoute
   '/api/public/license/heartbeat': typeof ApiPublicLicenseHeartbeatRoute
@@ -181,6 +190,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/admin/licenses'
     | '/api/public/license/activate'
+    | '/api/public/license/backup'
     | '/api/public/license/bundle'
     | '/api/public/license/deactivate'
     | '/api/public/license/heartbeat'
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/admin/licenses'
     | '/api/public/license/activate'
+    | '/api/public/license/backup'
     | '/api/public/license/bundle'
     | '/api/public/license/deactivate'
     | '/api/public/license/heartbeat'
@@ -217,6 +228,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/admin/licenses'
     | '/api/public/license/activate'
+    | '/api/public/license/backup'
     | '/api/public/license/bundle'
     | '/api/public/license/deactivate'
     | '/api/public/license/heartbeat'
@@ -236,6 +248,7 @@ export interface RootRouteChildren {
   UsersRoute: typeof UsersRoute
   AdminLicensesRoute: typeof AdminLicensesRoute
   ApiPublicLicenseActivateRoute: typeof ApiPublicLicenseActivateRoute
+  ApiPublicLicenseBackupRoute: typeof ApiPublicLicenseBackupRoute
   ApiPublicLicenseBundleRoute: typeof ApiPublicLicenseBundleRoute
   ApiPublicLicenseDeactivateRoute: typeof ApiPublicLicenseDeactivateRoute
   ApiPublicLicenseHeartbeatRoute: typeof ApiPublicLicenseHeartbeatRoute
@@ -348,6 +361,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicLicenseBundleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/license/backup': {
+      id: '/api/public/license/backup'
+      path: '/api/public/license/backup'
+      fullPath: '/api/public/license/backup'
+      preLoaderRoute: typeof ApiPublicLicenseBackupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/license/activate': {
       id: '/api/public/license/activate'
       path: '/api/public/license/activate'
@@ -372,6 +392,7 @@ const rootRouteChildren: RootRouteChildren = {
   UsersRoute: UsersRoute,
   AdminLicensesRoute: AdminLicensesRoute,
   ApiPublicLicenseActivateRoute: ApiPublicLicenseActivateRoute,
+  ApiPublicLicenseBackupRoute: ApiPublicLicenseBackupRoute,
   ApiPublicLicenseBundleRoute: ApiPublicLicenseBundleRoute,
   ApiPublicLicenseDeactivateRoute: ApiPublicLicenseDeactivateRoute,
   ApiPublicLicenseHeartbeatRoute: ApiPublicLicenseHeartbeatRoute,
@@ -379,3 +400,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

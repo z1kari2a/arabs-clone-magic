@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Role } from "./erp-types";
 import { localDb, hashPassword, randomSalt, newId, logAudit, setCurrentScope, type LocalUser } from "./local-db";
-import { seedDemoData } from "./erp-seed";
 
 // -------- Local authentication (no cloud) --------
 // Session lives in sessionStorage so it survives reloads but not tab close.
@@ -46,31 +45,38 @@ let initialized = false;
 async function init() {
   if (initialized || typeof window === "undefined") return;
   initialized = true;
-  let users = await localDb.users.list();
-  if (users.length === 0) {
-    // Seed the built-in admin demo account so the system has an approver
-    // out of the box. New self-signups start EMPTY (no seed data) and
-    // pending admin approval — see signUp().
-    await seedAdminAccount();
-    users = await localDb.users.list();
+  try {
+    let users = await localDb.users.list();
+    if (users.length === 0) {
+      // Seed the built-in admin demo account so the system has an approver
+      // out of the box. New self-signups start EMPTY (no seed data) and
+      // pending admin approval — see signUp().
+      await seedAdminAccount();
+      users = await localDb.users.list();
+    }
+    const current = readSession();
+    if (current) setCurrentScope(current.id);
+    else setCurrentScope(null);
+    state = {
+      user: current,
+      role: current?.role ?? null,
+      fullName: current?.fullName ?? null,
+      loading: false,
+      needsBootstrap: users.length === 0,
+    };
+  } catch (err) {
+    // Never leave the UI stuck with loading:true (e.g. disabled login
+    // button) just because seeding/reading local storage failed once.
+    console.error("auth init failed", err);
+    state = { ...state, loading: false };
   }
-  const current = readSession();
-  if (current) setCurrentScope(current.id);
-  else setCurrentScope(null);
-  state = {
-    user: current,
-    role: current?.role ?? null,
-    fullName: current?.fullName ?? null,
-    loading: false,
-    needsBootstrap: users.length === 0,
-  };
   emit();
 }
 
 async function seedAdminAccount() {
-  // Only the admin demo account is auto-created so a real person can
-  // approve pending signups on first launch. The admin's own data is
-  // seeded with the sample invoice; other accounts start blank.
+  // Only the admin account itself is auto-created so a real person can
+  // approve pending signups on first launch. No demo suppliers/items/purchase
+  // orders are seeded — the account starts completely empty.
   const salt = await randomSalt();
   const passwordHash = await hashPassword("Admin@2026!", salt);
   const admin: LocalUser = {
@@ -84,9 +90,6 @@ async function seedAdminAccount() {
     createdAt: new Date().toISOString(),
   };
   await localDb.users.upsert(admin);
-  setCurrentScope(admin.id);
-  await seedDemoData();
-  setCurrentScope(null);
 }
 
 export async function signIn(username: string, password: string): Promise<void> {

@@ -4,14 +4,12 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import type { Expense, Currency } from "@/lib/erp-types";
 import { fmt, parseDecimal, useNumericBuffer } from "./ErpUI";
-import { updateCurrencyRate } from "@/lib/erp-store";
 
 type Props = {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   expenses: Expense[];
   invoiceCurrency: string;
-  invoiceRate: number;
   currencies: Currency[];
   expenseTypes: string[];
   onSave: (rows: Expense[]) => void;
@@ -26,7 +24,6 @@ export default function ExpensesDialog({
   onOpenChange,
   expenses,
   invoiceCurrency,
-  invoiceRate,
   currencies,
   expenseTypes,
   onSave,
@@ -44,22 +41,18 @@ export default function ExpensesDialog({
   useMemo(() => { if (open) { setRows(expenses); setTypes(expenseTypes); } }, [open]); // eslint-disable-line
 
   const rateOf = (code: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
-  // Base currency = USD. `rate` = units-per-USD.
-  //   amount_in_invoice = amount * (invoiceRate / rate)
-  // Effective rate below = "invoice units per 1 unit of source" = invoiceRate / sourceRate.
-  const setEffRate = (code: string, effective: number) => {
-    if (!code || !effective) return;
-    const baseRate = (invoiceRate || 1) / effective;
-    updateCurrencyRate(code, baseRate);
-    setRows(rows.map((r) => (r.currency === code ? { ...r, rate: baseRate } : r)));
+  // Base currency = USD, same convention as the "أسعار الصرف" screen: `rate` =
+  // how many units of the currency equal 1 USD (e.g. YER = 536). Expenses always
+  // convert straight to USD — never to invoice/vendor currency — so the total here
+  // is the single reference figure distributed across items in the PO screen.
+  // This edits the rate PINNED on this row only — it must not overwrite the
+  // global currency table (that's what /rates is for; see savePurchaseOrder,
+  // which pins rates so historical documents never shift under a later edit).
+  const setRowRate = (id: number, rate: number) => {
+    if (!(rate > 0)) return;
+    setRows(rows.map((r) => (r.id === id ? { ...r, rate } : r)));
   };
-  const convert = (amt: number, rate: number) =>
-    rate > 0 ? amt * ((invoiceRate || 1) / rate) : 0;
-  const effRate = (code: string) => {
-    const r = rateOf(code);
-    if (!r || !invoiceRate) return 0;
-    return invoiceRate / r;
-  };
+  const convert = (amt: number, rate: number) => (rate > 0 ? amt / rate : 0);
   const total = rows.reduce((s, e) => s + convert(e.amount, e.rate), 0);
 
   const nextId = () => (rows.at(-1)?.id ?? 0) + 1;
@@ -122,15 +115,15 @@ export default function ExpensesDialog({
         {/* Summary strip */}
         <div className="flex items-center justify-between px-5 py-4 bg-slate-50/50 border-b border-slate-200">
           <div className="text-right">
-            <div className="text-[11px] text-slate-500 mb-0.5">إجمالي المصروفات بعد التحويل</div>
+            <div className="text-[11px] text-slate-500 mb-0.5">إجمالي المصروفات بالدولار</div>
             <div className="text-2xl font-bold text-emerald-600">
-              {fmt(total)} <span className="text-sm text-slate-500 font-medium">{invoiceCurrency}</span>
+              {fmt(total)} <span className="text-sm text-slate-500 font-medium">USD</span>
             </div>
           </div>
           <div className="text-left">
             <div className="text-[11px] text-slate-500 mb-0.5">عملة الاحتساب</div>
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-md">
-              <span className="font-bold text-slate-800">{invoiceCurrency}</span>
+              <span className="font-bold text-slate-800">USD</span>
             </div>
           </div>
         </div>
@@ -143,8 +136,10 @@ export default function ExpensesDialog({
                 <th className="text-right py-2 px-2 font-medium">البيان</th>
                 <th className="text-right py-2 px-2 font-medium">العملة</th>
                 <th className="text-right py-2 px-2 font-medium">المبلغ</th>
-                <th className="text-right py-2 px-2 font-medium">سعر التحويل (1 → {invoiceCurrency})</th>
-                <th className="text-right py-2 px-2 font-medium">بعد التحويل ({invoiceCurrency})</th>
+                <th className="text-right py-2 px-2 font-medium">
+                  سعر الصرف <span dir="ltr" className="inline-block">(1 USD =)</span>
+                </th>
+                <th className="text-right py-2 px-2 font-medium">بالدولار (USD)</th>
                 <th className="w-12"></th>
               </tr>
             </thead>
@@ -182,10 +177,10 @@ export default function ExpensesDialog({
                   </td>
                   <td className="py-2 px-2">
                     <RateInput
-                      value={effRate(e.currency)}
+                      value={e.rate || rateOf(e.currency)}
                       disabled={disabled || !e.currency}
-                      onChange={(n) => setEffRate(e.currency, n)}
-                      title={`سعر تحويل 1 ${e.currency || "—"} إلى ${invoiceCurrency} — يُحفظ مركزياً`}
+                      onChange={(n) => setRowRate(e.id, n)}
+                      title={`سعر صرف ${e.currency || "—"} مقابل الدولار — ⁦1 USD = ? ${e.currency || ""}⁩`}
                     />
                   </td>
                   <td className="py-2 px-2">

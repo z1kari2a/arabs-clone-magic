@@ -130,6 +130,35 @@ export type Database = {
         }
         Relationships: []
       }
+      erp_backups: {
+        Row: {
+          activation_id: string
+          created_at: string
+          id: string
+          payload: Json
+        }
+        Insert: {
+          activation_id: string
+          created_at?: string
+          id?: string
+          payload: Json
+        }
+        Update: {
+          activation_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_backups_activation_id_fkey"
+            columns: ["activation_id"]
+            isOneToOne: false
+            referencedRelation: "activations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       heartbeats: {
         Row: {
           activation_id: string

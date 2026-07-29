@@ -95,8 +95,12 @@ function RatesPage() {
                 <th className="border border-slate-200 py-1.5 w-20">افتراضي</th>
                 <th className="border border-slate-200 py-1.5 w-28">الرمز</th>
                 <th className="border border-slate-200 py-1.5">اسم العملة</th>
-                <th className="border border-slate-200 py-1.5 w-44">سعر الصرف (1 USD =)</th>
-                <th className="border border-slate-200 py-1.5 w-44">مثال: 100 {'{'}العملة{'}'} → USD</th>
+                <th className="border border-slate-200 py-1.5 w-44">
+                  سعر الصرف <span dir="ltr" className="inline-block">(1 USD =)</span>
+                </th>
+                <th className="border border-slate-200 py-1.5 w-44">
+                  مثال: <span dir="ltr" className="inline-block">100 {'{'}العملة{'}'} → USD</span>
+                </th>
                 <th className="border border-slate-200 py-1.5 w-16">حذف</th>
               </tr>
             </thead>
@@ -135,7 +139,9 @@ function RatesPage() {
                     />
                   </td>
                   <td className="border border-slate-200 text-center text-slate-600 tabular-nums text-xs">
-                    {c.code === "USD" ? `100 USD = 100.00 USD` : `100 ${c.code} = ${fmt(c.rate ? 100 / c.rate : 0)} USD`}
+                    <span dir="ltr" className="inline-block">
+                      {c.code === "USD" ? `100 USD = 100.00 USD` : `100 ${c.code} = ${fmt(c.rate ? 100 / c.rate : 0)} USD`}
+                    </span>
                   </td>
                   <td className="border border-slate-200 text-center">
                     <button

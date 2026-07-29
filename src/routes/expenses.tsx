@@ -72,14 +72,13 @@ function ExpensesPage() {
 
   const allExpenses = useMemo(() => {
     return orders.flatMap((o) => {
-      const invRate = o.rate || currencies.find((c) => c.code === o.currency)?.rate || 1;
       return o.expenses.map((e) => {
         const er = e.rate || currencies.find((c) => c.code === e.currency)?.rate || 0;
         return {
           po: o,
           e,
-          // Base = USD, rate = units-per-USD → invoice amount = amount * (invRate / sourceRate)
-          invAmount: er > 0 ? e.amount * (invRate / er) : 0,
+          // Base = USD, rate = units-per-USD → expenses always convert straight to USD.
+          invAmount: er > 0 ? e.amount / er : 0,
           supplierName: suppliers.find((s) => s.code === o.supplierCode)?.name ?? "-",
         };
       });
@@ -206,7 +205,7 @@ function ExpensesPage() {
       "العملة": r.e.currency,
       "المبلغ الأصلي": r.e.amount,
       "سعر الصرف": r.e.rate,
-      "بعملة الفاتورة": r.invAmount,
+      "بالدولار": r.invAmount,
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -232,12 +231,12 @@ function ExpensesPage() {
     <ErpLayout title="المصروفات" ribbon={<Ribbon actions={actions} />}>
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-        <StatCard label="إجمالي المصروفات" value={fmt(stats.total)} icon={Wallet} tone="bg-blue-50 text-blue-700 border-blue-200" sub={settings.defaultCurrency} />
+        <StatCard label="إجمالي المصروفات" value={fmt(stats.total)} icon={Wallet} tone="bg-blue-50 text-blue-700 border-blue-200" sub="USD" />
         <StatCard label="عدد بنود المصروفات" value={fmtInt(stats.count)} icon={Layers} tone="bg-emerald-50 text-emerald-700 border-emerald-200" />
         <StatCard label="عدد الأوامر" value={fmtInt(stats.ordersCount)} icon={Package} tone="bg-indigo-50 text-indigo-700 border-indigo-200" />
         <StatCard label="متوسط/أمر شراء" value={fmt(stats.avgPerOrder)} icon={TrendingUp} tone="bg-amber-50 text-amber-700 border-amber-200" />
         <StatCard label="متوسط/بند" value={fmt(stats.avgPerLine)} icon={DollarSign} tone="bg-teal-50 text-teal-700 border-teal-200" />
-        <StatCard label="سعر CBM" value={fmt(stats.cbmCost, 2)} icon={BarChart3} tone="bg-rose-50 text-rose-700 border-rose-200" sub={settings.defaultCurrency} />
+        <StatCard label="سعر CBM" value={fmt(stats.cbmCost, 2)} icon={BarChart3} tone="bg-rose-50 text-rose-700 border-rose-200" sub="USD" />
       </div>
 
       {/* Filters */}
@@ -331,7 +330,7 @@ function ExpensesPage() {
             <span className="font-semibold text-slate-700 text-xs">تفاصيل بنود المصروفات ({fmtInt(filtered.length)})</span>
           </div>
           <div className="max-h-[420px] overflow-auto">
-            <ErpTable headers={["م", "رقم الفاتورة", "التاريخ", "المورد", "النوع", "البيان", "العملة", "المبلغ", "السعر", "بعملة الفاتورة", "الحالة"]}>
+            <ErpTable headers={["م", "رقم الفاتورة", "التاريخ", "المورد", "النوع", "البيان", "العملة", "المبلغ", "السعر", "بالدولار", "الحالة"]}>
               {filtered.length === 0 && (
                 <tr><td colSpan={11} className="text-center py-6 text-slate-500 text-xs">لا توجد مصروفات مطابقة للفلاتر</td></tr>
               )}
@@ -416,7 +415,6 @@ function ExpensesPage() {
               onOpenChange={setExpDlg}
               expenses={po.expenses}
               invoiceCurrency={po.currency}
-              invoiceRate={po.rate}
               currencies={currencies}
               expenseTypes={settings.expenseTypes ?? []}
               disabled={po.approved}

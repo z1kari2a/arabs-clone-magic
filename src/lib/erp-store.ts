@@ -1,6 +1,7 @@
 import { useSyncExternalStore, useEffect } from "react";
 import type { Item, PurchaseOrder, Settings, Supplier, User } from "./erp-types";
 import { localDb, logAudit } from "./local-db";
+import { scheduleCloudBackup } from "./cloud-sync";
 
 type StoreState = {
   suppliers: Supplier[];
@@ -11,8 +12,6 @@ type StoreState = {
   session: { username: string } | null;
   hydrated: boolean;
 };
-
-const SETTINGS_KEY = "erp-settings-v1";
 
 const defaultSettings: Settings = {
   companyName: "شركتي للتجارة العامة",
@@ -51,29 +50,25 @@ const initialState: StoreState = {
   items: [],
   purchaseOrders: [],
   users: [],
-  settings: loadSettings(),
+  settings: defaultSettings,
   session: null,
   hydrated: false,
 };
 
-function loadSettings(): Settings {
-  if (typeof window === "undefined") return defaultSettings;
-  try {
-    const raw = window.localStorage.getItem(SETTINGS_KEY);
-    return raw ? { ...defaultSettings, ...JSON.parse(raw) } : defaultSettings;
-  } catch { return defaultSettings; }
-}
-function saveSettings(s: Settings) {
-  if (typeof window !== "undefined") window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
-}
-
+// Settings persist exclusively through localDb.settings (erp:kv:settings, or its
+// per-user scoped variant) — see hydrateStore() below and erpStore.set()'s
+// `if (patch.settings) void localDb.settings.set(patch.settings)`. There used to
+// be a second, unscoped `erp-settings-v1` localStorage key written here too,
+// which could desync from the scoped value; removed in favor of one source of truth.
 let state: StoreState = initialState;
 const listeners = new Set<() => void>();
-const notify = () => listeners.forEach((l) => l());
+// Single integration point for the optional cloud backup (src/lib/cloud-sync.ts):
+// every state change — supplier/item/PO/settings edits, and hydration itself —
+// schedules a debounced push. No-ops silently when there's no active license.
+const notify = () => { listeners.forEach((l) => l()); scheduleCloudBackup(); };
 
 function setState(patch: Partial<StoreState>) {
   state = { ...state, ...patch };
-  if (patch.settings) saveSettings(state.settings);
   notify();
 }
 
@@ -260,7 +255,7 @@ export async function savePurchaseOrder(po: PurchaseOrder) {
     for (let i = 0; i < pinnedRows.length; i++) {
       const m = metrics.rowMetrics[i];
       const it = list.find((x) => x.code === pinnedRows[i].model);
-      if (m && it) await localDb.items.upsert({ ...it, lastCost: m.avgCost });
+      if (m && it) await localDb.items.upsert({ ...it, lastCost: m.selectedCost });
     }
   }
   setState({
@@ -321,56 +316,76 @@ export function useErpStore<T>(selector: (s: StoreState) => T): T {
   );
 }
 
-// ============ Business logic (unchanged) ============
+// ============ Business logic ============
+// USD is the ONLY reference currency for costing. Invoice currency (po.currency)
+// is used solely to price the goods on the rows; it plays no part in how
+// expenses are computed or distributed. `rate` on any currency = units-per-USD,
+// so converting anything straight to USD is always `amount / rate`.
 export function computePO(po: PurchaseOrder) {
-  // Base currency = USD. `rate` on any currency = units-per-USD.
-  //   amount_in_USD          = amount / rate
-  //   amount_in_invoiceCcy   = amount * (invoiceRate / rate)
   // Prefer PINNED rates stored on the document — fall back to live settings only
   // when the row/expense/header has no rate yet (e.g. a brand-new unsaved line).
   const currencies = state.settings.currencies ?? [];
   const liveRate = (code?: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
-  const resolvedInvRate = po.rate || liveRate(po.currency) || 1;
+  const invRate = po.rate || liveRate(po.currency) || 1;
   const totalItems = po.rows.filter((r) => r.model || r.name).length;
   const totalQty = po.rows.reduce((s, r) => s + (r.qty || 0), 0);
-  const invRate = resolvedInvRate;
-  const effPriceOf = (r: import("./erp-types").PORow) => {
-    const rate = r.rate || liveRate(r.currency) || invRate;
-    return rate > 0 ? r.price * (invRate / rate) : 0;
+
+  const rateOfRow = (r: import("./erp-types").PORow) => r.rate || liveRate(r.currency) || invRate;
+  // تكلفة الشراء = (سعر شراء الوحدة × العبوة) ÷ سعر صرف الفاتورة — one carton, in USD.
+  const cartonPurchaseCostOf = (r: import("./erp-types").PORow) => {
+    const rate = rateOfRow(r);
+    return rate > 0 ? (r.price * (r.pack || 0)) / rate : 0;
   };
-  const totalPurchase = po.rows.reduce((s, r) => s + r.qty * effPriceOf(r), 0);
+
+  const totalCartons = po.rows.reduce((s, r) => s + (r.pack ? r.qty / r.pack : 0), 0);
   const totalCBM = po.rows.reduce((s, r) => {
     const cartons = r.pack ? r.qty / r.pack : 0;
     return s + cartons * r.cbm;
   }, 0);
-  const totalCartons = po.rows.reduce((s, r) => s + (r.pack ? r.qty / r.pack : 0), 0);
+  const totalPurchase = po.rows.reduce((s, r) => {
+    const cartons = r.pack ? r.qty / r.pack : 0;
+    return s + cartons * cartonPurchaseCostOf(r);
+  }, 0);
+
+  // All expenses convert straight to USD regardless of their own currency,
+  // the PO's invoice currency, or the vendor's currency.
   const totalExpenses = po.expenses.reduce((s, e) => {
     const er = e.rate || liveRate(e.currency) || 0;
-    return s + (er > 0 ? e.amount * (invRate / er) : 0);
+    return s + (er > 0 ? e.amount / er : 0);
   }, 0);
+
+  // "سعر CBM" shown at the top of the order — total expenses spread over total CBM.
   const cbmPrice = totalCBM > 0 ? totalExpenses / totalCBM : 0;
+  // "نسبة المصروفات %" default suggestion — user may override on the document (po.expensePercentage).
+  const suggestedPct = totalPurchase > 0 ? (totalExpenses / totalPurchase) * 100 : 0;
+  const pctRate = po.expensePercentage ?? suggestedPct;
   const totalCost = totalPurchase + totalExpenses;
+
   const rowMetrics = po.rows.map((r) => {
     const cartons = r.pack ? r.qty / r.pack : 0;
-    const effPrice = effPriceOf(r);
-    const linePurchase = r.qty * effPrice;
+    const purchaseCost = cartonPurchaseCostOf(r); // تكلفة الشراء (لكرتون، USD)
     const lineCBM = cartons * r.cbm;
-    let allocatedExp = 0;
-    if (po.distributionType === "cbm" && totalCBM > 0) allocatedExp = (lineCBM / totalCBM) * totalExpenses;
-    else if (po.distributionType === "value" && totalPurchase > 0) allocatedExp = (linePurchase / totalPurchase) * totalExpenses;
-    else if (po.distributionType === "qty" && totalQty > 0) allocatedExp = (r.qty / totalQty) * totalExpenses;
-    else if (po.distributionType === "avg") {
-      const byCbm = totalCBM > 0 ? (lineCBM / totalCBM) * totalExpenses : 0;
-      const byVal = totalPurchase > 0 ? (linePurchase / totalPurchase) * totalExpenses : 0;
-      allocatedExp = (byCbm + byVal) / 2;
-    }
-    const cbmCost = r.qty ? allocatedExp / r.qty : 0;
-    const avgCost = effPrice + cbmCost;
-    const lineTotalCost = avgCost * r.qty;
-    const pctCost = linePurchase > 0 ? (allocatedExp / linePurchase) * 100 : 0;
-    return { cartons, linePurchase, lineCBM, allocatedExp, cbmCost, avgCost, lineTotalCost, pctCost, effPrice };
+    const cbmCost = r.cbm * cbmPrice + purchaseCost; // تكلفة CBM (لكرتون)
+    const pctCost = purchaseCost + purchaseCost * (pctRate / 100); // التكلفة المئوية (لكرتون)
+    const avgCost = (cbmCost + pctCost) / 2; // متوسط التكلفة (لكرتون)
+    const selectedCost =
+      po.distributionType === "cbm" ? cbmCost :
+      po.distributionType === "percentage" ? pctCost :
+      avgCost; // "average" and any legacy value (value/qty/avg) fall back to the average
+    const allocatedExpPerCarton = selectedCost - purchaseCost; // مبلغ المصروف للكرتون
+    const linePurchase = cartons * purchaseCost;
+    const allocatedExp = allocatedExpPerCarton * cartons;
+    const lineTotalCost = selectedCost * cartons;
+    return {
+      cartons, purchaseCost, lineCBM, linePurchase,
+      cbmCost, pctCost, avgCost, selectedCost,
+      allocatedExpPerCarton, allocatedExp, lineTotalCost,
+    };
   });
-  return { totalItems, totalQty, totalPurchase, totalCBM, totalCartons, totalExpenses, cbmPrice, totalCost, rowMetrics };
+  return {
+    totalItems, totalQty, totalPurchase, totalCBM, totalCartons, totalExpenses,
+    cbmPrice, suggestedPct, pctRate, totalCost, rowMetrics,
+  };
 }
 
 // Re-export savePurchaseOrder for old imports

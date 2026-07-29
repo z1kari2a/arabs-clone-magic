@@ -39,6 +39,8 @@ function HomePage() {
   const suppliers = useErpStore((s) => s.suppliers);
   const items = useErpStore((s) => s.items);
 
+  // computePO() totals are always in USD (the system's single reference currency
+  // for costing), so summing across orders needs no per-PO conversion here.
   const totalValue = pos.reduce((s, p) => s + computePO(p).totalPurchase, 0);
   const totalExp = pos.reduce((s, p) => s + computePO(p).totalExpenses, 0);
 
@@ -84,7 +86,7 @@ function HomePage() {
                   <td className="px-3 py-2 border-b">{p.number}</td>
                   <td className="px-3 py-2 border-b">{p.date}</td>
                   <td className="px-3 py-2 border-b">{sup?.name ?? p.supplierCode}</td>
-                  <td className="px-3 py-2 border-b">{fmt(m.totalCost)} {p.currency}</td>
+                  <td className="px-3 py-2 border-b">{fmt(m.totalCost)} USD</td>
                   <td className="px-3 py-2 border-b">{p.approved ? <span className="text-emerald-600 font-semibold">معتمد</span> : <span className="text-amber-600">مسودة</span>}</td>
                 </tr>
               );
