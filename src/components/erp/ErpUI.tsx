@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ReactNode, type FocusEvent } from "react";
+import { useState, useRef, useEffect, type ReactNode, type FocusEvent, type KeyboardEvent } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 export const fmt = (n: number, d = 2) =>
@@ -214,6 +214,52 @@ export function ErpSelect({
 }
 
 /**
+ * Spreadsheet-style navigation for any grid of cells: ↑/↓ (and Enter) jump to
+ * the SAME column in the row above/below, keeping the caret in a cell instead of
+ * making the user reach for the mouse or Tab through a whole row. Tab/Shift+Tab
+ * keep their native left/right behaviour, and ↑/↓ inside a <select> stay native
+ * (they change the selected option) — only Enter moves out of one.
+ *
+ * Attached at the table level and driven off the DOM, so every editable cell —
+ * including the raw <input>/<select> cells screens render themselves — gets it
+ * without touching a single call site.
+ */
+export function gridKeyNav(e: KeyboardEvent<HTMLElement>) {
+  const el = e.target as HTMLElement | null;
+  const editable =
+    el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement;
+  if (!editable) return;
+
+  let dir = 0;
+  if (e.key === "ArrowDown" || e.key === "Enter") dir = 1;
+  else if (e.key === "ArrowUp") dir = -1;
+  else return;
+  if (el instanceof HTMLSelectElement && e.key !== "Enter") return; // ↑/↓ pick options
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+
+  const td = el.closest("td");
+  const tr = td?.closest("tr");
+  const body = tr?.parentElement;
+  if (!td || !tr || !body) return;
+
+  const col = Array.prototype.indexOf.call(tr.children, td);
+  const rows = Array.prototype.slice.call(body.children) as HTMLElement[];
+  // Skip over rows whose cell in this column has nothing focusable (a spacer
+  // row, or a column that is computed-only on that line).
+  for (let i = rows.indexOf(tr) + dir; i >= 0 && i < rows.length; i += dir) {
+    const target = rows[i].children[col] as HTMLElement | undefined;
+    const next = target?.querySelector<HTMLElement>(
+      "input:not([disabled]), select:not([disabled]), textarea:not([disabled])",
+    );
+    if (!next) continue;
+    e.preventDefault();
+    next.focus();
+    if (next instanceof HTMLInputElement && next.type !== "checkbox") next.select();
+    return;
+  }
+}
+
+/**
  * `widths` sizes the columns like the merchant's spreadsheet: narrow, fixed
  * columns whose header text WRAPS onto a second line instead of stretching the
  * column to fit one long line. Pass a CSS width per column (same order as
@@ -230,7 +276,10 @@ export function ErpTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className={`w-full border-collapse text-[12px] ${widths ? "table-fixed" : ""}`}>
+      <table
+        onKeyDown={gridKeyNav}
+        className={`erp-grid w-full border-collapse text-[12px] ${widths ? "table-fixed" : ""}`}
+      >
         {widths && (
           <colgroup>
             {headers.map((h, i) => (
