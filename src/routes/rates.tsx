@@ -6,6 +6,7 @@ import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { Panel, fmt, parseDecimal, useNumericBuffer } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore } from "@/lib/erp-store";
+import { useAuth, canWrite } from "@/lib/auth";
 import type { Currency } from "@/lib/erp-types";
 
 export const Route = createFileRoute("/rates")({
@@ -25,6 +26,10 @@ function RatesPage() {
   const [rows, setRows] = useState<Currency[]>(settings.currencies ?? []);
   const [defCode, setDefCode] = useState<string>(settings.defaultCurrency || "");
   const [nc, setNc] = useState<{ code: string; name: string; rate: number }>({ code: "", name: "", rate: 0 });
+  // Exchange rates feed every cost calculation in the system — viewers may look,
+  // not edit.
+  const { role } = useAuth();
+  const mayWrite = canWrite(role);
 
   useEffect(() => {
     setRows(settings.currencies ?? []);
@@ -34,33 +39,52 @@ function RatesPage() {
   const dirty =
     JSON.stringify(rows) !== JSON.stringify(settings.currencies ?? []) ||
     defCode !== (settings.defaultCurrency || "");
-  const baseCode = "USD";
+  // USD is the system's accounting base: every amount anywhere converts to USD
+  // via `amount / rate`. Its own rate is 1 by definition, and it must always
+  // exist — a missing or non-1 USD row silently corrupts every screen's totals.
+  const BASE_CODE = "USD";
 
-  const patch = (code: string, p: Partial<Currency>) =>
+  const patch = (code: string, p: Partial<Currency>) => {
+    if (!mayWrite) return;
     setRows(rows.map((r) => (r.code === code ? { ...r, ...p } : r)));
+  };
 
   const add = () => {
+    if (!mayWrite) return toast.error("تعديل أسعار الصرف يتطلب صلاحية مستخدم أو مدير");
     const code = nc.code.trim().toUpperCase();
     if (!code) return toast.error("أدخل رمز العملة");
     if (!nc.name.trim()) return toast.error("أدخل اسم العملة");
     if (rows.some((r) => r.code === code)) return toast.error("العملة موجودة مسبقاً");
-    setRows([...rows, { code, name: nc.name.trim(), rate: Number(nc.rate) || 0 }]);
+    if (code !== BASE_CODE && !(nc.rate > 0)) {
+      return toast.error("سعر الصرف يجب أن يكون أكبر من صفر");
+    }
+    setRows([...rows, { code, name: nc.name.trim(), rate: code === BASE_CODE ? 1 : nc.rate }]);
     setNc({ code: "", name: "", rate: 0 });
   };
 
   const remove = (code: string) => {
+    if (!mayWrite) return toast.error("تعديل أسعار الصرف يتطلب صلاحية مستخدم أو مدير");
+    if (code === BASE_CODE) return toast.error(`لا يمكن حذف ${BASE_CODE} — هي العملة الأساسية للنظام`);
     if (rows.length <= 1) return toast.error("يجب الإبقاء على عملة واحدة على الأقل");
     if (code === defCode) return toast.error("لا يمكن حذف العملة الافتراضية");
     setRows(rows.filter((r) => r.code !== code));
   };
 
   const save = () => {
+    if (!mayWrite) return toast.error("تعديل أسعار الصرف يتطلب صلاحية مستخدم أو مدير");
     const codes = new Set<string>();
     for (const r of rows) {
       if (!r.code) return toast.error("يوجد عملة بدون رمز");
       if (codes.has(r.code)) return toast.error(`رمز مكرر: ${r.code}`);
       codes.add(r.code);
+      // A zero/negative rate makes `amount / rate` return 0 everywhere instead
+      // of erroring — the whole invoice silently prices at nothing. Reject it here.
+      if (!(r.rate > 0)) return toast.error(`سعر صرف غير صالح للعملة ${r.code} — يجب أن يكون أكبر من صفر`);
+      if (r.code === BASE_CODE && r.rate !== 1) {
+        return toast.error(`سعر صرف ${BASE_CODE} يجب أن يبقى 1 — هي العملة الأساسية للنظام`);
+      }
     }
+    if (!codes.has(BASE_CODE)) return toast.error(`قائمة العملات يجب أن تحتوي ${BASE_CODE} — هي العملة الأساسية للنظام`);
     if (!codes.has(defCode)) return toast.error("اختر عملة افتراضية موجودة في القائمة");
     erpStore.set({ settings: { ...settings, currencies: rows, defaultCurrency: defCode } });
     toast.success("تم حفظ الأسعار — الفواتير القديمة لن تتأثر (السعر مثبت على كل مستند)");
@@ -69,7 +93,7 @@ function RatesPage() {
   const reset = () => setRows(settings.currencies ?? []);
 
   const actions = [
-    { icon: Save, label: "حفظ", color: "text-blue-600", onClick: save },
+    { icon: Save, label: "حفظ", color: "text-blue-600", onClick: save, disabled: !mayWrite },
     { icon: RefreshCw, label: "استرجاع", color: "text-slate-600", onClick: reset },
   ];
 
@@ -105,8 +129,10 @@ function RatesPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((c, i) => (
-                <tr key={c.code + i} className="odd:bg-white even:bg-slate-50/50">
+              {rows.map((c, i) => {
+                const isBase = c.code === BASE_CODE;
+                return (
+                <tr key={c.code + i} className={isBase ? "bg-emerald-50/50" : "odd:bg-white even:bg-slate-50/50"}>
                   <td className="border border-slate-200 text-center text-slate-500">{i + 1}</td>
                   <td className="border border-slate-200 text-center">
                     <button
@@ -120,8 +146,10 @@ function RatesPage() {
                   <td className="border border-slate-200 p-1">
                     <input
                       value={c.code}
+                      readOnly={isBase || !mayWrite}
+                      title={isBase ? `${BASE_CODE} هي العملة الأساسية للنظام ولا يمكن تغيير رمزها` : undefined}
                       onChange={(e) => patch(c.code, { code: e.target.value.toUpperCase() })}
-                      className="w-full px-2 py-1 text-center font-semibold bg-transparent focus:outline-none focus:bg-blue-50/50 rounded"
+                      className={`w-full px-2 py-1 text-center font-semibold bg-transparent rounded focus:outline-none ${isBase ? "text-emerald-800 cursor-not-allowed" : "focus:bg-blue-50/50"}`}
                     />
                   </td>
                   <td className="border border-slate-200 p-1">
@@ -132,27 +160,39 @@ function RatesPage() {
                     />
                   </td>
                   <td className="border border-slate-200 p-1">
-                    <RateInput
-                      value={c.rate}
-                      onChange={(n) => patch(c.code, { rate: n })}
-                      className="w-full px-2 py-1 text-right tabular-nums bg-amber-50/40 focus:outline-none focus:bg-amber-50 rounded border border-transparent focus:border-amber-300"
-                    />
+                    {isBase ? (
+                      <div
+                        title={`سعر ${BASE_CODE} ثابت عند 1 — كل العملات تُقاس مقابله`}
+                        className="w-full px-2 py-1 text-right tabular-nums text-emerald-800 font-semibold cursor-not-allowed"
+                      >
+                        1.0
+                      </div>
+                    ) : (
+                      <RateInput
+                        value={c.rate}
+                        onChange={(n) => patch(c.code, { rate: n })}
+                        className="w-full px-2 py-1 text-right tabular-nums bg-amber-50/40 focus:outline-none focus:bg-amber-50 rounded border border-transparent focus:border-amber-300"
+                      />
+                    )}
                   </td>
                   <td className="border border-slate-200 text-center text-slate-600 tabular-nums text-xs">
                     <span dir="ltr" className="inline-block">
-                      {c.code === "USD" ? `100 USD = 100.00 USD` : `100 ${c.code} = ${fmt(c.rate ? 100 / c.rate : 0)} USD`}
+                      {isBase ? `100 USD = 100.00 USD` : `100 ${c.code} = ${fmt(c.rate ? 100 / c.rate : 0)} USD`}
                     </span>
                   </td>
                   <td className="border border-slate-200 text-center">
                     <button
                       onClick={() => remove(c.code)}
-                      className="text-rose-600 hover:bg-rose-50 px-2 py-1 rounded"
+                      disabled={isBase || !mayWrite}
+                      title={isBase ? `لا يمكن حذف ${BASE_CODE}` : "حذف"}
+                      className="text-rose-600 hover:bg-rose-50 px-2 py-1 rounded disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                     >
                       <Trash2 size={14} />
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

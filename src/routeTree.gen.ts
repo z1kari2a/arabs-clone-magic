@@ -9,67 +9,27 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as UsersRouteImport } from './routes/users'
-import { Route as SuppliersRouteImport } from './routes/suppliers'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as ReportsRouteImport } from './routes/reports'
-import { Route as RatesRouteImport } from './routes/rates'
-import { Route as PurchaseOrderRouteImport } from './routes/purchase-order'
-import { Route as ItemsRouteImport } from './routes/items'
-import { Route as HomeRouteImport } from './routes/home'
-import { Route as ExpensesRouteImport } from './routes/expenses'
-import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuditLogRouteImport } from './routes/audit-log'
+import { Route as ExpensesRouteImport } from './routes/expenses'
+import { Route as HomeRouteImport } from './routes/home'
+import { Route as ItemsRouteImport } from './routes/items'
+import { Route as PurchaseOrderRouteImport } from './routes/purchase-order'
+import { Route as RatesRouteImport } from './routes/rates'
+import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SuppliersRouteImport } from './routes/suppliers'
+import { Route as UsersRouteImport } from './routes/users'
 import { Route as AdminLicensesRouteImport } from './routes/admin.licenses'
-import { Route as ApiPublicLicenseHeartbeatRouteImport } from './routes/api/public/license/heartbeat'
-import { Route as ApiPublicLicenseDeactivateRouteImport } from './routes/api/public/license/deactivate'
-import { Route as ApiPublicLicenseBundleRouteImport } from './routes/api/public/license/bundle'
-import { Route as ApiPublicLicenseBackupRouteImport } from './routes/api/public/license/backup'
 import { Route as ApiPublicLicenseActivateRouteImport } from './routes/api/public/license/activate'
+import { Route as ApiPublicLicenseBackupRouteImport } from './routes/api/public/license/backup'
+import { Route as ApiPublicLicenseBundleRouteImport } from './routes/api/public/license/bundle'
+import { Route as ApiPublicLicenseDeactivateRouteImport } from './routes/api/public/license/deactivate'
+import { Route as ApiPublicLicenseHeartbeatRouteImport } from './routes/api/public/license/heartbeat'
 
-const UsersRoute = UsersRouteImport.update({
-  id: '/users',
-  path: '/users',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SuppliersRoute = SuppliersRouteImport.update({
-  id: '/suppliers',
-  path: '/suppliers',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReportsRoute = ReportsRouteImport.update({
-  id: '/reports',
-  path: '/reports',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RatesRoute = RatesRouteImport.update({
-  id: '/rates',
-  path: '/rates',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PurchaseOrderRoute = PurchaseOrderRouteImport.update({
-  id: '/purchase-order',
-  path: '/purchase-order',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ItemsRoute = ItemsRouteImport.update({
-  id: '/items',
-  path: '/items',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HomeRoute = HomeRouteImport.update({
-  id: '/home',
-  path: '/home',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExpensesRoute = ExpensesRouteImport.update({
-  id: '/expenses',
-  path: '/expenses',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuditLogRoute = AuditLogRouteImport.update({
@@ -77,9 +37,49 @@ const AuditLogRoute = AuditLogRouteImport.update({
   path: '/audit-log',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const ExpensesRoute = ExpensesRouteImport.update({
+  id: '/expenses',
+  path: '/expenses',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeRoute = HomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ItemsRoute = ItemsRouteImport.update({
+  id: '/items',
+  path: '/items',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PurchaseOrderRoute = PurchaseOrderRouteImport.update({
+  id: '/purchase-order',
+  path: '/purchase-order',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RatesRoute = RatesRouteImport.update({
+  id: '/rates',
+  path: '/rates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SuppliersRoute = SuppliersRouteImport.update({
+  id: '/suppliers',
+  path: '/suppliers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminLicensesRoute = AdminLicensesRouteImport.update({
@@ -87,32 +87,32 @@ const AdminLicensesRoute = AdminLicensesRouteImport.update({
   path: '/admin/licenses',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicLicenseHeartbeatRoute =
-  ApiPublicLicenseHeartbeatRouteImport.update({
-    id: '/api/public/license/heartbeat',
-    path: '/api/public/license/heartbeat',
+const ApiPublicLicenseActivateRoute =
+  ApiPublicLicenseActivateRouteImport.update({
+    id: '/api/public/license/activate',
+    path: '/api/public/license/activate',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicLicenseBackupRoute = ApiPublicLicenseBackupRouteImport.update({
+  id: '/api/public/license/backup',
+  path: '/api/public/license/backup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicLicenseBundleRoute = ApiPublicLicenseBundleRouteImport.update({
+  id: '/api/public/license/bundle',
+  path: '/api/public/license/bundle',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicLicenseDeactivateRoute =
   ApiPublicLicenseDeactivateRouteImport.update({
     id: '/api/public/license/deactivate',
     path: '/api/public/license/deactivate',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicLicenseBundleRoute = ApiPublicLicenseBundleRouteImport.update({
-  id: '/api/public/license/bundle',
-  path: '/api/public/license/bundle',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicLicenseBackupRoute = ApiPublicLicenseBackupRouteImport.update({
-  id: '/api/public/license/backup',
-  path: '/api/public/license/backup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicLicenseActivateRoute =
-  ApiPublicLicenseActivateRouteImport.update({
-    id: '/api/public/license/activate',
-    path: '/api/public/license/activate',
+const ApiPublicLicenseHeartbeatRoute =
+  ApiPublicLicenseHeartbeatRouteImport.update({
+    id: '/api/public/license/heartbeat',
+    path: '/api/public/license/heartbeat',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -256,67 +256,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/users': {
-      id: '/users'
-      path: '/users'
-      fullPath: '/users'
-      preLoaderRoute: typeof UsersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/suppliers': {
-      id: '/suppliers'
-      path: '/suppliers'
-      fullPath: '/suppliers'
-      preLoaderRoute: typeof SuppliersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reports': {
-      id: '/reports'
-      path: '/reports'
-      fullPath: '/reports'
-      preLoaderRoute: typeof ReportsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/rates': {
-      id: '/rates'
-      path: '/rates'
-      fullPath: '/rates'
-      preLoaderRoute: typeof RatesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/purchase-order': {
-      id: '/purchase-order'
-      path: '/purchase-order'
-      fullPath: '/purchase-order'
-      preLoaderRoute: typeof PurchaseOrderRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/items': {
-      id: '/items'
-      path: '/items'
-      fullPath: '/items'
-      preLoaderRoute: typeof ItemsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/home': {
-      id: '/home'
-      path: '/home'
-      fullPath: '/home'
-      preLoaderRoute: typeof HomeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/expenses': {
-      id: '/expenses'
-      path: '/expenses'
-      fullPath: '/expenses'
-      preLoaderRoute: typeof ExpensesRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/audit-log': {
@@ -326,11 +270,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuditLogRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/expenses': {
+      id: '/expenses'
+      path: '/expenses'
+      fullPath: '/expenses'
+      preLoaderRoute: typeof ExpensesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home': {
+      id: '/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof HomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/items': {
+      id: '/items'
+      path: '/items'
+      fullPath: '/items'
+      preLoaderRoute: typeof ItemsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/purchase-order': {
+      id: '/purchase-order'
+      path: '/purchase-order'
+      fullPath: '/purchase-order'
+      preLoaderRoute: typeof PurchaseOrderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rates': {
+      id: '/rates'
+      path: '/rates'
+      fullPath: '/rates'
+      preLoaderRoute: typeof RatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/suppliers': {
+      id: '/suppliers'
+      path: '/suppliers'
+      fullPath: '/suppliers'
+      preLoaderRoute: typeof SuppliersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/licenses': {
@@ -340,25 +340,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLicensesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/license/heartbeat': {
-      id: '/api/public/license/heartbeat'
-      path: '/api/public/license/heartbeat'
-      fullPath: '/api/public/license/heartbeat'
-      preLoaderRoute: typeof ApiPublicLicenseHeartbeatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/license/deactivate': {
-      id: '/api/public/license/deactivate'
-      path: '/api/public/license/deactivate'
-      fullPath: '/api/public/license/deactivate'
-      preLoaderRoute: typeof ApiPublicLicenseDeactivateRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/license/bundle': {
-      id: '/api/public/license/bundle'
-      path: '/api/public/license/bundle'
-      fullPath: '/api/public/license/bundle'
-      preLoaderRoute: typeof ApiPublicLicenseBundleRouteImport
+    '/api/public/license/activate': {
+      id: '/api/public/license/activate'
+      path: '/api/public/license/activate'
+      fullPath: '/api/public/license/activate'
+      preLoaderRoute: typeof ApiPublicLicenseActivateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/license/backup': {
@@ -368,11 +354,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicLicenseBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/license/activate': {
-      id: '/api/public/license/activate'
-      path: '/api/public/license/activate'
-      fullPath: '/api/public/license/activate'
-      preLoaderRoute: typeof ApiPublicLicenseActivateRouteImport
+    '/api/public/license/bundle': {
+      id: '/api/public/license/bundle'
+      path: '/api/public/license/bundle'
+      fullPath: '/api/public/license/bundle'
+      preLoaderRoute: typeof ApiPublicLicenseBundleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/license/deactivate': {
+      id: '/api/public/license/deactivate'
+      path: '/api/public/license/deactivate'
+      fullPath: '/api/public/license/deactivate'
+      preLoaderRoute: typeof ApiPublicLicenseDeactivateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/license/heartbeat': {
+      id: '/api/public/license/heartbeat'
+      path: '/api/public/license/heartbeat'
+      fullPath: '/api/public/license/heartbeat'
+      preLoaderRoute: typeof ApiPublicLicenseHeartbeatRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

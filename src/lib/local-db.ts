@@ -107,16 +107,70 @@ export async function setAll<T = any>(table: string, rows: T[]): Promise<void> {
   window.localStorage.setItem(KEY(table), JSON.stringify(rows));
 }
 
+// ---------- Per-table write serialization ----------
+// Every mutation below is a read-modify-write over the WHOLE table array. Two of
+// them in flight at once both read the same snapshot, and the second write
+// erases the first — saving N records persisted only the last one, and a cloud
+// restore rebuilt each table with a single row. Mutations now run inside a
+// per-table queue so each one's read and write are atomic against the others.
+const writeQueues = new Map<string, Promise<unknown>>();
+
+function withTableLock<T>(table: string, fn: () => Promise<T>): Promise<T> {
+  const prev = writeQueues.get(table) ?? Promise.resolve();
+  // Run `fn` whether the previous operation resolved or rejected — otherwise a
+  // single failure would wedge this table's queue for the rest of the session.
+  const next = prev.then(fn, fn);
+  writeQueues.set(
+    table,
+    next.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return next;
+}
+
+function applyUpsert<T extends Record<string, any>>(rows: T[], row: T, key: keyof T): void {
+  const idx = rows.findIndex((r) => r[key] === row[key]);
+  if (idx >= 0) rows[idx] = row;
+  else rows.push(row);
+}
+
 export async function upsertBy<T extends Record<string, any>>(
   table: string,
   row: T,
   key: keyof T,
 ): Promise<void> {
-  const rows = await getAll<T>(table);
-  const idx = rows.findIndex((r) => r[key] === row[key]);
-  if (idx >= 0) rows[idx] = row;
-  else rows.push(row);
-  await setAll(table, rows);
+  return withTableLock(table, async () => {
+    const rows = await getAll<T>(table);
+    applyUpsert(rows, row, key);
+    await setAll(table, rows);
+  });
+}
+
+/**
+ * Insert-or-update many rows in ONE read-modify-write pass.
+ * Prefer this over looping `upsertBy` — a loop is both N times slower and, if
+ * the caller forgets to await each iteration, silently lossy.
+ */
+export async function upsertManyBy<T extends Record<string, any>>(
+  table: string,
+  incoming: T[],
+  key: keyof T,
+): Promise<void> {
+  if (!incoming.length) return;
+  return withTableLock(table, async () => {
+    const rows = await getAll<T>(table);
+    for (const row of incoming) applyUpsert(rows, row, key);
+    await setAll(table, rows);
+  });
+}
+
+/** Replace the entire table contents in a single write. */
+export async function replaceAll<T>(table: string, rows: T[]): Promise<void> {
+  return withTableLock(table, async () => {
+    await setAll(table, rows);
+  });
 }
 
 export async function removeBy<T extends Record<string, any>>(
@@ -124,12 +178,14 @@ export async function removeBy<T extends Record<string, any>>(
   key: keyof T,
   value: any,
 ): Promise<T | undefined> {
-  const rows = await getAll<T>(table);
-  const idx = rows.findIndex((r) => r[key] === value);
-  if (idx < 0) return undefined;
-  const [removed] = rows.splice(idx, 1);
-  await setAll(table, rows);
-  return removed;
+  return withTableLock(table, async () => {
+    const rows = await getAll<T>(table);
+    const idx = rows.findIndex((r) => r[key] === value);
+    if (idx < 0) return undefined;
+    const [removed] = rows.splice(idx, 1);
+    await setAll(table, rows);
+    return removed;
+  });
 }
 
 // ---------- KV (single-value settings) ----------
@@ -244,15 +300,19 @@ export async function logAudit(entry: {
   before_data: unknown;
   after_data: unknown;
 }): Promise<void> {
-  const rows = await getAll<AuditEntry>(AUDIT_TABLE);
-  const nextId = rows.length ? Math.max(...rows.map((r) => r.id)) + 1 : 1;
-  rows.unshift({
-    id: nextId,
-    created_at: new Date().toISOString(),
-    ...entry,
+  // Serialized like every other mutation: concurrent audit writes used to read
+  // the same snapshot, hand out the same `id`, and drop all but one entry.
+  return withTableLock(AUDIT_TABLE, async () => {
+    const rows = await getAll<AuditEntry>(AUDIT_TABLE);
+    const nextId = rows.length ? Math.max(...rows.map((r) => r.id)) + 1 : 1;
+    rows.unshift({
+      id: nextId,
+      created_at: new Date().toISOString(),
+      ...entry,
+    });
+    if (rows.length > AUDIT_MAX) rows.length = AUDIT_MAX;
+    await setAll(AUDIT_TABLE, rows);
   });
-  if (rows.length > AUDIT_MAX) rows.length = AUDIT_MAX;
-  await setAll(AUDIT_TABLE, rows);
 }
 
 export async function getAudit(): Promise<AuditEntry[]> {
@@ -264,27 +324,49 @@ export const localDb = {
   suppliers: {
     list: () => getAll<Supplier>("suppliers"),
     upsert: (s: Supplier) => upsertBy("suppliers", s, "code"),
+    upsertMany: (s: Supplier[]) => upsertManyBy("suppliers", s, "code"),
+    replaceAll: (s: Supplier[]) => replaceAll("suppliers", s),
     remove: (code: string) => removeBy<Supplier>("suppliers", "code", code),
   },
   items: {
     list: () => getAll<Item>("items"),
     upsert: (i: Item) => upsertBy("items", i, "code"),
+    upsertMany: (i: Item[]) => upsertManyBy("items", i, "code"),
+    replaceAll: (i: Item[]) => replaceAll("items", i),
     remove: (code: string) => removeBy<Item>("items", "code", code),
   },
   purchaseOrders: {
     list: () => getAll<PurchaseOrder>("purchase_orders"),
     upsert: (p: PurchaseOrder) => upsertBy("purchase_orders", p, "number"),
+    upsertMany: (p: PurchaseOrder[]) => upsertManyBy("purchase_orders", p, "number"),
+    replaceAll: (p: PurchaseOrder[]) => replaceAll("purchase_orders", p),
     remove: (num: string) => removeBy<PurchaseOrder>("purchase_orders", "number", num),
   },
   users: {
     list: () => getAll<LocalUser>("users"),
     upsert: (u: LocalUser) => upsertBy("users", u, "id"),
+    upsertMany: (u: LocalUser[]) => upsertManyBy("users", u, "id"),
+    replaceAll: (u: LocalUser[]) => replaceAll("users", u),
     remove: (id: string) => removeBy<LocalUser>("users", "id", id),
   },
   settings: {
     get: (): Promise<Settings | null> => getKV<Settings>("settings"),
     set: (s: Settings) => setKV("settings", s),
   },
+  // Deliberately NOT in SCOPED_KV — like `users`, this must be readable from
+  // the login page before anyone is signed in (no scope set yet).
+  systemConfig: {
+    get: (): Promise<SystemConfig | null> => getKV<SystemConfig>("system_config"),
+    set: (c: SystemConfig) => setKV("system_config", c),
+  },
+};
+
+export type SystemConfig = {
+  /** When false, the "إنشاء حساب" tab is hidden on the login page and
+   *  self-signup is rejected — only an admin can create new users from
+   *  /users. Bootstrap (creating the very first admin) always stays open
+   *  regardless of this flag, or the system could lock itself out. */
+  allowSignup: boolean;
 };
 
 export function newId(): string {

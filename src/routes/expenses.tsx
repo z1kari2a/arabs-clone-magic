@@ -54,6 +54,10 @@ export const Route = createFileRoute("/expenses")({
 
 const PIE_COLORS = ["#2563eb", "#f97316", "#10b981", "#eab308", "#a855f7", "#ef4444", "#06b6d4", "#84cc16", "#ec4899", "#6366f1"];
 
+/** Purchase orders store dates as YYYY/MM/DD; date inputs speak YYYY-MM-DD.
+ *  Normalise to the ISO form so the two are string-comparable. */
+const normalizeDate = (d: string) => (d || "").replace(/\//g, "-");
+
 function ExpensesPage() {
   const orders = useErpStore((s) => s.purchaseOrders);
   const suppliers = useErpStore((s) => s.suppliers);
@@ -91,8 +95,13 @@ function ExpensesPage() {
       if (statusFilter === "draft" && po.approved) return false;
       if (type && e.type !== type) return false;
       if (supplier && po.supplierCode !== supplier) return false;
-      if (from && po.date < from) return false;
-      if (to && po.date > to) return false;
+      // po.date is stored as YYYY/MM/DD while <input type="date"> yields
+      // YYYY-MM-DD. Comparing them as raw strings compared "/" (47) against
+      // "-" (45), so every in-range order tested as ABOVE the "to" bound and
+      // the filter silently emptied the report. Normalise both to YYYY-MM-DD.
+      const poDate = normalizeDate(po.date);
+      if (from && poDate < from) return false;
+      if (to && poDate > to) return false;
       if (q) {
         const s = q.toLowerCase();
         if (
@@ -146,7 +155,7 @@ function ExpensesPage() {
 
     const byMonth = new Map<string, number>();
     filtered.forEach((r) => {
-      const m = (r.po.date || "").slice(0, 7) || "غير محدد";
+      const m = normalizeDate(r.po.date).slice(0, 7) || "غير محدد";
       byMonth.set(m, (byMonth.get(m) || 0) + r.invAmount);
     });
     const byMonthArr = [...byMonth.entries()]

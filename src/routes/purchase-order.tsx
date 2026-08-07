@@ -5,15 +5,16 @@ import { toast } from "sonner";
 import {
   FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer,
   FileSpreadsheet, Download, CheckCircle2, X, Plus, Wallet, Building2, Copy,
-  ChevronUp, ChevronDown, Coins, Package, RefreshCcw,
+  ChevronUp, ChevronDown, Coins, Package, RefreshCcw, Info, Check,
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
-import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
+import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtAuto, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
 import ExpensesDialog from "@/components/erp/ExpensesDialog";
-import { erpStore, useErpStore, computePO, savePurchaseOrder } from "@/lib/erp-store";
-import { getCurrentScope } from "@/lib/local-db";
-import type { PurchaseOrder, PORow, Expense } from "@/lib/erp-types";
+import { erpStore, useErpStore, computePO, savePurchaseOrder, isRealRow, deletePO, cartonsOf, lineCBMOf } from "@/lib/erp-store";
+import { getCurrentScope, localDb } from "@/lib/local-db";
+import { useAuth, canWrite, canDelete, canApprove } from "@/lib/auth";
+import type { PurchaseOrder, PORow } from "@/lib/erp-types";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
@@ -42,6 +43,30 @@ const blankRows = (count: number): PORow[] =>
     price: 0,
     cbm: 0,
   }));
+
+/**
+ * Next free invoice number, read from storage rather than the in-memory list.
+ * The previous `INV-${year}-${random 5 digits}` could collide with an existing
+ * invoice, and because orders are stored by `number`, a collision silently
+ * OVERWROTE the older invoice. Sequential + an existence check rules that out.
+ */
+const nextInvoiceNumber = async (): Promise<string> => {
+  const year = new Date().getFullYear();
+  const prefix = `INV-${year}-`;
+  const existing = new Set((await localDb.purchaseOrders.list()).map((o) => o.number));
+  let seq = 0;
+  for (const num of existing) {
+    if (!num.startsWith(prefix)) continue;
+    const n = Number(num.slice(prefix.length));
+    if (Number.isFinite(n)) seq = Math.max(seq, n);
+  }
+  let candidate: string;
+  do {
+    seq += 1;
+    candidate = `${prefix}${String(seq).padStart(5, "0")}`;
+  } while (existing.has(candidate));
+  return candidate;
+};
 
 const emptyPO = (num: string, currency = "USD", rate = 1): PurchaseOrder => ({
   number: num,
@@ -97,6 +122,8 @@ function POPage() {
     ? currencies.map((c) => ({ value: c.code, label: `${c.code} - ${c.name}` }))
     : [{ value: "USD", label: "USD" }];
   const rateOf = rateOfCode;
+  // Rate actually used to value an expense: the one pinned on the row, falling
+  // back to the live table only for a line that has none yet. Mirrors computePO.
   const [tierDisplayCurrency, setTierDisplayCurrency] = useState<string>("USD");
 
   // Master (grand-total) currency — used to display totals converted from invoice currency.
@@ -107,20 +134,29 @@ function POPage() {
   };
 
   // Row-by-row editable table (classic ERP style).
-  const savedCount = po.rows.filter((r) => r.model || r.name || r.qty > 0).length;
+  // isRealRow is the one shared definition of "a row that counts" — the totals,
+  // this badge and the save filter must never drift apart again.
+  const savedCount = po.rows.filter(isRealRow).length;
 
   // Note: exchange-rate editing lives only in Settings → Currencies panel.
   // Every screen reads settings.currencies read-only.
 
   // Collapsible sections — let users shrink big tables to save space.
-  const [showItems, setShowItems] = useState(true);
-  const [showExpenses, setShowExpenses] = useState(true);
+  const [itemsDlg, setItemsDlg] = useState(false);
   const [showTiers, setShowTiers] = useState(true);
 
   const metrics = useMemo(() => computePO(po), [po]);
   const supplier = suppliers.find((s) => s.code === po.supplierCode);
 
-  const disabled = !editing || po.approved;
+  // Role enforcement. canWrite/canDelete/canApprove already existed in lib/auth
+  // but were never called anywhere, so a "مطالع" (viewer) could edit, delete and
+  // approve every document exactly like an admin.
+  const { role } = useAuth();
+  const mayWrite = canWrite(role);
+  const mayDelete = canDelete(role);
+  const mayApprove = canApprove(role);
+
+  const disabled = !editing || po.approved || !mayWrite;
 
   const patch = (p: Partial<PurchaseOrder>) => setPo({ ...po, ...p });
   const patchRow = (id: number, p: Partial<PORow>) =>
@@ -132,41 +168,50 @@ function POPage() {
     });
   const removeRow = (id: number) => setPo({ ...po, rows: po.rows.filter((r) => r.id !== id) });
 
-  const patchExp = (id: number, p: Partial<Expense>) =>
-    setPo({ ...po, expenses: po.expenses.map((e) => (e.id === id ? { ...e, ...p } : e)) });
-  const addExp = () =>
-    setPo({
-      ...po,
-      expenses: [...po.expenses, { id: (po.expenses.at(-1)?.id ?? 0) + 1, type: "", note: "", currency: po.currency, amount: 0, rate: rateOf(po.currency) }],
-    });
-  const removeExp = (id: number) => setPo({ ...po, expenses: po.expenses.filter((e) => e.id !== id) });
+  // تحرير المصروفات كلّه داخل ExpensesDialog — لا نسخة ثانية هنا.
 
-  const onNew = () => {
+  // Each handler re-checks the role: the ribbon buttons are disabled below, but
+  // the keyboard shortcuts (Ctrl+N/Ctrl+S/F2/F9/Del) call these directly.
+  const denied = () => toast.error("ليس لديك صلاحية لهذا الإجراء");
+
+  const onNew = async () => {
+    if (!mayWrite) return denied();
     autoLoadedRef.current = true;
-    const num = `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`;
-    setPo(emptyPO(num, "USD", rateOfCode("USD")));
+    setPo(emptyPO(await nextInvoiceNumber(), "USD", rateOfCode("USD")));
     setEditing(true);
     toast.success("تم إنشاء أمر شراء جديد");
   };
   const onSave = () => {
+    if (!mayWrite) return denied();
     if (!po.supplierCode) return toast.error("يجب اختيار المورد");
-    const filled = po.rows.filter((r) => r.model || r.name || r.qty > 0);
+    const filled = po.rows.filter(isRealRow);
     if (!filled.length) return toast.error("يجب إضافة صنف واحد على الأقل");
     savePurchaseOrder({ ...po, rows: filled });
     setEditing(false);
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
     toast.success("تم حفظ أمر الشراء");
   };
-  const onEdit = () => { setEditing(true); toast.info("وضع التعديل مفعّل"); };
-  const onDelete = () => {
+  const onEdit = () => {
+    if (!mayWrite) return denied();
+    setEditing(true);
+    toast.info("وضع التعديل مفعّل");
+  };
+  const onDelete = async () => {
+    if (!mayDelete) return denied();
     if (!confirm("حذف أمر الشراء؟")) return;
     autoLoadedRef.current = true;
-    erpStore.set({ purchaseOrders: orders.filter((o) => o.number !== po.number) });
-    setPo(emptyPO(`INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`, "USD", rateOfCode("USD")));
+    // Must go through deletePO — it removes the record from storage and writes
+    // the audit entry. The old erpStore.set({ purchaseOrders: ... }) only
+    // updated in-memory state, so the "deleted" order came straight back on the
+    // next reload.
+    await deletePO(po.number);
+    setPo(emptyPO(await nextInvoiceNumber(), "USD", rateOfCode("USD")));
+    setEditing(false);
     toast.success("تم الحذف");
   };
   const onApprove = () => {
-    const filled = po.rows.filter((r) => r.model || r.name || r.qty > 0);
+    if (!mayApprove) return denied();
+    const filled = po.rows.filter(isRealRow);
     if (!po.supplierCode || !filled.length) return toast.error("لا يمكن اعتماد أمر ناقص");
     const approved = { ...po, rows: filled, approved: true };
     setPo(approved);
@@ -175,9 +220,10 @@ function POPage() {
     toast.success("تم اعتماد أمر الشراء");
   };
   const onImport = () => fileRef.current?.click();
-  const onCopy = () => {
+  const onCopy = async () => {
+    if (!mayWrite) return denied();
     autoLoadedRef.current = true;
-    const num = `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 90000) + 10000)}`;
+    const num = await nextInvoiceNumber();
     setPo({ ...po, number: num, invoiceNo: num, approved: false });
     setEditing(true);
     toast.success("تم نسخ الأمر - عدّل ثم احفظ");
@@ -194,24 +240,29 @@ function POPage() {
       pack: Number(r.pack ?? r["العبوة"] ?? 1),
       qty: Number(r.qty ?? r["الكمية"] ?? 0),
       price: Number(r.price ?? r["سعر الشراء"] ?? 0),
-      cbm: Number(r.cbm ?? r["CBM"] ?? 0),
+      // Accept the header this screen itself exports ("CBM الكرتون") as well as a
+      // bare "CBM" — importing our own export used to land a zero CBM on every row.
+      cbm: Number(r.cbm ?? r["CBM الكرتون"] ?? r["CBM"] ?? 0),
     }));
     setPo({ ...po, rows });
     toast.success(`تم استيراد ${rows.length} صنف`);
     e.target.value = "";
   };
   const onExport = () => {
-    const data = po.rows.map((r, i) => ({
-      "م": i + 1,
+    // Keep the ORIGINAL index for the rowMetrics lookup while dropping the blank
+    // filler rows, so the sheet neither exports empty lines nor shifts costs.
+    const data = po.rows.map((r, i) => ({ r, i })).filter(({ r }) => isRealRow(r)).map(({ r, i }, n) => ({
+      "م": n + 1,
       "الموديل": r.model,
       "اسم الصنف": r.name,
       "الوحدة": r.unit,
       "العبوة": r.pack,
       "الكمية": r.qty,
       "سعر الشراء": r.price,
+      "إجمالي أمر الشراء": metrics.rowMetrics[i]?.lineInvoiceTotal ?? 0,
       "تكلفة الشراء (USD)": metrics.rowMetrics[i]?.purchaseCost ?? 0,
       "CBM الكرتون": r.cbm,
-      "إجمالي CBM": (r.pack ? r.qty / r.pack : 0) * r.cbm,
+      "إجمالي CBM": lineCBMOf(r),
       "تكلفة CBM (USD)": metrics.rowMetrics[i]?.cbmCost ?? 0,
       "التكلفة المئوية (USD)": metrics.rowMetrics[i]?.pctCost ?? 0,
       "متوسط التكلفة (USD)": metrics.rowMetrics[i]?.avgCost ?? 0,
@@ -225,18 +276,18 @@ function POPage() {
   };
 
   const actions = [
-    { icon: FilePlus2, label: "جديد", hint: "Ctrl+N", color: "text-emerald-600", onClick: onNew },
-    { icon: Copy, label: "نسخ", hint: "Ctrl+D", color: "text-purple-600", onClick: onCopy },
+    { icon: FilePlus2, label: "جديد", hint: "Ctrl+N", color: "text-emerald-600", onClick: onNew, disabled: !mayWrite },
+    { icon: Copy, label: "نسخ", hint: "Ctrl+D", color: "text-purple-600", onClick: onCopy, disabled: !mayWrite },
     { icon: FolderOpen, label: "فتح", hint: "Ctrl+O", color: "text-amber-500", onClick: () => setOpenDlg(true) },
-    { icon: Save, label: "حفظ", hint: "Ctrl+S", color: "text-blue-600", onClick: onSave, disabled: !editing },
-    { icon: Pencil, label: "تعديل", hint: "F2", color: "text-cyan-600", onClick: onEdit, disabled: po.approved },
-    { icon: Trash2, label: "حذف", hint: "Del", color: "text-rose-600", onClick: onDelete },
-    { icon: Search, label: "بحث", hint: "F3", color: "text-indigo-500", onClick: () => setSearchDlg(true) },
+    { icon: Save, label: "حفظ", hint: "Ctrl+S", color: "text-blue-600", onClick: onSave, disabled: !editing || !mayWrite },
+    { icon: Pencil, label: "تعديل", hint: "F2", color: "text-cyan-600", onClick: onEdit, disabled: po.approved || !mayWrite },
+    { icon: Trash2, label: "حذف", hint: "Del", color: "text-rose-600", onClick: onDelete, disabled: !mayDelete },
+    { icon: Search, label: "بحث", hint: "F3", color: "text-indigo-500", onClick: () => { setItemsDlg(true); setSearchDlg(true); } },
     { icon: Printer, label: "طباعة", hint: "Ctrl+P", color: "text-slate-600", onClick: () => window.print() },
     { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
     { icon: Wallet, label: "المصروفات", hint: "F4", color: "text-orange-600", onClick: () => setExpDlg(true) },
-    { icon: CheckCircle2, label: "اعتماد", hint: "F9", color: "text-emerald-700", onClick: onApprove, disabled: po.approved },
+    { icon: CheckCircle2, label: "اعتماد", hint: "F9", color: "text-emerald-700", onClick: onApprove, disabled: po.approved || !mayApprove },
     { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: () => history.back() },
   ];
 
@@ -249,11 +300,11 @@ function POPage() {
       else if (e.ctrlKey && k === "o") { e.preventDefault(); setOpenDlg(true); }
       else if (e.ctrlKey && k === "p") { e.preventDefault(); window.print(); }
       else if (e.key === "F2") { e.preventDefault(); if (!po.approved) onEdit(); }
-      else if (e.key === "F3") { e.preventDefault(); setSearchDlg(true); }
+      else if (e.key === "F3") { e.preventDefault(); setItemsDlg(true); setSearchDlg(true); }
       else if (e.key === "F4") { e.preventDefault(); setExpDlg(true); }
       else if (e.key === "F9") { e.preventDefault(); if (!po.approved) onApprove(); }
       else if (e.ctrlKey && k === "d") { e.preventDefault(); onCopy(); }
-      else if (e.key === "Escape") { setOpenDlg(false); setSupDlg(false); setExpDlg(false); setSearchDlg(false); }
+      else if (e.key === "Escape") { setOpenDlg(false); setSupDlg(false); setExpDlg(false); setSearchDlg(false); setItemsDlg(false); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -302,6 +353,48 @@ function POPage() {
   return (
     <ErpLayout title="أمر شراء" ribbon={<Ribbon actions={actions} />}>
       <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={onFile} className="hidden" />
+
+      {/* Read-only mode isn't obvious from grayed-out fields alone — spell it out
+          and offer the exact action needed, so the screen never looks "stuck". */}
+      {!mayWrite && (
+        <div className="flex items-center gap-1.5 px-3 py-2 rounded border text-xs font-medium bg-slate-100 border-slate-300 text-slate-700">
+          <Info size={14} className="shrink-0" />
+          صلاحيتك <b>مطالع</b> — يمكنك عرض وطباعة وتصدير أوامر الشراء فقط، دون إنشاء أو تعديل أو اعتماد.
+        </div>
+      )}
+      {!editing && mayWrite && (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded border text-xs font-medium ${
+            po.approved ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-amber-50 border-amber-300 text-amber-800"
+          }`}
+        >
+          {po.approved ? (
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 size={14} className="shrink-0" />
+              هذا أمر شراء <b>معتمد</b> ولا يمكن تعديله. لإنشاء أمر جديد اضغط «جديد»، أو «نسخ» لإنشاء نسخة قابلة للتعديل منه.
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5">
+              <Info size={14} className="shrink-0" />
+              الشاشة حالياً في <b>وضع العرض فقط</b> ولا يمكن الكتابة في الحقول — اضغط «جديد» لإنشاء أمر شراء جديد، أو «تعديل» لتعديل هذا الأمر.
+            </span>
+          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button onClick={onNew} className="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">
+              <FilePlus2 size={12} /> جديد
+            </button>
+            {po.approved ? (
+              <button onClick={onCopy} className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700">
+                <Copy size={12} /> نسخ
+              </button>
+            ) : (
+              <button onClick={onEdit} className="flex items-center gap-1 px-2 py-1 bg-cyan-600 text-white rounded hover:bg-cyan-700">
+                <Pencil size={12} /> تعديل
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Workflow order: 1) Supplier → 2) Order data → 3) Items → 4) Expenses → 5) Cost → 6) Tiers */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
@@ -366,7 +459,11 @@ function POPage() {
             <FieldRow label="نسبة المصاريف %">
               <div className="flex gap-1">
                 <ErpInput
-                  value={fmt(po.expensePercentage ?? metrics.suggestedPct, 2)}
+                  // Pass the NUMBER, rounded for readability — `fmt` inserts
+                  // thousand separators ("1,200.00"), and a comma is a decimal
+                  // separator to parseDecimal, so a percentage over 999 was read
+                  // back as 0 the moment this field re-rendered.
+                  value={Math.round((po.expensePercentage ?? metrics.suggestedPct) * 100) / 100}
                   onChange={(v) => patch({ expensePercentage: parseDecimal(v) })}
                   disabled={disabled}
                   type="number"
@@ -396,30 +493,62 @@ function POPage() {
 
       </div>
 
-      {/* Items */}
-      <div className="bg-white border border-slate-300 rounded">
-        <div className="flex items-center justify-between px-2 py-1 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
-          <div className="flex items-center gap-1">
-            <button onClick={() => { if (!editing) setEditing(true); addRow(); }} disabled={po.approved} className="flex items-center gap-1 px-2 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-40">
-              <Plus size={12} /> إضافة صنف
-            </button>
-            <button onClick={() => setSearchDlg(true)} disabled={po.approved} className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-slate-300 rounded hover:bg-blue-50 disabled:opacity-40">
-              <Search size={12} className="text-blue-600" /> بحث من الكتالوج
-            </button>
-          </div>
-          <button type="button" onClick={() => setShowItems((v) => !v)} className="font-semibold text-slate-700 flex items-center gap-1 hover:text-blue-700" title={showItems ? "طي الجدول" : "توسيع الجدول"}>
-            {showItems ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            <StepBadge n={3} />
-            <Package size={14} /> بنود الفاتورة ({savedCount})
-          </button>
-          <div className="text-xs text-slate-500">{po.approved && <span className="text-emerald-600 font-semibold">✓ معتمد</span>}</div>
+      {/* بنود الفاتورة — سطر واحد يفتح الشاشة المنبثقة، والجدول كله يعيش هناك
+          (نفس نمط المصروفات): يُضاف ويُحرّر ويُحفظ داخل النافذة. */}
+      <button
+        type="button"
+        onClick={() => setItemsDlg(true)}
+        className="w-full bg-white border border-slate-300 rounded px-3 py-2 flex items-center justify-between gap-2 hover:bg-emerald-50/60 hover:border-emerald-300 text-right transition-colors"
+        title="فتح شاشة بنود الفاتورة (F3)"
+      >
+        <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
+          <span className="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded">
+            <Package size={12} /> فتح شاشة البنود
+          </span>
+          <span className="text-[10px] text-slate-400 font-normal">F3</span>
         </div>
-        {showItems && (
-        <div className="overflow-x-auto">
-        <ErpTable headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","العملة","سعر الشراء","تكلفة الشراء (USD)","CBM الكرتون","إجمالي CBM","تكلفة CBM (USD)","التكلفة المئوية (USD)","متوسط التكلفة (USD)","مبلغ المصروف/كرتون (USD)",`سعر البيع (+${markupPct}%)`,""]}>
+        <div className="flex items-center gap-2 font-semibold text-slate-700">
+          <StepBadge n={3} />
+          <Package size={14} />
+          بنود الفاتورة ({savedCount})
+        </div>
+        <div className="text-xs text-slate-600 flex items-center gap-2">
+          {po.approved && <span className="text-emerald-600 font-semibold">✓ معتمد</span>}
+          <span>إجمالي أمر الشراء: <span className="font-bold">{fmtAuto(metrics.totalInvoiceAmount, 4)}</span> {po.currency}</span>
+        </div>
+      </button>
+
+      {/* شاشة البنود المنبثقة */}
+      <Dialog open={itemsDlg} onOpenChange={setItemsDlg}>
+        <DialogContent dir="rtl" className="max-w-[97vw] p-0 gap-0 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-white">
+            <div className="flex items-center gap-1">
+              <button onClick={() => { if (!editing) setEditing(true); addRow(); }} disabled={po.approved || !mayWrite} className="flex items-center gap-1 px-2 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-40">
+                <Plus size={12} /> إضافة صنف
+              </button>
+              <button onClick={() => setSearchDlg(true)} disabled={po.approved || !mayWrite} className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-slate-300 rounded hover:bg-blue-50 disabled:opacity-40">
+                <Search size={12} className="text-blue-600" /> بحث من الكتالوج
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Package className="text-emerald-600" size={20} />
+              <h2 className="text-lg font-bold text-slate-800">بنود الفاتورة ({savedCount})</h2>
+            </div>
+          </div>
+
+          {/* شريط الإجماليات داخل النافذة */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 py-3 bg-slate-50/60 border-b border-slate-200">
+            <SummaryStat label="عدد الأصناف" value={fmtInt(metrics.totalItems)} unit="صنف" />
+            <SummaryStat label="إجمالي الكمية" value={fmtInt(metrics.totalQty)} />
+            <SummaryStat label="إجمالي أمر الشراء" value={fmtAuto(metrics.totalInvoiceAmount, 4)} unit={po.currency} />
+            <SummaryStat label="إجمالي CBM" value={fmtAuto(metrics.totalCBM, 4)} unit="CBM" />
+          </div>
+
+        <div className="overflow-auto max-h-[60vh]">
+        <ErpTable headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","العملة","سعر الشراء","إجمالي أمر الشراء","تكلفة الشراء (USD)","CBM الكرتون","إجمالي CBM","تكلفة CBM (USD)","التكلفة المئوية (USD)","متوسط التكلفة (USD)","مبلغ المصروف/كرتون (USD)",`سعر البيع (+${markupPct}%)`,""]}>
           {po.rows.map((r, i) => {
             const m = metrics.rowMetrics[i];
-            const cartons = r.pack ? r.qty / r.pack : 0;
+            const cartons = cartonsOf(r);
             const rowCur = r.currency ?? po.currency;
             const salePrice = (m?.selectedCost ?? 0) * (1 + markupPct / 100);
             const dt = po.distributionType;
@@ -430,7 +559,14 @@ function POPage() {
                   <input value={r.model} disabled={disabled} onChange={(e) => {
                     const v = e.target.value;
                     const it = items.find((x) => x.code === v || x.barcode === v);
-                    if (it) patchRow(r.id, { model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? r.unit, pack: it.units[0]?.pack ?? r.pack, price: it.units[0]?.lastPrice ?? r.price, currency: it.currency ?? r.currency, rate: it.rate ?? rateOf(it.currency ?? po.currency) });
+                    // Take the item's currency, but price it at TODAY's rate.
+                    // `it.rate` is the rate pinned at the item's last purchase —
+                    // carrying it into a new invoice valued today's goods at a
+                    // months-old exchange rate.
+                    if (it) {
+                      const rowCurrency = it.currency ?? r.currency ?? po.currency;
+                      patchRow(r.id, { model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? r.unit, pack: it.units[0]?.pack ?? r.pack, price: it.units[0]?.lastPrice ?? r.price, currency: rowCurrency, rate: rateOf(rowCurrency) });
+                    }
                     else patchRow(r.id, { model: v });
                   }} className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none text-center" />
                 </td>
@@ -446,13 +582,15 @@ function POPage() {
                   </select>
                 </td>
                 <Cell value={r.price} onChange={(v) => patchRow(r.id, { price: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
-                <Cell value={fmt(m?.purchaseCost ?? 0, 4)} align="right" />
+                {/* إجمالي أمر الشراء = الكمية × العبوة × سعر الحبة، بعملة السطر */}
+                <td className="border border-slate-200 text-right px-2 bg-indigo-50 font-semibold text-indigo-700">{fmtAuto(m?.lineInvoiceTotal ?? 0, 4)}</td>
+                <Cell value={fmt(m?.purchaseCost ?? 0, 1)} align="right" />
                 <Cell value={r.cbm} onChange={(v) => patchRow(r.id, { cbm: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
-                <Cell value={fmt(cartons * r.cbm, 4)} align="right" />
-                <td className={`border border-slate-200 text-right px-2 bg-purple-50 text-purple-700 ${dt === "cbm" ? "font-bold ring-1 ring-inset ring-purple-400" : ""}`}>{fmt(m?.cbmCost ?? 0, 4)}</td>
-                <td className={`border border-slate-200 text-right px-2 bg-sky-50 text-sky-700 ${dt === "percentage" ? "font-bold ring-1 ring-inset ring-sky-400" : ""}`}>{fmt(m?.pctCost ?? 0, 4)}</td>
-                <td className={`border border-slate-200 text-right px-2 bg-amber-50 text-amber-700 ${dt === "average" ? "font-bold ring-1 ring-inset ring-amber-400" : ""}`}>{fmt(m?.avgCost ?? 0, 4)}</td>
-                <td className="border border-slate-200 text-right px-2 bg-orange-50 font-semibold text-orange-700">{fmt(m?.allocatedExpPerCarton ?? 0, 4)}</td>
+                <Cell value={fmtAuto(cartons * r.cbm, 4)} align="right" />
+                <td className={`border border-slate-200 text-right px-2 bg-purple-50 text-purple-700 ${dt === "cbm" ? "font-bold ring-1 ring-inset ring-purple-400" : ""}`}>{fmt(m?.cbmCost ?? 0, 1)}</td>
+                <td className={`border border-slate-200 text-right px-2 bg-sky-50 text-sky-700 ${dt === "percentage" ? "font-bold ring-1 ring-inset ring-sky-400" : ""}`}>{fmt(m?.pctCost ?? 0, 1)}</td>
+                <td className={`border border-slate-200 text-right px-2 bg-amber-50 text-amber-700 ${dt === "average" ? "font-bold ring-1 ring-inset ring-amber-400" : ""}`}>{fmt(m?.avgCost ?? 0, 1)}</td>
+                <td className="border border-slate-200 text-right px-2 bg-orange-50 font-semibold text-orange-700">{fmt(m?.allocatedExpPerCarton ?? 0, 5)}</td>
                 <td className="border border-slate-200 text-right px-2 bg-emerald-50 font-bold text-emerald-700">{fmt(salePrice, 4)}</td>
                 <td className="border border-slate-200 text-center">
                   <button disabled={disabled} onClick={() => removeRow(r.id)} className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-40" title="حذف"><Trash2 size={12} /></button>
@@ -462,66 +600,47 @@ function POPage() {
           })}
         </ErpTable>
         </div>
-        )}
-      </div>
 
-      {/* Expenses */}
-      <div className="bg-white border border-slate-300 rounded">
-        <div className="flex items-center justify-between px-2 py-1 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
-          <div className="flex items-center gap-1">
-            <button onClick={() => setExpDlg(true)} disabled={disabled} className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40">
-              <Wallet size={12} /> فتح شاشة المصروفات
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-white">
+            <button
+              onClick={() => { onSave(); setItemsDlg(false); }}
+              disabled={!mayWrite || po.approved}
+              className="flex items-center gap-1 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40"
+            >
+              <Check size={16} /> حفظ
             </button>
-            <button onClick={addExp} disabled={disabled} className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-slate-300 rounded hover:bg-emerald-50 disabled:opacity-40">
-              <Plus size={12} className="text-emerald-600" /> إضافة سطر
+            <button onClick={() => setItemsDlg(false)} className="px-4 py-2 text-sm border border-slate-300 rounded hover:bg-slate-50">
+              إغلاق
             </button>
           </div>
-          <button type="button" onClick={() => setShowExpenses((v) => !v)} className="font-semibold text-slate-700 flex items-center gap-1 hover:text-blue-700" title={showExpenses ? "طي" : "توسيع"}>
-            {showExpenses ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            <StepBadge n={4} />
-            <Wallet size={14} /> المصروفات ({po.expenses.length})
-          </button>
-          <div className="text-xs text-slate-600">الإجمالي: <span className="font-bold">{fmt(metrics.totalExpenses)}</span> USD</div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Expenses — سطر واحد فقط: الجدول كله يعيش داخل الشاشة المنبثقة،
+          يُضاف ويُحرّر ويُحفظ هناك. كان مكرّراً هنا وفي النافذة معاً، فكان
+          التعديل في مكان يبدو وكأنه ضاع كي تفتح المكان الآخر. */}
+      <button
+        type="button"
+        onClick={() => setExpDlg(true)}
+        disabled={disabled}
+        className="w-full bg-white border border-slate-300 rounded px-3 py-2 flex items-center justify-between gap-2 hover:bg-blue-50/60 hover:border-blue-300 disabled:opacity-50 disabled:hover:bg-white text-right transition-colors"
+        title="فتح شاشة المصروفات (F4)"
+      >
+        <div className="flex items-center gap-2 text-xs font-semibold text-blue-700">
+          <span className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded">
+            <Wallet size={12} /> فتح شاشة المصروفات
+          </span>
+          <span className="text-[10px] text-slate-400 font-normal">F4</span>
         </div>
-        {showExpenses && (
-        <ErpTable headers={["م","العملة","المبلغ","سعر الصرف","المبلغ بالدولار","اسم المصروف","رقم الحساب","الحساب التحليلي","رقم المركز","مرفقة","رقم الفاتورة","تاريخ الفاتورة","البيان","الفرع المستفيد",""]}>
-          {po.expenses.map((e, i) => (
-            <tr key={e.id} className="hover:bg-blue-50/40">
-              <td className="border border-slate-200 text-center">{i + 1}</td>
-              <td className="border border-slate-200 p-0">
-                <select
-                  value={e.currency}
-                  disabled={disabled}
-                  onChange={(ev) => patchExp(e.id, { currency: ev.target.value, rate: rateOf(ev.target.value) })}
-                  className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none"
-                >
-                  {currencyOptions.map((o) => (
-                    <option key={o.value} value={o.value}>{o.value}</option>
-                  ))}
-                </select>
-              </td>
-              <Cell value={e.amount} onChange={(v) => patchExp(e.id, { amount: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
-              <Cell value={fmt(rateOf(e.currency), 4)} align="right" />
-              <Cell value={fmt(rateOf(e.currency) > 0 ? e.amount / rateOf(e.currency) : 0)} />
-              <Cell value={e.type} onChange={(v) => patchExp(e.id, { type: v })} disabled={disabled} align="right" />
-              <Cell value={e.accountNo ?? ""} onChange={(v) => patchExp(e.id, { accountNo: v })} disabled={disabled} align="right" />
-              <Cell value={e.analyticAccount ?? ""} onChange={(v) => patchExp(e.id, { analyticAccount: v })} disabled={disabled} align="right" />
-              <Cell value={e.centerNo ?? ""} onChange={(v) => patchExp(e.id, { centerNo: v })} disabled={disabled} align="right" />
-              <td className="border border-slate-200 text-center">
-                <input type="checkbox" checked={!!e.attached} disabled={disabled} onChange={(ev) => patchExp(e.id, { attached: ev.target.checked })} />
-              </td>
-              <Cell value={e.invoiceNo ?? ""} onChange={(v) => patchExp(e.id, { invoiceNo: v })} disabled={disabled} align="right" />
-              <Cell value={e.invoiceDate ?? ""} onChange={(v) => patchExp(e.id, { invoiceDate: v })} disabled={disabled} />
-              <Cell value={e.note} onChange={(v) => patchExp(e.id, { note: v })} disabled={disabled} align="right" />
-              <Cell value={e.branch ?? ""} onChange={(v) => patchExp(e.id, { branch: v })} disabled={disabled} align="right" />
-              <td className="border border-slate-200 text-center">
-                <button disabled={disabled} onClick={() => removeExp(e.id)} className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-40"><Trash2 size={12} /></button>
-              </td>
-            </tr>
-          ))}
-        </ErpTable>
-        )}
-      </div>
+        <div className="flex items-center gap-2 font-semibold text-slate-700">
+          <StepBadge n={4} />
+          <Wallet size={14} />
+          المصروفات ({po.expenses.length})
+        </div>
+        <div className="text-xs text-slate-600">
+          الإجمالي: <span className="font-bold">{fmt(metrics.totalExpenses)}</span> USD
+        </div>
+      </button>
 
       {/* Summary */}
       <div className="bg-white border border-slate-300 rounded">
@@ -536,15 +655,32 @@ function POPage() {
           <div className="flex items-center gap-1"><StepBadge n={5} /> احتساب التكلفة النهائية</div>
           <div className="text-[10px] text-slate-500">1 USD = {fmt(masterCurrency === "USD" ? 1 : (rateOfCode(masterCurrency) || 1), 4)} {masterCurrency}</div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 p-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 p-2">
           <SummaryStat label="عدد الأصناف" value={fmtInt(metrics.totalItems)} unit="صنف" />
           <SummaryStat label="إجمالي الكمية" value={fmtInt(metrics.totalQty)} />
+          {/* مجموع عمود "إجمالي أمر الشراء" — قيمة الفاتورة بعملتها كما يصدرها المورد */}
+          <SummaryStat label="إجمالي أمر الشراء" value={fmtAuto(metrics.totalInvoiceAmount, 4)} unit={po.currency} />
           <SummaryStat label="إجمالي الشراء" value={fmt(metrics.totalPurchase)} unit="USD" />
-          <SummaryStat label="إجمالي CBM" value={fmt(metrics.totalCBM, 4)} unit="CBM" />
+          <SummaryStat label="إجمالي CBM" value={fmtAuto(metrics.totalCBM, 4)} unit="CBM" />
           <SummaryStat label="إجمالي المصروفات" value={fmt(metrics.totalExpenses)} unit="USD" />
           <SummaryStat label="سعر CBM" value={fmt(metrics.cbmPrice)} unit="USD" />
           <SummaryStat label="إجمالي التكلفة" value={fmt(metrics.totalCost)} unit="USD" highlight />
         </div>
+        {/* Two conditions that used to fail silently and leave the item costs
+            contradicting the header total — say them out loud instead. */}
+        {metrics.cbmBasisUnusable && (
+          <div className="border-t border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800 flex items-center gap-1.5">
+            <Info size={13} className="shrink-0" />
+            لا يوجد CBM مُدخل على أي صنف، لذلك تعذّر التوزيع حسب CBM — تم توزيع المصروفات نسبةً إلى قيمة الشراء بدلاً من ذلك. أدخل CBM الكرتون لكل صنف لاعتماد التوزيع الحجمي.
+          </div>
+        )}
+        {!metrics.allocationBalanced && (
+          <div className="border-t border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] text-rose-800 flex items-center gap-1.5">
+            <Info size={13} className="shrink-0" />
+            «نسبة المصاريف %» المُدخلة يدوياً توزّع <b>{fmt(metrics.allocatedExpenses)}</b> USD بينما إجمالي المصروفات الفعلي <b>{fmt(metrics.totalExpenses)}</b> USD
+            (فرق <b>{fmt(metrics.allocationDiff)}</b>). اضغط زر إعادة الاحتساب بجوار الحقل لمطابقتهما.
+          </div>
+        )}
         <div className="border-t border-slate-200 bg-gradient-to-l from-amber-50 to-emerald-50 px-3 py-2 flex items-center justify-between">
           <div className="text-[11px] text-slate-600">
             الإجمالي النهائي (بالدولار) محوّل تلقائيًا إلى <b className="text-amber-700">{masterCurrency}</b>
@@ -580,8 +716,12 @@ function POPage() {
           </div>
           {showTiers && (
           <ErpTable headers={["م", "الموديل", "اسم الصنف", `التكلفة المعتمدة (${tierDisplayCurrency})`, ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`])]}>
-            {po.rows.filter((r) => r.model || r.name).map((r, i) => {
-              const m = metrics.rowMetrics[i];
+            {/* rowMetrics is indexed against the UNFILTERED po.rows, so the metric
+                must be looked up by the row's original index. Mapping over a
+                filtered list and reusing its index shifted every cost up by one
+                row for each blank row above it. */}
+            {po.rows.map((r, srcIndex) => ({ r, srcIndex })).filter(({ r }) => r.model || r.name).map(({ r, srcIndex }, i) => {
+              const m = metrics.rowMetrics[srcIndex];
               // selectedCost is always in USD — convert into the chosen display currency.
               const conv = tierDisplayCurrency === "USD" ? 1 : (rateOfCode(tierDisplayCurrency) || 1);
               const avg = (m?.selectedCost ?? 0) * conv;
@@ -646,7 +786,10 @@ function POPage() {
                 addRow();
                 setTimeout(() => setPo((cur) => {
                   const last = cur.rows[cur.rows.length - 1];
-                  return { ...cur, rows: cur.rows.map((r) => r.id === last.id ? { ...r, model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? "حبة", pack: it.units[0]?.pack ?? 1, price: it.units[0]?.lastPrice ?? 0, currency: it.currency ?? r.currency, rate: it.rate ?? rateOf(it.currency ?? cur.currency) } : r) };
+                  // Today's rate for the item's currency — never the stale one
+                  // pinned on the catalog entry at its last purchase.
+                  const rowCurrency = it.currency ?? cur.currency;
+                  return { ...cur, rows: cur.rows.map((r) => r.id === last.id ? { ...r, model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? "حبة", pack: it.units[0]?.pack ?? 1, price: it.units[0]?.lastPrice ?? 0, currency: rowCurrency, rate: rateOf(rowCurrency) } : r) };
                 }), 0);
                 setSearchDlg(false);
               }} className="w-full text-right p-2 border border-slate-200 rounded hover:bg-blue-50">
@@ -666,7 +809,17 @@ function POPage() {
         currencies={currencies}
         expenseTypes={settings.expenseTypes ?? []}
         disabled={disabled}
-        onSave={(rows) => setPo({ ...po, expenses: rows })}
+        onSave={(rows) => {
+          const next = { ...po, expenses: rows };
+          setPo(next);
+          // "حفظ" داخل النافذة يحفظ فعلاً: إذا كان أمر الشراء محفوظاً من قبل،
+          // تُخزَّن المصروفات عليه فوراً بدل ما تبقى في الذاكرة وتضيع لو غادر
+          // الشاشة. أمر جديد لم يُحفظ بعد يبقى مسودّة حتى يُحفظ كاملاً.
+          const alreadySaved = orders.some((o) => o.number === po.number);
+          if (alreadySaved && mayWrite) {
+            void savePurchaseOrder({ ...next, rows: next.rows.filter(isRealRow) });
+          }
+        }}
         onSaveExpenseTypes={(types) => erpStore.set({ settings: { ...settings, expenseTypes: types } })}
       />
     </ErpLayout>

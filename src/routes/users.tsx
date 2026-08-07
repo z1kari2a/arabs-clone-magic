@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { RefreshCw, X, Users as UsersIcon, ShieldAlert, UserPlus, Trash2, KeyRound } from "lucide-react";
+import { RefreshCw, X, Users as UsersIcon, ShieldAlert, UserPlus, Trash2, KeyRound, LockKeyhole, LockKeyholeOpen } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { ErpTable } from "@/components/erp/ErpUI";
 import { useErpStore, hydrateStore } from "@/lib/erp-store";
-import { useAuth, signUp, changePassword, approveUser } from "@/lib/auth";
+import { useAuth, signUp, changePassword, approveUser, setAllowSignup } from "@/lib/auth";
 import { localDb, logAudit } from "@/lib/local-db";
 import type { Role } from "@/lib/erp-types";
 
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/users")({
 
 function UsersPage() {
   const users = useErpStore((s) => s.users);
-  const { role: myRole, user } = useAuth();
+  const { role: myRole, user, allowSignup } = useAuth();
   const isAdmin = myRole === "admin";
   const [busy, setBusy] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -101,6 +101,15 @@ function UsersPage() {
     finally { setBusy(false); }
   };
 
+  const toggleSignup = async () => {
+    setBusy(true);
+    try {
+      await setAllowSignup(!allowSignup);
+      toast.success(allowSignup ? "تم إغلاق صفحة إنشاء الحسابات" : "تم تفعيل صفحة إنشاء الحسابات");
+    } catch (e: any) { toast.error(e.message); }
+    finally { setBusy(false); }
+  };
+
   const resetPassword = async () => {
     if (!pwUser || !newPw) return;
     setBusy(true);
@@ -114,6 +123,13 @@ function UsersPage() {
 
   const actions = [
     ...(isAdmin ? [{ icon: UserPlus, label: "مستخدم جديد", color: "text-emerald-600", onClick: () => setShowAdd(true) }] : []),
+    ...(isAdmin
+      ? [
+          allowSignup
+            ? { icon: LockKeyhole, label: "إغلاق صفحة التسجيل", color: "text-rose-600", onClick: toggleSignup, disabled: busy }
+            : { icon: LockKeyholeOpen, label: "تفعيل صفحة التسجيل", color: "text-emerald-600", onClick: toggleSignup, disabled: busy },
+        ]
+      : []),
     { icon: RefreshCw, label: "تحديث", color: "text-blue-600", onClick: () => hydrateStore() },
     { icon: X, label: "إغلاق", color: "text-rose-600", onClick: () => history.back() },
   ];
@@ -123,6 +139,13 @@ function UsersPage() {
       {!isAdmin && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded p-2 text-xs flex items-center gap-2">
           <ShieldAlert size={14} /> تعديل الصلاحيات متاح للمديرين فقط
+        </div>
+      )}
+      {isAdmin && (
+        <div className={`rounded p-2 text-xs flex items-center gap-2 border ${allowSignup ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-rose-50 border-rose-200 text-rose-800"}`}>
+          {allowSignup ? <LockKeyholeOpen size={14} /> : <LockKeyhole size={14} />}
+          صفحة إنشاء الحسابات (تسجيل الدخول ← إنشاء حساب) حالياً <b>{allowSignup ? "مفعّلة" : "مغلقة"}</b>
+          — يمكن للزوار {allowSignup ? "تقديم طلب حساب جديد" : "تسجيل الدخول فقط، ولا يمكنهم التسجيل الذاتي"}.
         </div>
       )}
       {showAdd && isAdmin && (

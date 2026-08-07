@@ -119,17 +119,16 @@ export async function pullLatestCloudBackup(): Promise<BackupPayload | null> {
 
 /** Writes a pulled snapshot into local storage. Caller must hydrateStore() after. */
 export async function restoreFromCloudBackup(payload: BackupPayload): Promise<void> {
+  // One write per table. This used to clear each table row-by-row and then fire
+  // a parallel upsert per record; because every upsert read the same empty
+  // snapshot before any of them wrote, the last one won and each table was
+  // restored with exactly ONE record. Writing the array in a single call makes
+  // the restore both correct and atomic.
   await Promise.all([
-    localDb.suppliers.list().then((rows) => Promise.all(rows.map((r) => localDb.suppliers.remove(r.code)))),
-    localDb.items.list().then((rows) => Promise.all(rows.map((r) => localDb.items.remove(r.code)))),
-    localDb.purchaseOrders.list().then((rows) => Promise.all(rows.map((r) => localDb.purchaseOrders.remove(r.number)))),
-    localDb.users.list().then((rows) => Promise.all(rows.map((r) => localDb.users.remove(r.id)))),
-  ]);
-  await Promise.all([
-    ...((payload.suppliers ?? []) as Parameters<typeof localDb.suppliers.upsert>[0][]).map((s) => localDb.suppliers.upsert(s)),
-    ...((payload.items ?? []) as Parameters<typeof localDb.items.upsert>[0][]).map((i) => localDb.items.upsert(i)),
-    ...((payload.purchase_orders ?? []) as Parameters<typeof localDb.purchaseOrders.upsert>[0][]).map((p) => localDb.purchaseOrders.upsert(p)),
-    ...((payload.users ?? []) as Parameters<typeof localDb.users.upsert>[0][]).map((u) => localDb.users.upsert(u)),
+    localDb.suppliers.replaceAll((payload.suppliers ?? []) as Parameters<typeof localDb.suppliers.replaceAll>[0]),
+    localDb.items.replaceAll((payload.items ?? []) as Parameters<typeof localDb.items.replaceAll>[0]),
+    localDb.purchaseOrders.replaceAll((payload.purchase_orders ?? []) as Parameters<typeof localDb.purchaseOrders.replaceAll>[0]),
+    localDb.users.replaceAll((payload.users ?? []) as Parameters<typeof localDb.users.replaceAll>[0]),
   ]);
   if (payload.settings) await localDb.settings.set(payload.settings as Parameters<typeof localDb.settings.set>[0]);
 }

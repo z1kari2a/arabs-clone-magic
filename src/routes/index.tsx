@@ -19,8 +19,9 @@ export const Route = createFileRoute("/")({
 
 function LoginPage() {
   const router = useRouter();
-  const { session, needsBootstrap, loading } = useAuth();
+  const { session, needsBootstrap, allowSignup, loading } = useAuth();
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const canSignup = needsBootstrap || allowSignup;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -28,6 +29,9 @@ function LoginPage() {
 
   // If no users exist, force signup mode to create the first admin.
   useEffect(() => { if (needsBootstrap) setMode("signup"); }, [needsBootstrap]);
+  // Signup can be closed by an admin from /users — don't strand the form on
+  // a tab that's no longer reachable.
+  useEffect(() => { if (!canSignup && mode === "signup") setMode("login"); }, [canSignup, mode]);
 
   useEffect(() => {
     if (session) {
@@ -74,10 +78,14 @@ function LoginPage() {
           <div className="bg-amber-50 border-b border-amber-200 text-amber-800 text-xs p-2 flex items-center gap-2 justify-center">
             <ShieldCheck size={14} /> أول تشغيل: أنشئ حساب المدير
           </div>
-        ) : (
+        ) : canSignup ? (
           <div className="flex border-b border-slate-200">
             <button onClick={() => setMode("login")} className={`flex-1 py-2 text-sm font-medium ${mode === "login" ? "bg-white text-blue-700 border-b-2 border-blue-600" : "bg-slate-50 text-slate-500"}`}>تسجيل الدخول</button>
             <button onClick={() => setMode("signup")} className={`flex-1 py-2 text-sm font-medium ${mode === "signup" ? "bg-white text-blue-700 border-b-2 border-blue-600" : "bg-slate-50 text-slate-500"}`}>إنشاء حساب</button>
+          </div>
+        ) : (
+          <div className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs p-2 flex items-center gap-2 justify-center">
+            <Lock size={12} /> إنشاء الحسابات مغلق حالياً — تواصل مع المدير
           </div>
         )}
         <form onSubmit={submit} className="p-6 space-y-3">

@@ -8,6 +8,21 @@ export const fmt = (n: number, d = 2) =>
   });
 export const fmtInt = (n: number) => (isFinite(n) ? n : 0).toLocaleString("en-US");
 
+/**
+ * Show a COMPUTED number with as many decimals as it actually has, capped at
+ * `max` — 6 → "6", 6.5 → "6.5", 0.041666… → "0.0417". Unlike `fmt` it never
+ * pads with trailing zeros, so a whole number reads as a whole number.
+ */
+export const fmtAuto = (n: number, max = 4) => {
+  const v = isFinite(n) ? n : 0;
+  const rounded = Number(v.toFixed(max));
+  const decimals = (String(rounded).split(".")[1] ?? "").length;
+  return rounded.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+};
+
 /** Parse a decimal number written with either `.` or `,` as decimal separator. */
 export const parseDecimal = (value: string | number): number => {
   if (typeof value === "number") return isFinite(value) ? value : 0;
@@ -26,13 +41,18 @@ export const parseDecimal = (value: string | number): number => {
   return isFinite(num) ? num : 0;
 };
 
-/** Ensure a numeric value is displayed with at least one decimal (e.g. 2 → "2.0"). */
+/**
+ * Show a number the way it was written — decimals are OPTIONAL, never forced.
+ * 1 stays "1", 1.5 stays "1.5", 0.06 stays "0.06". This used to append ".0" to
+ * every whole number, so a typed "1" snapped back to "1.0" and the decimal part
+ * could not be deleted once it appeared.
+ */
 export const formatDecimalDisplay = (value: string | number): string => {
   if (value === "" || value == null) return "";
   const n = typeof value === "number" ? value : parseDecimal(value);
   if (!isFinite(n)) return "";
   if (n === 0 && typeof value === "string" && value.trim() === "") return "";
-  return Number.isInteger(n) ? `${n}.0` : String(n);
+  return String(n);
 };
 
 const NUMERIC_RE = /^-?[\d\u0660-\u0669\u06F0-\u06F9]*[.,،\u066B]?[\d\u0660-\u0669\u06F0-\u06F9]*$/;

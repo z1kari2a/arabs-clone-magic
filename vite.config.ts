@@ -9,10 +9,17 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },
+    target: "node-server",
+  },
+  nitro: {
+    preset: "node-server",
   },
   vite: {
     // Use relative asset paths so the built bundle works both on the web (Lovable preview)
     // AND when opened via file:// inside Electron.
     base: "./",
+    server: {
+      allowedHosts: [".trycloudflare.com"],
+    },
   },
 });

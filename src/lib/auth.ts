@@ -14,6 +14,7 @@ type AuthState = {
   fullName: string | null;
   loading: boolean;
   needsBootstrap: boolean; // true when no users exist → force create admin
+  allowSignup: boolean; // admin-controlled: is the "إنشاء حساب" tab open?
 };
 
 let state: AuthState = {
@@ -22,6 +23,7 @@ let state: AuthState = {
   fullName: null,
   loading: true,
   needsBootstrap: false,
+  allowSignup: true,
 };
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
@@ -57,12 +59,14 @@ async function init() {
     const current = readSession();
     if (current) setCurrentScope(current.id);
     else setCurrentScope(null);
+    const config = await localDb.systemConfig.get();
     state = {
       user: current,
       role: current?.role ?? null,
       fullName: current?.fullName ?? null,
       loading: false,
       needsBootstrap: users.length === 0,
+      allowSignup: config?.allowSignup ?? true,
     };
   } catch (err) {
     // Never leave the UI stuck with loading:true (e.g. disabled login
@@ -104,13 +108,7 @@ export async function signIn(username: string, password: string): Promise<void> 
   const sess: SessionUser = { id: u.id, username: u.username, fullName: u.fullName, role: u.role };
   writeSession(sess);
   setCurrentScope(u.id);
-  state = {
-    user: sess,
-    role: sess.role,
-    fullName: sess.fullName,
-    loading: false,
-    needsBootstrap: false,
-  };
+  state = { ...state, user: sess, role: sess.role, fullName: sess.fullName, loading: false, needsBootstrap: false };
   emit();
 }
 
@@ -125,12 +123,17 @@ export async function signUp(opts: {
 }): Promise<LocalUser> {
   if (opts.password.length < 6) throw new Error("كلمة المرور يجب 6 أحرف على الأقل");
   const users = await localDb.users.list();
+  const isFirstUser = users.length === 0;
+  // Self-signup can be closed by an admin from /users. Bootstrap (the very
+  // first admin account) and admin-created users always go through.
+  if (!isFirstUser && !opts.createdByAdmin && !state.allowSignup) {
+    throw new Error("إنشاء الحسابات مغلق حالياً — تواصل مع المدير");
+  }
   if (users.some((u) => u.username.toLowerCase() === opts.username.toLowerCase())) {
     throw new Error("اسم المستخدم موجود بالفعل");
   }
   const salt = await randomSalt();
   const passwordHash = await hashPassword(opts.password, salt);
-  const isFirstUser = users.length === 0;
   // First user becomes admin automatically
   const role: Role = isFirstUser ? "admin" : opts.role ?? "user";
   // Self-signups start pending until an admin approves. First user and
@@ -164,7 +167,7 @@ export async function signUp(opts: {
 export async function signOut(): Promise<void> {
   writeSession(null);
   setCurrentScope(null);
-  state = { user: null, role: null, fullName: null, loading: false, needsBootstrap: state.needsBootstrap };
+  state = { user: null, role: null, fullName: null, loading: false, needsBootstrap: state.needsBootstrap, allowSignup: state.allowSignup };
   emit();
 }
 
@@ -183,6 +186,22 @@ export async function approveUser(userId: string): Promise<void> {
     before_data: { pending: true },
     after_data: { pending: false },
   });
+  emit();
+}
+
+/** Admin toggles whether the login page's "إنشاء حساب" tab accepts new signups. */
+export async function setAllowSignup(allow: boolean): Promise<void> {
+  if (state.role !== "admin") throw new Error("يتطلب صلاحية مدير");
+  await localDb.systemConfig.set({ allowSignup: allow });
+  await logAudit({
+    user_email: state.user?.username ?? null,
+    action: "UPDATE",
+    table_name: "system_config",
+    record_id: null,
+    before_data: { allowSignup: !allow },
+    after_data: { allowSignup: allow },
+  });
+  state = { ...state, allowSignup: allow };
   emit();
 }
 

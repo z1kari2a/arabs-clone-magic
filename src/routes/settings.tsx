@@ -6,6 +6,7 @@ import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, parseDecimal } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore, hydrateStore } from "@/lib/erp-store";
+import { useAuth, canWrite, canDelete } from "@/lib/auth";
 import { pullLatestCloudBackup, restoreFromCloudBackup, getLastCloudPushAt } from "@/lib/cloud-sync";
 import type { PriceTier } from "@/lib/erp-types";
 
@@ -24,12 +25,17 @@ export const Route = createFileRoute("/settings")({
 function SettingsPage() {
   const settings = useErpStore((s) => s.settings);
   const [local, setLocal] = useState(settings);
+  // Price tiers drive every sale price on the purchase-order screen, and
+  // reset/restore destroy data — gate both behind the right role.
+  const { role } = useAuth();
+  const mayWrite = canWrite(role);
+  const mayReset = canDelete(role);
   const tiers: PriceTier[] = local.priceTiers ?? [];
   const setTiers = (t: PriceTier[]) => setLocal({ ...local, priceTiers: t });
-  const addTier = () => setTiers([...tiers, { id: "t_" + Date.now(), name: "تسعيرة جديدة", extraPct: 0, profitPct: 30 }]);
-  const rmTier = (id: string) => setTiers(tiers.filter((t) => t.id !== id));
+  const addTier = () => !mayWrite ? toast.error("ليس لديك صلاحية لتعديل الإعدادات") : setTiers([...tiers, { id: "t_" + Date.now(), name: "تسعيرة جديدة", extraPct: 0, profitPct: 30 }]);
+  const rmTier = (id: string) => !mayWrite ? toast.error("ليس لديك صلاحية لتعديل الإعدادات") : setTiers(tiers.filter((t) => t.id !== id));
   const patchTier = (id: string, p: Partial<PriceTier>) =>
-    setTiers(tiers.map((t) => (t.id === id ? { ...t, ...p } : t)));
+    !mayWrite ? undefined : setTiers(tiers.map((t) => (t.id === id ? { ...t, ...p } : t)));
 
   // Merge only the fields this page actually edits onto the LATEST live settings —
   // never overwrite the whole object. `local` was seeded from `settings` at mount
@@ -37,6 +43,7 @@ function SettingsPage() {
   // silently revert currencies/masterCurrency/expenseTypes to that stale snapshot,
   // undoing rate edits made on "أسعار الصرف" (or anywhere else) in the meantime.
   const onSave = () => {
+    if (!mayWrite) return toast.error("ليس لديك صلاحية لتعديل الإعدادات");
     const liveCurrencies = settings.currencies ?? [];
     const defaultCurrency = liveCurrencies.some((c) => c.code === local.defaultCurrency)
       ? local.defaultCurrency
@@ -53,7 +60,7 @@ function SettingsPage() {
     });
     toast.success("تم حفظ الإعدادات");
   };
-  const onReset = () => { if (confirm("إعادة تعيين كل البيانات؟")) { erpStore.reset(); toast.success("تم إعادة التعيين"); location.reload(); } };
+  const onReset = () => { if (!mayReset) return toast.error("إعادة تعيين النظام تتطلب صلاحية مدير"); if (confirm("إعادة تعيين كل البيانات؟")) { erpStore.reset(); toast.success("تم إعادة التعيين"); location.reload(); } };
   const noop = () => {};
 
   const [lastLocalBackup, setLastLocalBackup] = useState<string | null>(null);
@@ -88,6 +95,7 @@ function SettingsPage() {
   };
 
   const onRestoreFromCloud = async () => {
+    if (!mayReset) return toast.error("الاستعادة من السحابة تتطلب صلاحية مدير");
     if (!confirm("سيتم استبدال كل البيانات المحلية الحالية بآخر نسخة سحابية محفوظة. هل أنت متأكد؟")) return;
     setRestoring(true);
     try {
@@ -109,14 +117,14 @@ function SettingsPage() {
   const actions = [
     { icon: FilePlus2, label: "جديد", color: "text-emerald-600", onClick: noop },
     { icon: FolderOpen, label: "فتح", color: "text-amber-500", onClick: noop },
-    { icon: Save, label: "حفظ", color: "text-blue-600", onClick: onSave },
+    { icon: Save, label: "حفظ", color: "text-blue-600", onClick: onSave, disabled: !mayWrite },
     { icon: Pencil, label: "تعديل", color: "text-cyan-600", onClick: noop },
     { icon: Trash2, label: "حذف", color: "text-rose-600", onClick: noop },
     { icon: Search, label: "بحث", color: "text-indigo-500", onClick: noop },
     { icon: Printer, label: "طباعة", color: "text-slate-600", onClick: () => window.print() },
     { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: noop },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: noop },
-    { icon: CheckCircle2, label: "اعتماد", color: "text-emerald-700", onClick: onSave },
+    { icon: CheckCircle2, label: "اعتماد", color: "text-emerald-700", onClick: onSave, disabled: !mayWrite },
     { icon: X, label: "إغلاق", color: "text-rose-600", onClick: () => history.back() },
   ];
 

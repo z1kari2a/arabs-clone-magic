@@ -188,7 +188,9 @@ export async function deleteItem(code: string) {
 
 export async function savePurchaseOrder(po: PurchaseOrder) {
   const prev = (await localDb.purchaseOrders.list()).find((p) => p.number === po.number) ?? null;
-  const validRows = po.rows.filter((r) => r.model || r.name);
+  // Same predicate the totals use — persisting a narrower set than what was
+  // priced on screen made the invoice total change the moment it was saved.
+  const validRows = po.rows.filter(isRealRow);
   // Pin exchange rates onto every entity so historical documents never shift
   // when settings.currencies rates are edited later.
   const currencies = state.settings.currencies ?? [];
@@ -264,6 +266,60 @@ export async function savePurchaseOrder(po: PurchaseOrder) {
   });
 }
 
+// ---- Wholesale list replacement ----
+// The editing screens (dليل الأصناف / الموردون) hand back their COMPLETE list,
+// so persisting it means replacing the table, not upserting row by row. An
+// upsert loop can only ever add or overwrite: deleting a row, or renaming a
+// record's code, left the original behind as an orphan that reappeared on the
+// next reload. These helpers diff against storage so removals actually happen
+// and every change still reaches the audit log.
+async function replaceCollection<T extends Record<string, any>>(
+  next: T[],
+  key: keyof T & string,
+  tableName: string,
+  read: () => Promise<T[]>,
+  write: (rows: T[]) => Promise<void>,
+) {
+  const prev = await read();
+  await write(next);
+  const user = currentUsername();
+  const nextKeys = new Set(next.map((r) => r[key]));
+  for (const old of prev) {
+    if (!nextKeys.has(old[key])) {
+      await logAudit({
+        user_email: user,
+        action: "DELETE",
+        table_name: tableName,
+        record_id: String(old[key]),
+        before_data: old,
+        after_data: null,
+      });
+    }
+  }
+  for (const row of next) {
+    const before = prev.find((p) => p[key] === row[key]) ?? null;
+    if (before && JSON.stringify(before) === JSON.stringify(row)) continue;
+    await logAudit({
+      user_email: user,
+      action: before ? "UPDATE" : "INSERT",
+      table_name: tableName,
+      record_id: String(row[key]),
+      before_data: before,
+      after_data: row,
+    });
+  }
+}
+
+export async function replaceSuppliers(list: Supplier[]) {
+  await replaceCollection(list, "code", "suppliers", localDb.suppliers.list, localDb.suppliers.replaceAll);
+  setState({ suppliers: await localDb.suppliers.list() });
+}
+
+export async function replaceItems(list: Item[]) {
+  await replaceCollection(list, "code", "items", localDb.items.list, localDb.items.replaceAll);
+  setState({ items: await localDb.items.list() });
+}
+
 export async function deletePO(number: string) {
   const removed = await localDb.purchaseOrders.remove(number);
   if (removed) {
@@ -284,22 +340,45 @@ export const erpStore = {
   get: () => state,
   set: (patch: Partial<StoreState>) => {
     if (patch.settings) void localDb.settings.set(patch.settings);
-    if (patch.suppliers) void patch.suppliers.forEach((s) => upsertSupplier(s));
-    if (patch.items) void patch.items.forEach((i) => upsertItem(i));
-    if (patch.purchaseOrders) {
-      const prev = state.purchaseOrders;
-      const changed = patch.purchaseOrders.filter(
-        (p) => !prev.find((x) => JSON.stringify(x) === JSON.stringify(p)),
+
+    // Collections passed here are the COMPLETE list — they replace the table.
+    // Refuse to persist one before hydration has finished: a screen that
+    // mounted with an empty list (see the useHydrate ordering) would otherwise
+    // wipe the whole table the first time its save button was pressed.
+    const collections = ["suppliers", "items", "purchaseOrders"] as const;
+    const wholesale = collections.filter((k) => patch[k] !== undefined);
+    if (wholesale.length && !state.hydrated) {
+      console.warn(
+        `[erpStore] refusing to persist ${wholesale.join("/")} before hydration — this would erase stored data`,
       );
-      changed.forEach((p) => void savePurchaseOrder(p));
+      setState(patch);
+      return;
+    }
+
+    if (patch.suppliers) void replaceSuppliers(patch.suppliers);
+    if (patch.items) void replaceItems(patch.items);
+    if (patch.purchaseOrders) {
+      // Purchase orders keep their bespoke path: savePurchaseOrder pins exchange
+      // rates and syncs the item catalog, and deletions must go through deletePO.
+      const prev = state.purchaseOrders;
+      const next = patch.purchaseOrders;
+      const nextNumbers = new Set(next.map((p) => p.number));
+      void (async () => {
+        for (const old of prev) {
+          if (!nextNumbers.has(old.number)) await deletePO(old.number);
+        }
+        for (const p of next) {
+          if (!prev.find((x) => JSON.stringify(x) === JSON.stringify(p))) await savePurchaseOrder(p);
+        }
+      })();
     }
     setState(patch);
   },
   reset: async () => {
     await Promise.all([
-      localDb.suppliers.list().then((l) => l.forEach((s) => localDb.suppliers.remove(s.code))),
-      localDb.items.list().then((l) => l.forEach((i) => localDb.items.remove(i.code))),
-      localDb.purchaseOrders.list().then((l) => l.forEach((p) => localDb.purchaseOrders.remove(p.number))),
+      localDb.suppliers.replaceAll([]),
+      localDb.items.replaceAll([]),
+      localDb.purchaseOrders.replaceAll([]),
       localDb.settings.set(defaultSettings),
     ]);
     await hydrateStore();
@@ -317,6 +396,35 @@ export function useErpStore<T>(selector: (s: StoreState) => T): T {
 }
 
 // ============ Business logic ============
+/**
+ * A row that carries real data. This is the SINGLE definition of "counts" —
+ * computePO's totals, the on-screen item count, and savePurchaseOrder's persist
+ * filter all use it. They used to disagree (`model || name || qty > 0` on save
+ * vs `model || name` on persist vs "every row" in the totals), so a row with a
+ * quantity but no model was priced into the totals and then silently dropped by
+ * the save, changing the invoice total after saving it.
+ */
+export function isRealRow(r: import("./erp-types").PORow): boolean {
+  return Boolean(r.model || r.name || (r.qty || 0) > 0);
+}
+
+// ---- Packages: the ONE unit that quantity, price and CBM all speak ----
+// الكمية = عدد الطرود، مهما كانت تسمية الوحدة (كرتون، علبة، طرد، صندوق…).
+// سعر الشراء = سعر الطرد الواحد، و CBM = حجم الطرد الواحد. لا فرق بين التسميات.
+//
+// العبوة (pack) is descriptive only — how many pieces sit inside one package. It
+// used to be divided into the quantity, which shrank a 50-package line to 0.42
+// packages: "إجمالي CBM" came out as 0.0417 instead of 5, and the order's total
+// CBM (hence سعر CBM) was off by orders of magnitude. Nothing divides by it now.
+/** عدد الطرود في السطر = الكمية. Basis for CBM and for every per-package cost. */
+export function cartonsOf(r: import("./erp-types").PORow): number {
+  return r.qty || 0;
+}
+/** إجمالي CBM للسطر = الكمية × CBM الطرد. */
+export function lineCBMOf(r: import("./erp-types").PORow): number {
+  return cartonsOf(r) * (r.cbm || 0);
+}
+
 // USD is the ONLY reference currency for costing. Invoice currency (po.currency)
 // is used solely to price the goods on the rows; it plays no part in how
 // expenses are computed or distributed. `rate` on any currency = units-per-USD,
@@ -327,25 +435,27 @@ export function computePO(po: PurchaseOrder) {
   const currencies = state.settings.currencies ?? [];
   const liveRate = (code?: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
   const invRate = po.rate || liveRate(po.currency) || 1;
-  const totalItems = po.rows.filter((r) => r.model || r.name).length;
-  const totalQty = po.rows.reduce((s, r) => s + (r.qty || 0), 0);
+  // Totals run over REAL rows only (see isRealRow) — the blank filler rows the
+  // grid renders must never contribute to a total or to the item count.
+  const realRows = po.rows.filter(isRealRow);
+  const totalItems = realRows.length;
+  const totalQty = realRows.reduce((s, r) => s + (r.qty || 0), 0);
 
   const rateOfRow = (r: import("./erp-types").PORow) => r.rate || liveRate(r.currency) || invRate;
-  // تكلفة الشراء = (سعر شراء الوحدة × العبوة) ÷ سعر صرف الفاتورة — one carton, in USD.
+  // "سعر الشراء" prices ONE PIECE, and العبوة is how many pieces the package
+  // holds — so one package costs (السعر × العبوة). A missing/zero العبوة means
+  // the price already is the package price; falling back to 1 keeps the money
+  // intact instead of zeroing the whole line out.
+  // تكلفة الشراء = (سعر الحبة × العبوة) ÷ سعر الصرف — one package, in USD.
+  const piecesPerPackage = (r: import("./erp-types").PORow) => r.pack || 1;
   const cartonPurchaseCostOf = (r: import("./erp-types").PORow) => {
     const rate = rateOfRow(r);
-    return rate > 0 ? (r.price * (r.pack || 0)) / rate : 0;
+    return rate > 0 ? (r.price * piecesPerPackage(r)) / rate : 0;
   };
 
-  const totalCartons = po.rows.reduce((s, r) => s + (r.pack ? r.qty / r.pack : 0), 0);
-  const totalCBM = po.rows.reduce((s, r) => {
-    const cartons = r.pack ? r.qty / r.pack : 0;
-    return s + cartons * r.cbm;
-  }, 0);
-  const totalPurchase = po.rows.reduce((s, r) => {
-    const cartons = r.pack ? r.qty / r.pack : 0;
-    return s + cartons * cartonPurchaseCostOf(r);
-  }, 0);
+  const totalCartons = realRows.reduce((s, r) => s + cartonsOf(r), 0);
+  const totalCBM = realRows.reduce((s, r) => s + lineCBMOf(r), 0);
+  const totalPurchase = realRows.reduce((s, r) => s + cartonsOf(r) * cartonPurchaseCostOf(r), 0);
 
   // All expenses convert straight to USD regardless of their own currency,
   // the PO's invoice currency, or the vendor's currency.
@@ -354,19 +464,31 @@ export function computePO(po: PurchaseOrder) {
     return s + (er > 0 ? e.amount / er : 0);
   }, 0);
 
-  // "سعر CBM" shown at the top of the order — total expenses spread over total CBM.
+  // "سعر CBM" shown at the top of the order — ONE unified price for the whole
+  // invoice: كل المصاريف ÷ إجمالي CBM لكل الأصناف. (2000 مصاريف ÷ 20 CBM = 100)
+  // Every row is then charged r.cbm × cbmPrice per carton, so the allocation
+  // always adds back up to the same total expenses.
   const cbmPrice = totalCBM > 0 ? totalExpenses / totalCBM : 0;
   // "نسبة المصروفات %" default suggestion — user may override on the document (po.expensePercentage).
   const suggestedPct = totalPurchase > 0 ? (totalExpenses / totalPurchase) * 100 : 0;
   const pctRate = po.expensePercentage ?? suggestedPct;
   const totalCost = totalPurchase + totalExpenses;
 
+  // CBM distribution needs a non-zero total CBM to divide by. When no row carries
+  // a CBM (the default for a fresh row), `cbmPrice` is 0 and the CBM column would
+  // allocate NOTHING — the expenses vanish from every line while still sitting in
+  // the header total, so sale prices come out below true cost. Fall back to the
+  // proportional (percentage) basis, which distributes the same expenses correctly.
+  const cbmBasisUnusable = totalCBM <= 0 && totalExpenses > 0;
+
   const rowMetrics = po.rows.map((r) => {
-    const cartons = r.pack ? r.qty / r.pack : 0;
+    const cartons = cartonsOf(r);
     const purchaseCost = cartonPurchaseCostOf(r); // تكلفة الشراء (لكرتون، USD)
     const lineCBM = cartons * r.cbm;
-    const cbmCost = r.cbm * cbmPrice + purchaseCost; // تكلفة CBM (لكرتون)
-    const pctCost = purchaseCost + purchaseCost * (pctRate / 100); // التكلفة المئوية (لكرتون)
+    // التكلفة المئوية (لكرتون) — proportional to purchase value.
+    const pctCost = purchaseCost + purchaseCost * (pctRate / 100);
+    // تكلفة CBM (لكرتون)
+    const cbmCost = cbmBasisUnusable ? pctCost : r.cbm * cbmPrice + purchaseCost;
     const avgCost = (cbmCost + pctCost) / 2; // متوسط التكلفة (لكرتون)
     const selectedCost =
       po.distributionType === "cbm" ? cbmCost :
@@ -374,17 +496,41 @@ export function computePO(po: PurchaseOrder) {
       avgCost; // "average" and any legacy value (value/qty/avg) fall back to the average
     const allocatedExpPerCarton = selectedCost - purchaseCost; // مبلغ المصروف للكرتون
     const linePurchase = cartons * purchaseCost;
+    // "إجمالي أمر الشراء" — ما يدفعه التاجر للمورد على هذا السطر، بعملة السطر
+    // نفسها (ماشي بالدولار): الكمية × العبوة × سعر الحبة. مجموع العمود = قيمة
+    // الفاتورة كما يصدرها المورد.
+    const lineInvoiceTotal = cartons * r.price * piecesPerPackage(r);
     const allocatedExp = allocatedExpPerCarton * cartons;
     const lineTotalCost = selectedCost * cartons;
     return {
-      cartons, purchaseCost, lineCBM, linePurchase,
+      cartons, purchaseCost, lineCBM, linePurchase, lineInvoiceTotal,
       cbmCost, pctCost, avgCost, selectedCost,
       allocatedExpPerCarton, allocatedExp, lineTotalCost,
     };
   });
+
+  // What the per-row distribution ACTUALLY allocated, versus the real cash total.
+  // These agree on every automatic basis, but a manually-typed "نسبة المصروفات %"
+  // is free to over/under-allocate — the divergence used to be invisible, leaving
+  // the header total and the sum of the item costs quietly contradicting each other.
+  const allocatedExpenses = po.rows.reduce(
+    (s, r, i) => (isRealRow(r) ? s + rowMetrics[i].allocatedExp : s),
+    0,
+  );
+  const allocatedTotal = totalPurchase + allocatedExpenses;
+  const allocationDiff = allocatedTotal - totalCost;
+  const allocationBalanced = Math.abs(allocationDiff) < 0.005;
+
+  // مجموع عمود "إجمالي أمر الشراء" = قيمة الفاتورة بعملتها.
+  const totalInvoiceAmount = po.rows.reduce(
+    (s, r, i) => (isRealRow(r) ? s + rowMetrics[i].lineInvoiceTotal : s),
+    0,
+  );
+
   return {
     totalItems, totalQty, totalPurchase, totalCBM, totalCartons, totalExpenses,
-    cbmPrice, suggestedPct, pctRate, totalCost, rowMetrics,
+    cbmPrice, suggestedPct, pctRate, totalCost, rowMetrics, totalInvoiceAmount,
+    cbmBasisUnusable, allocatedExpenses, allocatedTotal, allocationDiff, allocationBalanced,
   };
 }
 

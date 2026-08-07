@@ -53,7 +53,11 @@ export default function ExpensesDialog({
     setRows(rows.map((r) => (r.id === id ? { ...r, rate } : r)));
   };
   const convert = (amt: number, rate: number) => (rate > 0 ? amt / rate : 0);
-  const total = rows.reduce((s, e) => s + convert(e.amount, e.rate), 0);
+  // The rate this row is actually valued at. The total used to read `e.rate`
+  // raw while the rate cell displayed `e.rate || rateOf(e.currency)`, so a row
+  // with no pinned rate yet showed a valid rate but contributed 0.00 USD.
+  const effectiveRate = (e: Expense) => e.rate || rateOf(e.currency);
+  const total = rows.reduce((s, e) => s + convert(e.amount, effectiveRate(e)), 0);
 
   const nextId = () => (rows.at(-1)?.id ?? 0) + 1;
 
@@ -74,7 +78,11 @@ export default function ExpensesDialog({
   };
 
   const save = () => {
-    const clean = rows.filter((r) => r.amount > 0 || r.type);
+    // Pin the rate that was actually shown and totalled, so the stored document
+    // can never be valued at a different rate than the one the user approved.
+    const clean = rows
+      .filter((r) => r.amount > 0 || r.type)
+      .map((r) => ({ ...r, rate: effectiveRate(r) }));
     for (const r of clean) {
       if (!r.currency || !currencies.some((c) => c.code === r.currency)) {
         return toast.error(`العملة "${r.currency || "—"}" غير معرّفة في أسعار الصرف`);
@@ -177,7 +185,7 @@ export default function ExpensesDialog({
                   </td>
                   <td className="py-2 px-2">
                     <RateInput
-                      value={e.rate || rateOf(e.currency)}
+                      value={effectiveRate(e)}
                       disabled={disabled || !e.currency}
                       onChange={(n) => setRowRate(e.id, n)}
                       title={`سعر صرف ${e.currency || "—"} مقابل الدولار — ⁦1 USD = ? ${e.currency || ""}⁩`}
@@ -185,7 +193,7 @@ export default function ExpensesDialog({
                   </td>
                   <td className="py-2 px-2">
                     <div className="w-32 px-2 py-1.5 text-sm text-slate-800 font-semibold tabular-nums text-right">
-                      {fmt(convert(e.amount, e.rate))}
+                      {fmt(convert(e.amount, effectiveRate(e)))}
                     </div>
                   </td>
                   <td className="py-2 px-2 text-center">
