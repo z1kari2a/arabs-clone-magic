@@ -213,14 +213,40 @@ export function ErpSelect({
   );
 }
 
-export function ErpTable({ headers, children }: { headers: string[]; children: ReactNode }) {
+/**
+ * `widths` sizes the columns like the merchant's spreadsheet: narrow, fixed
+ * columns whose header text WRAPS onto a second line instead of stretching the
+ * column to fit one long line. Pass a CSS width per column (same order as
+ * `headers`); omit it to keep the auto-sized layout.
+ */
+export function ErpTable({
+  headers,
+  children,
+  widths,
+}: {
+  headers: string[];
+  children: ReactNode;
+  widths?: (string | undefined)[];
+}) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-[12px]">
+      <table className={`w-full border-collapse text-[12px] ${widths ? "table-fixed" : ""}`}>
+        {widths && (
+          <colgroup>
+            {headers.map((h, i) => (
+              <col key={h + i} style={widths[i] ? { width: widths[i] } : undefined} />
+            ))}
+          </colgroup>
+        )}
         <thead>
           <tr style={{ background: "var(--color-erp-table-header)" }} className="text-slate-700">
-            {headers.map((h) => (
-              <th key={h} className="border border-slate-300 px-2 py-1.5 font-semibold whitespace-nowrap">{h}</th>
+            {headers.map((h, i) => (
+              <th
+                key={h + i}
+                className={`border border-slate-300 px-1 py-1 font-semibold leading-tight ${widths ? "whitespace-normal break-words" : "whitespace-nowrap px-2 py-1.5"}`}
+              >
+                {h}
+              </th>
             ))}
           </tr>
         </thead>

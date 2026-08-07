@@ -1,3 +1,26 @@
+# نظام ERP — إدارة المشتريات واحتساب التكلفة
+
+نظام عربي لإدارة أوامر الشراء وتوزيع مصاريف الشحن والجمارك على الأصناف
+واحتساب التكلفة النهائية وأسعار البيع لكل وجهة.
+
+**الموقع المباشر:** <https://fikradigital.online>
+
+## 📘 الدليل الكامل
+
+**[docs/الدليل-الكامل.md](docs/الدليل-الكامل.md)** — شرح كل شاشة بالصور، طريقة التشغيل
+والنشر والتفعيل، المعادلات المعتمدة، الاختصارات، وحل المشاكل.
+
+## تشغيل سريع
+
+```bash
+npm install
+npm run dev            # تطوير
+npm run build          # بناء الإنتاج
+./scripts/deploy.sh    # نشر على fikradigital.online (بناء + pm2 + فحص)
+```
+
+---
+
 # Welcome to your Lovable project
 
 This project was built with [Lovable](https://lovable.dev).

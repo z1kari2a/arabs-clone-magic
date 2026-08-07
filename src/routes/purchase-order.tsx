@@ -259,14 +259,15 @@ function POPage() {
       "العبوة": r.pack,
       "الكمية": r.qty,
       "سعر الشراء": r.price,
-      "إجمالي أمر الشراء": metrics.rowMetrics[i]?.lineInvoiceTotal ?? 0,
-      "تكلفة الشراء (USD)": metrics.rowMetrics[i]?.purchaseCost ?? 0,
+      // نفس مسميات أعمدة ملف التاجر، حتى يخرج الملف مطابقاً لقالبه.
+      "اجمالي امر الشراء": metrics.rowMetrics[i]?.lineInvoiceTotal ?? 0,
+      "تكلفة الشراء$": metrics.rowMetrics[i]?.purchaseCost ?? 0,
       "CBM الكرتون": r.cbm,
       "إجمالي CBM": lineCBMOf(r),
-      "تكلفة CBM (USD)": metrics.rowMetrics[i]?.cbmCost ?? 0,
-      "التكلفة المئوية (USD)": metrics.rowMetrics[i]?.pctCost ?? 0,
-      "متوسط التكلفة (USD)": metrics.rowMetrics[i]?.avgCost ?? 0,
-      "مبلغ المصروف للكرتون (USD)": metrics.rowMetrics[i]?.allocatedExpPerCarton ?? 0,
+      "تكلفة CBM $": metrics.rowMetrics[i]?.cbmCost ?? 0,
+      "التكلفة المئوية $": metrics.rowMetrics[i]?.pctCost ?? 0,
+      "متوسط التكلفة $": metrics.rowMetrics[i]?.avgCost ?? 0,
+      "خرج للكرتون$": metrics.rowMetrics[i]?.allocatedExpPerCarton ?? 0,
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -349,6 +350,71 @@ function POPage() {
     }, 400);
     return () => clearTimeout(t);
   }, [po, editing, draftRestored]);
+
+  // جدول البنود يُعرَّف مرّة واحدة ويُعرض في مكانين — أسفل سطر البنود في
+  // الصفحة، وداخل الشاشة المنبثقة — بنفس التصميم بالضبط. مصدر البيانات واحد
+  // (po.rows) فأي تعديل في أحدهما يظهر فوراً في الآخر.
+  // الأسماء والأحجام مطابقة لملف التاجر: أعمدة ضيّقة ثابتة والعنوان يلتف في
+  // سطرين بدل ما يمدّد العمود.
+  const itemsGrid = (
+        <ErpTable
+          headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","العملة","سعر الشراء","اجمالي امر الشراء","تكلفة الشراء$","CBM الكرتون","إجمالي CBM","تكلفة CBM $","التكلفة المئوية $","متوسط التكلفة $","خرج للكرتون$",`سعر البيع (+${markupPct}%)`,""]}
+          widths={["2.2rem","4.5rem","7.5rem","3.6rem","3.4rem","3.4rem","3.6rem","4rem","5rem","4.6rem","4rem","4rem","4.4rem","4.6rem","4.6rem","4.6rem","5rem","2rem"]}
+        >
+          {po.rows.map((r, i) => {
+            const m = metrics.rowMetrics[i];
+            const cartons = cartonsOf(r);
+            const rowCur = r.currency ?? po.currency;
+            const salePrice = (m?.selectedCost ?? 0) * (1 + markupPct / 100);
+            const dt = po.distributionType;
+            return (
+              <tr key={r.id} className="hover:bg-blue-50/40">
+                <td className="border border-slate-200 text-center text-slate-500 w-8">{i + 1}</td>
+                <td className="border border-slate-200 p-0">
+                  <input value={r.model} disabled={disabled} onChange={(e) => {
+                    const v = e.target.value;
+                    const it = items.find((x) => x.code === v || x.barcode === v);
+                    // Take the item's currency, but price it at TODAY's rate.
+                    // `it.rate` is the rate pinned at the item's last purchase —
+                    // carrying it into a new invoice valued today's goods at a
+                    // months-old exchange rate.
+                    if (it) {
+                      const rowCurrency = it.currency ?? r.currency ?? po.currency;
+                      patchRow(r.id, { model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? r.unit, pack: it.units[0]?.pack ?? r.pack, price: it.units[0]?.lastPrice ?? r.price, currency: rowCurrency, rate: rateOf(rowCurrency) });
+                    }
+                    else patchRow(r.id, { model: v });
+                  }} className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none text-center" />
+                </td>
+                <Cell value={r.name} onChange={(v) => patchRow(r.id, { name: v })} disabled={disabled} align="right" />
+                <Cell value={r.unit} onChange={(v) => patchRow(r.id, { unit: v })} disabled={disabled} />
+                <Cell value={r.pack} onChange={(v) => patchRow(r.id, { pack: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
+                <Cell value={r.qty} onChange={(v) => patchRow(r.id, { qty: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
+                <td className="border border-slate-200 p-0">
+                  <select value={rowCur} disabled={disabled}
+                    onChange={(ev) => patchRow(r.id, { currency: ev.target.value, rate: rateOf(ev.target.value) })}
+                    className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none">
+                    {currencyOptions.map((o) => (<option key={o.value} value={o.value}>{o.value}</option>))}
+                  </select>
+                </td>
+                <Cell value={r.price} onChange={(v) => patchRow(r.id, { price: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
+                {/* إجمالي أمر الشراء = الكمية × العبوة × سعر الحبة، بعملة السطر */}
+                <td className="border border-slate-200 text-right px-2 bg-indigo-50 font-semibold text-indigo-700">{fmtAuto(m?.lineInvoiceTotal ?? 0, 4)}</td>
+                <Cell value={fmt(m?.purchaseCost ?? 0, 1)} align="right" />
+                <Cell value={r.cbm} onChange={(v) => patchRow(r.id, { cbm: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
+                <Cell value={fmtAuto(cartons * r.cbm, 4)} align="right" />
+                <td className={`border border-slate-200 text-right px-2 bg-purple-50 text-purple-700 ${dt === "cbm" ? "font-bold ring-1 ring-inset ring-purple-400" : ""}`}>{fmt(m?.cbmCost ?? 0, 1)}</td>
+                <td className={`border border-slate-200 text-right px-2 bg-sky-50 text-sky-700 ${dt === "percentage" ? "font-bold ring-1 ring-inset ring-sky-400" : ""}`}>{fmt(m?.pctCost ?? 0, 1)}</td>
+                <td className={`border border-slate-200 text-right px-2 bg-amber-50 text-amber-700 ${dt === "average" ? "font-bold ring-1 ring-inset ring-amber-400" : ""}`}>{fmt(m?.avgCost ?? 0, 1)}</td>
+                <td className="border border-slate-200 text-right px-2 bg-orange-50 font-semibold text-orange-700">{fmt(m?.allocatedExpPerCarton ?? 0, 5)}</td>
+                <td className="border border-slate-200 text-right px-2 bg-emerald-50 font-bold text-emerald-700">{fmt(salePrice, 4)}</td>
+                <td className="border border-slate-200 text-center">
+                  <button disabled={disabled} onClick={() => removeRow(r.id)} className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-40" title="حذف"><Trash2 size={12} /></button>
+                </td>
+              </tr>
+            );
+          })}
+        </ErpTable>
+  );
 
   return (
     <ErpLayout title="أمر شراء" ribbon={<Ribbon actions={actions} />}>
@@ -518,6 +584,12 @@ function POPage() {
         </div>
       </button>
 
+      {/* نفس الجدول تحت سطره مباشرة — بنفس التصميم بالضبط (متغيّر واحد يُعرض هنا
+          وداخل النافذة)، وبنفس مصدر البيانات فالتعديل في أي منهما يظهر في الآخر. */}
+      <div className="bg-white border border-slate-300 rounded overflow-hidden -mt-1">
+        {itemsGrid}
+      </div>
+
       {/* شاشة البنود المنبثقة */}
       <Dialog open={itemsDlg} onOpenChange={setItemsDlg}>
         <DialogContent dir="rtl" className="max-w-[97vw] p-0 gap-0 overflow-hidden">
@@ -545,60 +617,7 @@ function POPage() {
           </div>
 
         <div className="overflow-auto max-h-[60vh]">
-        <ErpTable headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","العملة","سعر الشراء","إجمالي أمر الشراء","تكلفة الشراء (USD)","CBM الكرتون","إجمالي CBM","تكلفة CBM (USD)","التكلفة المئوية (USD)","متوسط التكلفة (USD)","مبلغ المصروف/كرتون (USD)",`سعر البيع (+${markupPct}%)`,""]}>
-          {po.rows.map((r, i) => {
-            const m = metrics.rowMetrics[i];
-            const cartons = cartonsOf(r);
-            const rowCur = r.currency ?? po.currency;
-            const salePrice = (m?.selectedCost ?? 0) * (1 + markupPct / 100);
-            const dt = po.distributionType;
-            return (
-              <tr key={r.id} className="hover:bg-blue-50/40">
-                <td className="border border-slate-200 text-center text-slate-500 w-8">{i + 1}</td>
-                <td className="border border-slate-200 p-0">
-                  <input value={r.model} disabled={disabled} onChange={(e) => {
-                    const v = e.target.value;
-                    const it = items.find((x) => x.code === v || x.barcode === v);
-                    // Take the item's currency, but price it at TODAY's rate.
-                    // `it.rate` is the rate pinned at the item's last purchase —
-                    // carrying it into a new invoice valued today's goods at a
-                    // months-old exchange rate.
-                    if (it) {
-                      const rowCurrency = it.currency ?? r.currency ?? po.currency;
-                      patchRow(r.id, { model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? r.unit, pack: it.units[0]?.pack ?? r.pack, price: it.units[0]?.lastPrice ?? r.price, currency: rowCurrency, rate: rateOf(rowCurrency) });
-                    }
-                    else patchRow(r.id, { model: v });
-                  }} className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none text-center" />
-                </td>
-                <Cell value={r.name} onChange={(v) => patchRow(r.id, { name: v })} disabled={disabled} align="right" />
-                <Cell value={r.unit} onChange={(v) => patchRow(r.id, { unit: v })} disabled={disabled} />
-                <Cell value={r.pack} onChange={(v) => patchRow(r.id, { pack: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
-                <Cell value={r.qty} onChange={(v) => patchRow(r.id, { qty: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
-                <td className="border border-slate-200 p-0">
-                  <select value={rowCur} disabled={disabled}
-                    onChange={(ev) => patchRow(r.id, { currency: ev.target.value, rate: rateOf(ev.target.value) })}
-                    className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none">
-                    {currencyOptions.map((o) => (<option key={o.value} value={o.value}>{o.value}</option>))}
-                  </select>
-                </td>
-                <Cell value={r.price} onChange={(v) => patchRow(r.id, { price: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
-                {/* إجمالي أمر الشراء = الكمية × العبوة × سعر الحبة، بعملة السطر */}
-                <td className="border border-slate-200 text-right px-2 bg-indigo-50 font-semibold text-indigo-700">{fmtAuto(m?.lineInvoiceTotal ?? 0, 4)}</td>
-                <Cell value={fmt(m?.purchaseCost ?? 0, 1)} align="right" />
-                <Cell value={r.cbm} onChange={(v) => patchRow(r.id, { cbm: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
-                <Cell value={fmtAuto(cartons * r.cbm, 4)} align="right" />
-                <td className={`border border-slate-200 text-right px-2 bg-purple-50 text-purple-700 ${dt === "cbm" ? "font-bold ring-1 ring-inset ring-purple-400" : ""}`}>{fmt(m?.cbmCost ?? 0, 1)}</td>
-                <td className={`border border-slate-200 text-right px-2 bg-sky-50 text-sky-700 ${dt === "percentage" ? "font-bold ring-1 ring-inset ring-sky-400" : ""}`}>{fmt(m?.pctCost ?? 0, 1)}</td>
-                <td className={`border border-slate-200 text-right px-2 bg-amber-50 text-amber-700 ${dt === "average" ? "font-bold ring-1 ring-inset ring-amber-400" : ""}`}>{fmt(m?.avgCost ?? 0, 1)}</td>
-                <td className="border border-slate-200 text-right px-2 bg-orange-50 font-semibold text-orange-700">{fmt(m?.allocatedExpPerCarton ?? 0, 5)}</td>
-                <td className="border border-slate-200 text-right px-2 bg-emerald-50 font-bold text-emerald-700">{fmt(salePrice, 4)}</td>
-                <td className="border border-slate-200 text-center">
-                  <button disabled={disabled} onClick={() => removeRow(r.id)} className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-40" title="حذف"><Trash2 size={12} /></button>
-                </td>
-              </tr>
-            );
-          })}
-        </ErpTable>
+        {itemsGrid}
         </div>
 
           <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-white">
