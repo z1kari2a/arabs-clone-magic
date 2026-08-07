@@ -11,6 +11,7 @@ import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtAuto, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
 import ExpensesDialog from "@/components/erp/ExpensesDialog";
+import { printPurchaseOrder } from "@/lib/print-po";
 import { erpStore, useErpStore, computePO, savePurchaseOrder, isRealRow, deletePO, cartonsOf, lineCBMOf } from "@/lib/erp-store";
 import { getCurrentScope, localDb } from "@/lib/local-db";
 import { useAuth, canWrite, canDelete, canApprove } from "@/lib/auth";
@@ -219,6 +220,19 @@ function POPage() {
     setEditing(false);
     toast.success("تم اعتماد أمر الشراء");
   };
+  // طباعة مستند الفاتورة كاملاً (بنود + مصروفات + مجاميع + تسعيرات) بدل
+  // لقطة من الشاشة — انظر src/lib/print-po.ts.
+  const onPrint = () =>
+    printPurchaseOrder({
+      po,
+      supplier,
+      companyName: settings.companyName || "أمر شراء",
+      markupPct,
+      priceTiers,
+      rateOfCode,
+      masterCurrency,
+    });
+
   const onImport = () => fileRef.current?.click();
   const onCopy = async () => {
     if (!mayWrite) return denied();
@@ -284,7 +298,7 @@ function POPage() {
     { icon: Pencil, label: "تعديل", hint: "F2", color: "text-cyan-600", onClick: onEdit, disabled: po.approved || !mayWrite },
     { icon: Trash2, label: "حذف", hint: "Del", color: "text-rose-600", onClick: onDelete, disabled: !mayDelete },
     { icon: Search, label: "بحث", hint: "F3", color: "text-indigo-500", onClick: () => { setItemsDlg(true); setSearchDlg(true); } },
-    { icon: Printer, label: "طباعة", hint: "Ctrl+P", color: "text-slate-600", onClick: () => window.print() },
+    { icon: Printer, label: "طباعة", hint: "Ctrl+P", color: "text-slate-600", onClick: onPrint },
     { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
     { icon: Wallet, label: "المصروفات", hint: "F4", color: "text-orange-600", onClick: () => setExpDlg(true) },
@@ -299,7 +313,7 @@ function POPage() {
       if (e.ctrlKey && k === "s") { e.preventDefault(); if (editing) onSave(); }
       else if (e.ctrlKey && k === "n") { e.preventDefault(); onNew(); }
       else if (e.ctrlKey && k === "o") { e.preventDefault(); setOpenDlg(true); }
-      else if (e.ctrlKey && k === "p") { e.preventDefault(); window.print(); }
+      else if (e.ctrlKey && k === "p") { e.preventDefault(); onPrint(); }
       else if (e.key === "F2") { e.preventDefault(); if (!po.approved) onEdit(); }
       else if (e.key === "F3") { e.preventDefault(); setItemsDlg(true); setSearchDlg(true); }
       else if (e.key === "F4") { e.preventDefault(); setExpDlg(true); }
