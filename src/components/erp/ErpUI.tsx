@@ -26,15 +26,37 @@ export const fmtAuto = (n: number, max = 4) => {
 /** Parse a decimal number written with either `.` or `,` as decimal separator. */
 export const parseDecimal = (value: string | number): number => {
   if (typeof value === "number") return isFinite(value) ? value : 0;
-  // Normalize Arabic-Indic digits (٠-٩ and ۰-۹) to Latin, and any
-  // decimal-comma variant (Latin `,`, Arabic `٫` U+066B, Arabic `،` U+060C)
-  // to a dot — so users can type in any keyboard layout / direction.
-  const normalized = value
+  // Normalize Arabic-Indic digits (٠-٩ and ۰-۹) to Latin — so users can type
+  // in any keyboard layout / direction.
+  let normalized = value
     .trim()
     .replace(/\s/g, "")
     .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
     .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
-    .replace(/[،,\u066B]/g, ".");
+    // `٬` (U+066C) is the Arabic THOUSANDS separator by definition — never a
+    // decimal point, so it always just goes away.
+    .replace(/\u066C/g, "");
+  // A `.` already marks the decimal point (e.g. a formatted value like
+  // "2,680.45" fed back into an input) — any `,`/`،`/`٫` left is THOUSANDS
+  // grouping, not a second decimal separator. Turning it into a dot produced
+  // "2.680.45" → NaN → 0, silently zeroing whatever the user typed.
+  if (normalized.includes(".")) {
+    normalized = normalized.replace(/[،,\u066B]/g, "");
+  } else {
+    // No `.` — the LAST comma variant is the decimal separator the user typed;
+    // anything before it is thousands grouping.
+    const lastSep = Math.max(
+      normalized.lastIndexOf(","),
+      normalized.lastIndexOf("،"),
+      normalized.lastIndexOf("\u066B"),
+    );
+    if (lastSep !== -1) {
+      normalized =
+        normalized.slice(0, lastSep).replace(/[،,\u066B]/g, "") +
+        "." +
+        normalized.slice(lastSep + 1).replace(/[،,\u066B]/g, "");
+    }
+  }
   const cleaned = normalized;
   if (!cleaned || isNaN(Number(cleaned))) return 0;
   const num = Number(cleaned);
@@ -55,7 +77,10 @@ export const formatDecimalDisplay = (value: string | number): string => {
   return String(n);
 };
 
-const NUMERIC_RE = /^-?[\d\u0660-\u0669\u06F0-\u06F9]*[.,،\u066B]?[\d\u0660-\u0669\u06F0-\u06F9]*$/;
+// Digits and separators only — no letters. Several separators are allowed so a
+// grouped number ("2,680.45") can be typed or pasted; parseDecimal decides
+// which one is the decimal point.
+const NUMERIC_RE = /^-?[\d\u0660-\u0669\u06F0-\u06F9.,،\u066B\u066C\s]*$/;
 
 /** Shared local-buffer hook so numeric inputs accept "," and don't lose caret while typing. */
 export function useNumericBuffer(value: string | number, isNumeric: boolean) {
