@@ -733,29 +733,8 @@ function POPage() {
         </div>
       </div>
 
-      {/* التسعيرات حسب الوجهات لم تعد جدولاً هنا — لها شاشة مستقلة (زر
-          «التسعيرات» في الشريط أو السطر التالي)، تُفتح على نفس الفاتورة. */}
-      <button
-        type="button"
-        onClick={onTiers}
-        className="w-full bg-white border border-slate-300 rounded px-3 py-2 flex items-center justify-between gap-2 hover:bg-fuchsia-50/60 hover:border-fuchsia-300 text-right transition-colors"
-        title="فتح شاشة التسعيرات (F6)"
-      >
-        <div className="flex items-center gap-2 text-xs font-semibold text-fuchsia-700">
-          <span className="flex items-center gap-1 px-2 py-1 bg-fuchsia-600 text-white rounded">
-            <Tags size={12} /> فتح شاشة التسعيرات
-          </span>
-          <span className="text-[10px] text-slate-400 font-normal">F6</span>
-        </div>
-        <div className="flex items-center gap-2 font-semibold text-slate-700">
-          <StepBadge n={6} />
-          <Tags size={14} />
-          التسعيرات حسب الوجهات ({priceTiers.length})
-        </div>
-        <div className="text-xs text-slate-600">
-          {priceTiers.length ? priceTiers.map((t) => t.name).join(" • ") : "لم تُعرَّف وجهات تسعير بعد"}
-        </div>
-      </button>
+      {/* التسعيرات حسب الوجهات لها شاشة مستقلة — المدخل الوحيد إليها زر
+          «التسعيرات» (F6) في شريط الأوامر أعلاه، بلا سطر أو جدول هنا. */}
 
       {/* Dialogs */}
       <Dialog open={openDlg} onOpenChange={setOpenDlg}>
