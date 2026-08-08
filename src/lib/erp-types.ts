@@ -43,6 +43,11 @@ export type PORow = {
   currency?: string;
   /** Exchange rate of the row currency (same base as settings.currencies[].rate). */
   rate?: number;
+  /**
+   * سعر بيع مكتوب يدوياً لهذا السطر، يتجاوز السعر المحسوب (التكلفة + نسبة الربح).
+   * غير معرَّف = احسبه تلقائياً، ومسح الحقل يعيده إلى الحساب التلقائي.
+   */
+  salePrice?: number;
 };
 
 export type Expense = {

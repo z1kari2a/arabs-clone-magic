@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
-import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtAuto, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
+import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
 import { printPurchaseRequest } from "@/lib/print-po";
 import {
   erpStore, useErpStore, computePR, savePurchaseRequest, deletePurchaseRequest,
@@ -236,6 +236,9 @@ function PRPage() {
       "التكلفة المئوية $": metrics.rowMetrics[i]?.pctCost ?? 0,
       "متوسط التكلفة $": metrics.rowMetrics[i]?.avgCost ?? 0,
       "خرج للكرتون$": metrics.rowMetrics[i]?.allocatedExpPerCarton ?? 0,
+      // السعر الفعلي: المكتوب يدوياً إن وُجد، وإلا المحسوب بنسبة الربح.
+      [`سعر البيع (+${markupPct}%)`]:
+        r.salePrice ?? (metrics.rowMetrics[i]?.selectedCost ?? 0) * (1 + markupPct / 100),
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -322,7 +325,11 @@ function PRPage() {
         const m = metrics.rowMetrics[i];
         const cartons = cartonsOf(r);
         const rowCur = r.currency ?? pr.currency;
-        const salePrice = (m?.selectedCost ?? 0) * (1 + markupPct / 100);
+        // سعر البيع محسوب تلقائياً (التكلفة + نسبة الربح) ما لم يكتب المستخدم
+        // سعراً لهذا السطر — عندها يُعرض المكتوب ويُميَّز بلون مختلف.
+        const autoSale = (m?.selectedCost ?? 0) * (1 + markupPct / 100);
+        const saleOverridden = r.salePrice !== undefined;
+        const salePrice = saleOverridden ? r.salePrice! : autoSale;
         const dt = pr.distributionType;
         return (
           <tr key={r.id} className="hover:bg-blue-50/40">
@@ -353,15 +360,20 @@ function PRPage() {
             </td>
             <Cell value={r.price} onChange={(v) => patchRow(r.id, { price: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
             {/* إجمالي الطلب = الكمية × العبوة × سعر الحبة، بعملة السطر */}
-            <td className="border border-slate-200 text-right px-2 bg-indigo-50 font-semibold text-indigo-700">{fmtAuto(m?.lineInvoiceTotal ?? 0, 4)}</td>
+            <td className="border border-slate-200 text-right px-2 bg-indigo-50 font-semibold text-indigo-700">{fmt(m?.lineInvoiceTotal ?? 0, 1)}</td>
             <Cell value={fmt(m?.purchaseCost ?? 0, 1)} align="right" />
             <Cell value={r.cbm} onChange={(v) => patchRow(r.id, { cbm: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
-            <Cell value={fmtAuto(cartons * r.cbm, 4)} align="right" />
+            <Cell value={fmt(cartons * r.cbm, 1)} align="right" />
             <td className={`border border-slate-200 text-right px-2 bg-purple-50 text-purple-700 ${dt === "cbm" ? "font-bold ring-1 ring-inset ring-purple-400" : ""}`}>{fmt(m?.cbmCost ?? 0, 1)}</td>
             <td className={`border border-slate-200 text-right px-2 bg-sky-50 text-sky-700 ${dt === "percentage" ? "font-bold ring-1 ring-inset ring-sky-400" : ""}`}>{fmt(m?.pctCost ?? 0, 1)}</td>
             <td className={`border border-slate-200 text-right px-2 bg-amber-50 text-amber-700 ${dt === "average" ? "font-bold ring-1 ring-inset ring-amber-400" : ""}`}>{fmt(m?.avgCost ?? 0, 1)}</td>
-            <td className="border border-slate-200 text-right px-2 bg-orange-50 font-semibold text-orange-700">{fmt(m?.allocatedExpPerCarton ?? 0, 5)}</td>
-            <td className="border border-slate-200 text-right px-2 bg-emerald-50 font-bold text-emerald-700">{fmt(salePrice, 4)}</td>
+            <td className="border border-slate-200 text-right px-2 bg-orange-50 font-semibold text-orange-700">{fmt(m?.allocatedExpPerCarton ?? 0, 1)}</td>
+            <SaleCell
+              value={salePrice}
+              overridden={saleOverridden}
+              disabled={disabled}
+              onChange={(v) => patchRow(r.id, { salePrice: v.trim() === "" ? undefined : parseDecimal(v) })}
+            />
             <td className="border border-slate-200 text-center">
               <button disabled={disabled} onClick={() => removeRow(r.id)} className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-40" title="حذف"><Trash2 size={12} /></button>
             </td>
@@ -518,7 +530,7 @@ function PRPage() {
         </div>
         <div className="text-xs text-slate-600 flex items-center gap-2">
           {pr.approved && <span className="text-emerald-600 font-semibold">✓ معتمد</span>}
-          <span>إجمالي الطلب: <span className="font-bold">{fmtAuto(metrics.totalInvoiceAmount, 4)}</span> {pr.currency}</span>
+          <span>إجمالي الطلب: <span className="font-bold">{fmt(metrics.totalInvoiceAmount, 1)}</span> {pr.currency}</span>
         </div>
       </button>
 
@@ -547,8 +559,8 @@ function PRPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 py-3 bg-slate-50/60 border-b border-slate-200">
             <SummaryStat label="عدد الأصناف" value={fmtInt(metrics.totalItems)} unit="صنف" />
             <SummaryStat label="إجمالي الكمية" value={fmtInt(metrics.totalQty)} />
-            <SummaryStat label="إجمالي الطلب" value={fmtAuto(metrics.totalInvoiceAmount, 4)} unit={pr.currency} />
-            <SummaryStat label="إجمالي CBM" value={fmtAuto(metrics.totalCBM, 4)} unit="CBM" />
+            <SummaryStat label="إجمالي الطلب" value={fmt(metrics.totalInvoiceAmount, 1)} unit={pr.currency} />
+            <SummaryStat label="إجمالي CBM" value={fmt(metrics.totalCBM, 1)} unit="CBM" />
           </div>
 
           <div className="overflow-auto max-h-[60vh]">
@@ -586,13 +598,13 @@ function PRPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 p-2">
           <SummaryStat label="عدد الأصناف" value={fmtInt(metrics.totalItems)} unit="صنف" />
           <SummaryStat label="إجمالي الكمية" value={fmtInt(metrics.totalQty)} />
-          <SummaryStat label="إجمالي الطلب" value={fmtAuto(metrics.totalInvoiceAmount, 4)} unit={pr.currency} />
-          <SummaryStat label="إجمالي الشراء" value={fmt(metrics.totalPurchase)} unit="USD" />
-          <SummaryStat label="إجمالي CBM" value={fmtAuto(metrics.totalCBM, 4)} unit="CBM" />
-          <SummaryStat label="سعر CBM (يدوي)" value={fmt(metrics.cbmPrice)} unit="USD" />
+          <SummaryStat label="إجمالي الطلب" value={fmt(metrics.totalInvoiceAmount, 1)} unit={pr.currency} />
+          <SummaryStat label="إجمالي الشراء" value={fmt(metrics.totalPurchase, 1)} unit="USD" />
+          <SummaryStat label="إجمالي CBM" value={fmt(metrics.totalCBM, 1)} unit="CBM" />
+          <SummaryStat label="سعر CBM (يدوي)" value={fmt(metrics.cbmPrice, 1)} unit="USD" />
           {/* مصاريف تقديرية = ما وزّعته الأسطر فعلاً على الأساس المختار، لا فواتير مسجّلة */}
-          <SummaryStat label="مصاريف تقديرية" value={fmt(metrics.totalExpenses)} unit="USD" />
-          <SummaryStat label="إجمالي التكلفة" value={fmt(metrics.totalCost)} unit="USD" highlight />
+          <SummaryStat label="مصاريف تقديرية" value={fmt(metrics.totalExpenses, 1)} unit="USD" />
+          <SummaryStat label="إجمالي التكلفة" value={fmt(metrics.totalCost, 1)} unit="USD" highlight />
         </div>
 
         {metrics.cbmBasisUnusable && (
@@ -613,7 +625,7 @@ function PRPage() {
             الإجمالي التقديري (بالدولار) محوّل تلقائيًا إلى <b className="text-amber-700">{masterCurrency}</b>
           </div>
           <div className="text-lg font-black text-emerald-700">
-            {fmt(metrics.totalCost * (masterCurrency === "USD" ? 1 : (rateOfCode(masterCurrency) || 1)))}
+            {fmt(metrics.totalCost * (masterCurrency === "USD" ? 1 : (rateOfCode(masterCurrency) || 1)), 1)}
             <span className="text-xs text-slate-500 mr-2">{masterCurrency}</span>
           </div>
         </div>
@@ -674,6 +686,44 @@ function PRPage() {
         </DialogContent>
       </Dialog>
     </ErpLayout>
+  );
+}
+
+/**
+ * خانة «سعر البيع» — قابلة للكتابة، ومسحها يعيدها إلى السعر المحسوب تلقائياً
+ * (التكلفة المعتمدة + نسبة الربح). لها خانتها الخاصة بدل Cell المشتركة لأن
+ * تلك تحتفظ بنصّها بعد المسح، فتبقى الخانة فارغة بصرياً رغم عودة القيمة
+ * للحساب التلقائي. هنا: أثناء الكتابة يُعرض ما يكتبه المستخدم، وبعد الخروج
+ * من الحقل يُعرض دائماً السعر الفعلي مهما كان مصدره.
+ */
+function SaleCell({
+  value, overridden, disabled, onChange,
+}: {
+  value: number;
+  overridden: boolean;
+  disabled?: boolean;
+  onChange: (v: string) => void;
+}) {
+  const [typing, setTyping] = useState<string | null>(null);
+  const shown = typing ?? String(Math.round((isFinite(value) ? value : 0) * 10) / 10);
+  return (
+    <td className={`border border-slate-200 p-0 ${overridden ? "bg-fuchsia-50" : "bg-emerald-50"}`}>
+      <input
+        value={shown}
+        inputMode="decimal"
+        disabled={disabled}
+        title={overridden ? "سعر مكتوب يدوياً — امسح الخانة ليعود إلى الحساب التلقائي" : "محسوب تلقائياً — اكتب سعراً لتثبيته"}
+        onFocus={(e) => { setTyping(shown); e.target.select(); }}
+        onBlur={() => setTyping(null)}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v !== "" && !/^-?[\d٠-٩۰-۹.,،٫٬\s]*$/.test(v)) return;
+          setTyping(v);
+          onChange(v);
+        }}
+        className={`w-full px-2 py-1 bg-transparent outline-none focus:bg-blue-50 text-right font-bold disabled:text-slate-700 ${overridden ? "text-fuchsia-700" : "text-emerald-700"}`}
+      />
+    </td>
   );
 }
 

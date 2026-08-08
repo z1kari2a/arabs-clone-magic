@@ -111,7 +111,8 @@ function itemsTableHTML(
   const body = rows
     .map(({ r, i }, idx) => {
       const rm = m.rowMetrics[i];
-      const sale = (rm?.selectedCost ?? 0) * (1 + markupPct / 100);
+      // سعر بيع كتبه المستخدم على السطر يتقدّم على المحسوب — وإلا التكلفة + الربح.
+      const sale = r.salePrice ?? (rm?.selectedCost ?? 0) * (1 + markupPct / 100);
       return `<tr>
         <td class="c">${idx + 1}</td>
         <td class="c">${esc(r.model)}</td>
