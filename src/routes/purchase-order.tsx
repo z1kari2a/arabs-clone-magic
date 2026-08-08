@@ -384,7 +384,7 @@ function POPage() {
   const itemsGrid = (
         <ErpTable
           headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","العملة","سعر الشراء","اجمالي امر الشراء","تكلفة الشراء$","CBM الكرتون","إجمالي CBM","تكلفة CBM $","التكلفة المئوية $","متوسط التكلفة $","خرج للكرتون$",`سعر البيع (+${markupPct}%)`,""]}
-          widths={["2.2rem","4.5rem","7.5rem","3.6rem","3.4rem","3.4rem","3.6rem","4rem","5rem","4.6rem","4rem","4rem","4.4rem","4.6rem","4.6rem","4.6rem","5rem","2rem"]}
+          widths={["2.2rem","6.4rem","11rem","3.6rem","3.4rem","3.4rem","3.6rem","3.6rem","5rem","3.8rem","3.4rem","4rem","3.8rem","3.8rem","4.6rem","4.6rem","5rem","2rem"]}
         >
           {po.rows.map((r, i) => {
             const m = metrics.rowMetrics[i];
@@ -412,9 +412,9 @@ function POPage() {
                       patchRow(r.id, { model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? r.unit, pack: it.units[0]?.pack ?? r.pack, price: it.units[0]?.lastPrice ?? r.price, currency: rowCurrency, rate: rateOf(rowCurrency) });
                     }
                     else patchRow(r.id, { model: v });
-                  }} className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none text-center" />
+                  }} className="w-full px-1 py-1 text-[13px] font-semibold tabular-nums text-slate-800 bg-white disabled:bg-slate-50 border-0 focus:outline-none text-center" />
                 </td>
-                <Cell value={r.name} onChange={(v) => patchRow(r.id, { name: v })} disabled={disabled} align="right" />
+                <Cell value={r.name} onChange={(v) => patchRow(r.id, { name: v })} disabled={disabled} align="right" inputClass="text-[13px] font-semibold text-slate-800" />
                 <Cell value={r.unit} onChange={(v) => patchRow(r.id, { unit: v })} disabled={disabled} />
                 <Cell value={r.pack} onChange={(v) => patchRow(r.id, { pack: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
                 <Cell value={r.qty} onChange={(v) => patchRow(r.id, { qty: parseDecimal(v) })} disabled={disabled} align="right" type="number" />

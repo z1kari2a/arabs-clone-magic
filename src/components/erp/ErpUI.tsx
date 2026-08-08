@@ -385,27 +385,31 @@ export function Cell({
   disabled,
   align = "center",
   type = "text",
+  inputClass = "",
 }: {
   value: string | number;
   onChange?: (v: string) => void;
   disabled?: boolean;
   align?: "right" | "left" | "center";
   type?: string;
+  /** تنسيق إضافي لنصّ الخانة — يُستعمل لإبراز أعمدة مثل «اسم الصنف». */
+  inputClass?: string;
 }) {
   if (!onChange) {
-    return <td className={`border border-slate-200 px-2 py-1 text-${align} bg-slate-50`}>{value}</td>;
+    return <td className={`border border-slate-200 px-2 py-1 text-${align} bg-slate-50 ${inputClass}`}>{value}</td>;
   }
-  return <CellInput value={value} onChange={onChange} disabled={disabled} align={align} type={type} />;
+  return <CellInput value={value} onChange={onChange} disabled={disabled} align={align} type={type} inputClass={inputClass} />;
 }
 
 function CellInput({
-  value, onChange, disabled, align, type,
+  value, onChange, disabled, align, type, inputClass,
 }: {
   value: string | number;
   onChange: (v: string) => void;
   disabled?: boolean;
   align: "right" | "left" | "center";
   type: string;
+  inputClass: string;
 }) {
   const isNumeric = type === "number" || typeof value === "number";
   const buf = useNumericBuffer(value, isNumeric);
@@ -424,7 +428,7 @@ function CellInput({
           onChange(v);
         }}
         disabled={disabled}
-        className={`w-full px-2 py-1 bg-transparent outline-none disabled:text-slate-700 text-${align}`}
+        className={`w-full px-2 py-1 bg-transparent outline-none disabled:text-slate-700 text-${align} ${inputClass}`}
       />
     </td>
   );
