@@ -384,7 +384,7 @@ function POPage() {
   const itemsGrid = (
         <ErpTable
           headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","العملة","سعر الشراء","اجمالي امر الشراء","تكلفة الشراء$","CBM الكرتون","إجمالي CBM","تكلفة CBM $","التكلفة المئوية $","متوسط التكلفة $","خرج للكرتون$",`سعر البيع (+${markupPct}%)`,""]}
-          widths={["2.2rem","6.4rem","16.5rem","3.6rem","3.4rem","3.4rem","3.6rem","3.6rem","5rem","3.8rem","3.4rem","4rem","3.8rem","3.8rem","4.6rem","4.6rem","5rem","2rem"]}
+          widths={["2.2rem","6.4rem","250px","3.6rem","3.4rem","3.4rem","3.6rem","3.6rem","5rem","3.8rem","3.4rem","4rem","3.8rem","3.8rem","4.6rem","4.6rem","5rem","2rem"]}
         >
           {po.rows.map((r, i) => {
             const m = metrics.rowMetrics[i];
@@ -621,7 +621,7 @@ function POPage() {
 
       {/* نفس الجدول تحت سطره مباشرة — بنفس التصميم بالضبط (متغيّر واحد يُعرض هنا
           وداخل النافذة)، وبنفس مصدر البيانات فالتعديل في أي منهما يظهر في الآخر. */}
-      <div className="bg-white border border-slate-300 rounded overflow-hidden -mt-1">
+      <div className="bg-white border border-slate-300 rounded overflow-hidden -mt-1 w-max max-w-full">
         {itemsGrid}
       </div>
 

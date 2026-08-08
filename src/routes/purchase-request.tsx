@@ -319,7 +319,7 @@ function PRPage() {
   const itemsGrid = (
     <ErpTable
       headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","العملة","سعر الشراء","اجمالي الطلب","تكلفة الشراء$","CBM الكرتون","إجمالي CBM","تكلفة CBM $","التكلفة المئوية $","متوسط التكلفة $","خرج للكرتون$",`سعر البيع (+${markupPct}%)`,""]}
-      widths={["2.2rem","6.4rem","16.5rem","3.6rem","3.4rem","3.4rem","3.6rem","3.6rem","5rem","3.8rem","3.4rem","4rem","3.8rem","3.8rem","4.6rem","4.6rem","5rem","2rem"]}
+      widths={["2.2rem","6.4rem","250px","3.6rem","3.4rem","3.4rem","3.6rem","3.6rem","5rem","3.8rem","3.4rem","4rem","3.8rem","3.8rem","4.6rem","4.6rem","5rem","2rem"]}
     >
       {pr.rows.map((r, i) => {
         const m = metrics.rowMetrics[i];
@@ -534,7 +534,7 @@ function PRPage() {
         </div>
       </button>
 
-      <div className="bg-white border border-slate-300 rounded overflow-hidden -mt-1">
+      <div className="bg-white border border-slate-300 rounded overflow-hidden -mt-1 w-max max-w-full">
         {itemsGrid}
       </div>
 

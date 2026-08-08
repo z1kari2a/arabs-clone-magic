@@ -301,9 +301,14 @@ export function ErpTable({
 }) {
   return (
     <div className="overflow-x-auto">
+      {/* جدول بأعرض مُصرَّحة: `w-max` حتى يأخذ كل عمود عرضه المكتوب بالضبط
+          مهما كان عرض النافذة. مع `w-full` يوزّع المتصفّح الفائض على الأعمدة
+          فيتضخّم عمودٌ طُلب له 250px إلى 290px، ومع `w-auto` يضغطها إذا ضاقت
+          النافذة فينزل إلى 240px. عند ضيق النافذة يظهر شريط تمرير أفقي بدل
+          العبث بالأعرض. الجداول التي لا تُمرّر أعرضاً تبقى ممتدّة كما كانت. */}
       <table
         onKeyDown={gridKeyNav}
-        className={`erp-grid w-full border-collapse text-[12px] ${widths ? "table-fixed" : ""}`}
+        className={`erp-grid border-collapse text-[12px] ${widths ? "table-fixed w-max" : "w-full"}`}
       >
         {widths && (
           <colgroup>
