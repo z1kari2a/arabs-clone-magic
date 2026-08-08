@@ -102,7 +102,7 @@ function ReportsPage() {
                   <td className="border border-slate-200 px-2 text-right">{fmtInt(m.totalQty)}</td>
                   <td className="border border-slate-200 px-2 text-right">{fmt(m.totalPurchase)}</td>
                   <td className="border border-slate-200 px-2 text-right">{fmt(m.totalExpenses)}</td>
-                  <td className="border border-slate-200 px-2 text-right bg-amber-50 font-semibold">{fmt(m.totalCost)}</td>
+                  <td className="border border-slate-200 px-2 text-right bg-slate-50 font-semibold">{fmt(m.totalCost)}</td>
                   <td className="border border-slate-200 text-center">{o.approved ? <span className="text-emerald-600">معتمد</span> : <span className="text-amber-600">مسودة</span>}</td>
                 </tr>
               ); })}
@@ -117,7 +117,7 @@ function ReportsPage() {
                   <td className="border border-slate-200 px-2 text-right">{it.name}</td>
                   <td className="border border-slate-200 px-2">{it.barcode}</td>
                   <td className="border border-slate-200 px-2 text-right">{fmt(it.units[0]?.lastPrice ?? 0)}</td>
-                  <td className="border border-slate-200 px-2 text-right bg-amber-50 font-semibold">{fmt(it.lastCost, 4)}</td>
+                  <td className="border border-slate-200 px-2 text-right bg-slate-50 font-semibold">{fmt(it.lastCost, 4)}</td>
                 </tr>
               ))}
             </ErpTable>
@@ -147,7 +147,7 @@ function ReportsPage() {
                   <td className="border border-slate-200 px-2 text-right">{e.note}</td>
                   <td className="border border-slate-200 px-2 text-center">{e.currency}</td>
                   <td className="border border-slate-200 px-2 text-right">{fmt(e.amount)}</td>
-                  <td className="border border-slate-200 px-2 text-right bg-amber-50 font-semibold">{fmt(invAmountOf(o, e))}</td>
+                  <td className="border border-slate-200 px-2 text-right bg-slate-50 font-semibold">{fmt(invAmountOf(o, e))}</td>
                 </tr>
               ))}
             </ErpTable>

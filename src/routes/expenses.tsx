@@ -354,7 +354,7 @@ function ExpensesPage() {
                   <td className="border border-slate-200 px-2 text-center">{r.e.currency}</td>
                   <td className="border border-slate-200 px-2 text-right">{fmt(r.e.amount)}</td>
                   <td className="border border-slate-200 px-2 text-right">{fmt(r.e.rate || 1, 4)}</td>
-                  <td className="border border-slate-200 px-2 text-right bg-amber-50 font-semibold">{fmt(r.invAmount)}</td>
+                  <td className="border border-slate-200 px-2 text-right bg-slate-50 font-semibold">{fmt(r.invAmount)}</td>
                   <td className="border border-slate-200 text-center">
                     {r.po.approved
                       ? <span className="text-emerald-600 text-[11px]">معتمد</span>
@@ -382,7 +382,7 @@ function ExpensesPage() {
                   <td className="border border-slate-200 px-2">{o.number}</td>
                   <td className="border border-slate-200 px-2 text-right">{o.supplier}</td>
                   <td className="border border-slate-200 px-2">{o.date}</td>
-                  <td className="border border-slate-200 px-2 text-right bg-amber-50 font-semibold">{fmt(o.amount)}</td>
+                  <td className="border border-slate-200 px-2 text-right bg-slate-50 font-semibold">{fmt(o.amount)}</td>
                 </tr>
               ))}
             </ErpTable>

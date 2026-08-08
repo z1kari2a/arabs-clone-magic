@@ -138,7 +138,7 @@ function ItemsPage() {
                   </select>
                 </td>
                 <Cell value={it.cbmPerCarton} onChange={(v) => patch(idx, { cbmPerCarton: parseDecimal(v) })} disabled={!canEditRow} align="right" />
-                <td className="border border-slate-200 text-right px-2 bg-amber-50 font-semibold">{fmt(it.lastCost, 4)}</td>
+                <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold">{fmt(it.lastCost, 4)}</td>
                 <td className="border border-slate-200 text-center">
                   <button onClick={() => onDelete(idx)} disabled={!mayDelete} title={mayDelete ? "حذف الصنف" : "الحذف يتطلب صلاحية مدير"} className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-30">
                     <Trash2 size={12} />

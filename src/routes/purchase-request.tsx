@@ -332,7 +332,7 @@ function PRPage() {
         const salePrice = saleOverridden ? r.salePrice! : autoSale;
         const dt = pr.distributionType;
         return (
-          <tr key={r.id} className="hover:bg-blue-50/40">
+          <tr key={r.id} className="hover:bg-slate-50">
             <td className="border border-slate-200 text-center text-slate-500 w-8">{i + 1}</td>
             <td className="border border-slate-200 p-0">
               <input value={r.model} disabled={disabled} onChange={(e) => {
@@ -360,14 +360,14 @@ function PRPage() {
             </td>
             <Cell value={r.price} onChange={(v) => patchRow(r.id, { price: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
             {/* إجمالي الطلب = الكمية × العبوة × سعر الحبة، بعملة السطر */}
-            <td className="border border-slate-200 text-right px-2 bg-indigo-50 font-semibold text-indigo-700">{fmt(m?.lineInvoiceTotal ?? 0, 1)}</td>
+            <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold text-slate-800">{fmt(m?.lineInvoiceTotal ?? 0, 1)}</td>
             <Cell value={fmt(m?.purchaseCost ?? 0, 1)} align="right" />
             <Cell value={r.cbm} onChange={(v) => patchRow(r.id, { cbm: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
             <Cell value={fmt(cartons * r.cbm, 1)} align="right" />
-            <td className={`border border-slate-200 text-right px-2 bg-purple-50 text-purple-700 ${dt === "cbm" ? "font-bold ring-1 ring-inset ring-purple-400" : ""}`}>{fmt(m?.cbmCost ?? 0, 1)}</td>
-            <td className={`border border-slate-200 text-right px-2 bg-sky-50 text-sky-700 ${dt === "percentage" ? "font-bold ring-1 ring-inset ring-sky-400" : ""}`}>{fmt(m?.pctCost ?? 0, 1)}</td>
-            <td className={`border border-slate-200 text-right px-2 bg-amber-50 text-amber-700 ${dt === "average" ? "font-bold ring-1 ring-inset ring-amber-400" : ""}`}>{fmt(m?.avgCost ?? 0, 1)}</td>
-            <td className="border border-slate-200 text-right px-2 bg-orange-50 font-semibold text-orange-700">{fmt(m?.allocatedExpPerCarton ?? 0, 1)}</td>
+            <td className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "cbm" ? "!bg-slate-200 font-bold" : ""}`}>{fmt(m?.cbmCost ?? 0, 1)}</td>
+            <td className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "percentage" ? "!bg-slate-200 font-bold" : ""}`}>{fmt(m?.pctCost ?? 0, 1)}</td>
+            <td className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "average" ? "!bg-slate-200 font-bold" : ""}`}>{fmt(m?.avgCost ?? 0, 1)}</td>
+            <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold text-slate-800">{fmt(m?.allocatedExpPerCarton ?? 0, 1)}</td>
             <SaleCell
               value={salePrice}
               overridden={saleOverridden}
@@ -620,11 +620,11 @@ function PRPage() {
           </div>
         )}
 
-        <div className="border-t border-slate-200 bg-gradient-to-l from-amber-50 to-emerald-50 px-3 py-2 flex items-center justify-between">
+        <div className="border-t border-slate-200 bg-slate-50 px-3 py-2 flex items-center justify-between">
           <div className="text-[11px] text-slate-600">
-            الإجمالي التقديري (بالدولار) محوّل تلقائيًا إلى <b className="text-amber-700">{masterCurrency}</b>
+            الإجمالي التقديري (بالدولار) محوّل تلقائيًا إلى <b className="text-slate-800">{masterCurrency}</b>
           </div>
-          <div className="text-lg font-black text-emerald-700">
+          <div className="text-lg font-black text-slate-800">
             {fmt(metrics.totalCost * (masterCurrency === "USD" ? 1 : (rateOfCode(masterCurrency) || 1)), 1)}
             <span className="text-xs text-slate-500 mr-2">{masterCurrency}</span>
           </div>
@@ -640,7 +640,7 @@ function PRPage() {
               <div className="text-xs text-slate-500 text-center py-4">لا توجد طلبات شراء محفوظة</div>
             )}
             {requests.map((r) => (
-              <button key={r.number} onClick={() => { autoLoadedRef.current = true; setPr(r); setOpenDlg(false); setEditing(false); }} className="w-full text-right px-3 py-2 border border-slate-200 rounded hover:bg-blue-50 flex justify-between">
+              <button key={r.number} onClick={() => { autoLoadedRef.current = true; setPr(r); setOpenDlg(false); setEditing(false); }} className="w-full text-right px-3 py-2 border border-slate-200 rounded hover:bg-slate-100 flex justify-between">
                 <span className="text-xs text-slate-500">{r.date}</span>
                 <span className="font-semibold">{r.number}</span>
               </button>
@@ -654,7 +654,7 @@ function PRPage() {
           <DialogHeader><DialogTitle>اختيار المورد</DialogTitle></DialogHeader>
           <div className="max-h-80 overflow-auto space-y-1">
             {suppliers.filter((s) => s.active).map((s) => (
-              <button key={s.code} onClick={() => { patch({ supplierCode: s.code, currency: s.currency }); setSupDlg(false); }} className="w-full text-right px-3 py-2 border border-slate-200 rounded hover:bg-blue-50">
+              <button key={s.code} onClick={() => { patch({ supplierCode: s.code, currency: s.currency }); setSupDlg(false); }} className="w-full text-right px-3 py-2 border border-slate-200 rounded hover:bg-slate-100">
                 <div className="font-semibold">{s.name}</div>
                 <div className="text-xs text-slate-500">{s.code} • {s.country}</div>
               </button>
@@ -677,7 +677,7 @@ function PRPage() {
                   return { ...cur, rows: cur.rows.map((r) => r.id === last.id ? { ...r, model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? "حبة", pack: it.units[0]?.pack ?? 1, price: it.units[0]?.lastPrice ?? 0, currency: rowCurrency, rate: rateOf(rowCurrency) } : r) };
                 }), 0);
                 setSearchDlg(false);
-              }} className="w-full text-right p-2 border border-slate-200 rounded hover:bg-blue-50">
+              }} className="w-full text-right p-2 border border-slate-200 rounded hover:bg-slate-100">
                 <div className="font-semibold">{it.name}</div>
                 <div className="text-xs text-slate-500">{it.code} • {it.barcode}</div>
               </button>
@@ -707,7 +707,7 @@ function basisHint(pr: PurchaseRequest): string {
 
 function SummaryStat({ label, value, unit, highlight }: { label: string; value: string; unit?: string; highlight?: boolean }) {
   return (
-    <div className={`border rounded p-2 text-center shadow-sm ${highlight ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"}`}>
+    <div className={`border rounded p-2 text-center shadow-sm ${highlight ? "bg-slate-100 border-slate-300" : "bg-white border-slate-200"}`}>
       <div className="text-[10px] text-slate-500">{label}</div>
       <div className="font-bold text-slate-800 text-sm tabular-nums">{value} {unit && <span className="text-[10px] text-slate-500 font-normal">{unit}</span>}</div>
     </div>

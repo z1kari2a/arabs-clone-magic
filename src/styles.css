@@ -100,13 +100,15 @@
 @theme {
   --font-sans: "Cairo", ui-sans-serif, system-ui, sans-serif;
   --color-erp-titlebar: #1e5a8e;
-  --color-erp-tab: #eef4fb;
+  /* إطارات الشاشات ورؤوس الجداول بلون رمادي نظام محايد بدل الأزرق والأصفر —
+     الألوان محجوزة للحالات وحدها (معتمد، تحذير)، لا لتزيين كل خانة. */
+  --color-erp-tab: #f1f3f5;
   --color-erp-tab-active: #ffffff;
-  --color-erp-panel-header: #cfe3f5;
+  --color-erp-panel-header: #e9ecef;
   --color-erp-bg: #f0f2f5;
-  --color-erp-highlight: #fff3c4;
-  --color-erp-border: #b6c6d6;
-  --color-erp-table-header: #eaf2fa;
+  --color-erp-highlight: #eceff2;
+  --color-erp-border: #c8ced4;
+  --color-erp-table-header: #f1f3f5;
   --color-erp-status: #1e5a8e;
 }
 

@@ -356,8 +356,10 @@ export function SaleCell({
   const [typing, setTyping] = useState<string | null>(null);
   const factor = 10 ** decimals;
   const shown = typing ?? String(Math.round((isFinite(value) ? value : 0) * factor) / factor);
+  // السعر المكتوب يدوياً يُميَّز بتظليل رمادي أغمق وخط تحته لا بلون —
+  // تبقى المعلومة ظاهرة والجدول بلون النظام.
   return (
-    <td className={`border border-slate-200 p-0 ${overridden ? "bg-fuchsia-50" : "bg-emerald-50"}`}>
+    <td className={`border border-slate-200 p-0 ${overridden ? "bg-slate-200" : "bg-slate-50"}`}>
       <input
         value={shown}
         inputMode="decimal"
@@ -371,7 +373,7 @@ export function SaleCell({
           setTyping(v);
           onChange(v);
         }}
-        className={`w-full px-2 py-1 bg-transparent outline-none text-right font-bold disabled:text-slate-700 ${overridden ? "text-fuchsia-700" : "text-emerald-700"}`}
+        className={`w-full px-2 py-1 bg-transparent outline-none text-right font-bold text-slate-800 disabled:text-slate-700 ${overridden ? "underline decoration-slate-400 underline-offset-2" : ""}`}
       />
     </td>
   );

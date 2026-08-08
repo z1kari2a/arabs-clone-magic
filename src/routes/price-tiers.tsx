@@ -240,13 +240,13 @@ function PriceTiersPage() {
                   <td className="border border-slate-200 text-center text-slate-500 w-10">{i + 1}</td>
                   <td className="border border-slate-200 text-center px-2">{r.model}</td>
                   <td className="border border-slate-200 text-right px-2">{r.name}</td>
-                  <td className="border border-slate-200 text-right px-2 bg-amber-50 font-semibold">{fmt(cost, 4)}</td>
+                  <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold">{fmt(cost, 4)}</td>
                   {priceTiers.flatMap((t) => {
                     const tierCost = cost * (1 + (t.extraPct || 0) / 100);
                     const salePrice = tierCost * (1 + (t.profitPct || 0) / 100);
                     return [
                       <td key={t.id + "c"} className="border border-slate-200 text-right px-2">{fmt(tierCost, 4)}</td>,
-                      <td key={t.id + "s"} className="border border-slate-200 text-right px-2 bg-emerald-50 font-semibold text-emerald-700">{fmt(salePrice, 4)}</td>,
+                      <td key={t.id + "s"} className="border border-slate-200 text-right px-2 bg-slate-100 font-semibold text-slate-800">{fmt(salePrice, 4)}</td>,
                     ];
                   })}
                 </tr>
@@ -274,7 +274,7 @@ function PriceTiersPage() {
                   setOpenDlg(false);
                   router.navigate({ to: "/price-tiers", search: { po: o.number } });
                 }}
-                className="w-full text-right px-3 py-2 border border-slate-200 rounded hover:bg-blue-50 flex justify-between"
+                className="w-full text-right px-3 py-2 border border-slate-200 rounded hover:bg-slate-100 flex justify-between"
               >
                 <span className="text-xs text-slate-500">{o.date}</span>
                 <span className="font-semibold">{o.number}</span>
