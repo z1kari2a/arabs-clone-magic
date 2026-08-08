@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ShoppingCart,
+  ClipboardPen,
   Building2,
   Package,
   BarChart3,
@@ -26,6 +27,7 @@ export const Route = createFileRoute("/home")({
 });
 
 const CARDS = [
+  { to: "/purchase-request", label: "طلبات الشراء", icon: ClipboardPen, color: "text-sky-600", bg: "bg-sky-50" },
   { to: "/purchase-order", label: "أوامر الشراء", icon: ShoppingCart, color: "text-blue-600", bg: "bg-blue-50" },
   { to: "/suppliers", label: "الموردون", icon: Building2, color: "text-emerald-600", bg: "bg-emerald-50" },
   { to: "/items", label: "دليل الأصناف", icon: Package, color: "text-amber-600", bg: "bg-amber-50" },
@@ -36,6 +38,7 @@ const CARDS = [
 
 function HomePage() {
   const pos = useErpStore((s) => s.purchaseOrders);
+  const reqs = useErpStore((s) => s.purchaseRequests);
   const suppliers = useErpStore((s) => s.suppliers);
   const items = useErpStore((s) => s.items);
 
@@ -47,6 +50,7 @@ function HomePage() {
   return (
     <ErpLayout title="الشاشة الرئيسية">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard icon={ClipboardPen} color="text-sky-600" label="طلبات الشراء" value={fmtInt(reqs.length)} />
         <StatCard icon={ShoppingCart} color="text-blue-600" label="أوامر الشراء" value={fmtInt(pos.length)} />
         <StatCard icon={Building2} color="text-emerald-600" label="الموردون" value={fmtInt(suppliers.length)} />
         <StatCard icon={Package} color="text-amber-600" label="الأصناف" value={fmtInt(items.length)} />

@@ -25,6 +25,8 @@ type BackupPayload = {
   suppliers: unknown[];
   items: unknown[];
   purchase_orders: unknown[];
+  /** اختياري: نسخة قديمة محفوظة قبل إضافة «طلبات الشراء» لا تحوي هذا المفتاح. */
+  purchase_requests?: unknown[];
   users: unknown[];
   settings: unknown;
 };
@@ -51,14 +53,15 @@ async function credentials(): Promise<{ session_token: string; fingerprint: stri
 }
 
 async function collectPayload(): Promise<BackupPayload> {
-  const [suppliers, items, purchase_orders, users, settings] = await Promise.all([
+  const [suppliers, items, purchase_orders, purchase_requests, users, settings] = await Promise.all([
     localDb.suppliers.list(),
     localDb.items.list(),
     localDb.purchaseOrders.list(),
+    localDb.purchaseRequests.list(),
     localDb.users.list(),
     localDb.settings.get(),
   ]);
-  return { suppliers, items, purchase_orders, users, settings };
+  return { suppliers, items, purchase_orders, purchase_requests, users, settings };
 }
 
 let lastPushedAt: string | null = null;
@@ -130,5 +133,12 @@ export async function restoreFromCloudBackup(payload: BackupPayload): Promise<vo
     localDb.purchaseOrders.replaceAll((payload.purchase_orders ?? []) as Parameters<typeof localDb.purchaseOrders.replaceAll>[0]),
     localDb.users.replaceAll((payload.users ?? []) as Parameters<typeof localDb.users.replaceAll>[0]),
   ]);
+  // نسخة سحابية أُخذت قبل إضافة «طلبات الشراء» لا تحوي المفتاح أصلاً — نتركه كما
+  // هو محلياً بدل أن نمسح طلبات موجودة باستعادة لقطة أقدم من الميزة نفسها.
+  if (payload.purchase_requests) {
+    await localDb.purchaseRequests.replaceAll(
+      payload.purchase_requests as Parameters<typeof localDb.purchaseRequests.replaceAll>[0],
+    );
+  }
   if (payload.settings) await localDb.settings.set(payload.settings as Parameters<typeof localDb.settings.set>[0]);
 }

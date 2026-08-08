@@ -2,6 +2,7 @@ import { Link, useRouterState, useSearch } from "@tanstack/react-router";
 import {
   Home,
   ClipboardList,
+  ClipboardPen,
   Building2,
   Package,
   BarChart3,
@@ -37,6 +38,7 @@ type SidebarItem = {
 
 const SIDEBAR_ITEMS: SidebarItem[] = [
   { id: "home", to: "/home", label: "الرئيسية", icon: Home },
+  { id: "pr", to: "/purchase-request", label: "طلب الشراء", icon: ClipboardPen, color: "text-sky-600" },
   { id: "po", to: "/purchase-order", label: "أمر الشراء", icon: ClipboardList },
   { id: "suppliers", to: "/suppliers", label: "الموردون", icon: Building2 },
   { id: "items", to: "/items", label: "الأصناف", icon: Package },

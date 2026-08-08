@@ -79,6 +79,31 @@ export type PurchaseOrder = {
   approved: boolean;
 };
 
+/**
+ * طلب شراء — نفس تفاصيل أمر الشراء (نفس المورد، نفس البنود، نفس الاحتساب)
+ * لكن بلا شاشة مصروفات: لا توجد مصروفات فعلية بعد، فالمستخدم يُدخل «سعر CBM»
+ * و«نسبة المصاريف %» يدوياً ليقدّر التكلفة قبل الشراء. لذلك لا حقل `expenses`
+ * هنا إطلاقاً — بدلاً منه حقلان مُدخلان يدوياً يقودان التوزيع.
+ */
+export type PurchaseRequest = {
+  number: string;
+  date: string;
+  invoiceNo: string;
+  supplierCode: string;
+  currency: string;
+  rate: number;
+  containerNo: string;
+  containerSize: string;
+  distributionType: "cbm" | "percentage" | "average";
+  /** سعر CBM المُدخل يدوياً بالدولار (تكلفة المصاريف لكل 1 CBM). */
+  cbmPrice: number;
+  /** نسبة المصاريف % المُدخلة يدوياً (تُطبَّق على قيمة الشراء). */
+  expensePercentage: number;
+  notes: string;
+  rows: PORow[];
+  approved: boolean;
+};
+
 export type User = {
   id: string;
   username: string;

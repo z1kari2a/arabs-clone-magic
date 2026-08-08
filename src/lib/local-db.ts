@@ -2,7 +2,7 @@
 // Works in the browser (localStorage) and in Electron (via window.erpNative IPC bridge).
 // This is the ONLY module that touches raw storage; everything else calls into it.
 
-import type { Supplier, Item, PurchaseOrder, Settings, AuditEntry } from "./erp-types";
+import type { Supplier, Item, PurchaseOrder, PurchaseRequest, Settings, AuditEntry } from "./erp-types";
 
 export type LocalUser = {
   id: string;
@@ -48,6 +48,7 @@ const SCOPED_TABLES = new Set([
   "suppliers",
   "items",
   "purchase_orders",
+  "purchase_requests",
   "audit_log",
 ]);
 const SCOPED_KV = new Set(["settings"]);
@@ -341,6 +342,15 @@ export const localDb = {
     upsertMany: (p: PurchaseOrder[]) => upsertManyBy("purchase_orders", p, "number"),
     replaceAll: (p: PurchaseOrder[]) => replaceAll("purchase_orders", p),
     remove: (num: string) => removeBy<PurchaseOrder>("purchase_orders", "number", num),
+  },
+  // طلبات الشراء — جدول مستقل تماماً عن أوامر الشراء: مستند تقديري قبل الشراء،
+  // بلا مصروفات، ولا يجوز أن يختلط بأرقام أوامر الشراء الفعلية.
+  purchaseRequests: {
+    list: () => getAll<PurchaseRequest>("purchase_requests"),
+    upsert: (p: PurchaseRequest) => upsertBy("purchase_requests", p, "number"),
+    upsertMany: (p: PurchaseRequest[]) => upsertManyBy("purchase_requests", p, "number"),
+    replaceAll: (p: PurchaseRequest[]) => replaceAll("purchase_requests", p),
+    remove: (num: string) => removeBy<PurchaseRequest>("purchase_requests", "number", num),
   },
   users: {
     list: () => getAll<LocalUser>("users"),

@@ -16,6 +16,7 @@ import { Route as HomeRouteImport } from './routes/home'
 import { Route as ItemsRouteImport } from './routes/items'
 import { Route as PriceTiersRouteImport } from './routes/price-tiers'
 import { Route as PurchaseOrderRouteImport } from './routes/purchase-order'
+import { Route as PurchaseRequestRouteImport } from './routes/purchase-request'
 import { Route as RatesRouteImport } from './routes/rates'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -61,6 +62,11 @@ const PriceTiersRoute = PriceTiersRouteImport.update({
 const PurchaseOrderRoute = PurchaseOrderRouteImport.update({
   id: '/purchase-order',
   path: '/purchase-order',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PurchaseRequestRoute = PurchaseRequestRouteImport.update({
+  id: '/purchase-request',
+  path: '/purchase-request',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RatesRoute = RatesRouteImport.update({
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/items': typeof ItemsRoute
   '/price-tiers': typeof PriceTiersRoute
   '/purchase-order': typeof PurchaseOrderRoute
+  '/purchase-request': typeof PurchaseRequestRoute
   '/rates': typeof RatesRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
@@ -150,6 +157,7 @@ export interface FileRoutesByTo {
   '/items': typeof ItemsRoute
   '/price-tiers': typeof PriceTiersRoute
   '/purchase-order': typeof PurchaseOrderRoute
+  '/purchase-request': typeof PurchaseRequestRoute
   '/rates': typeof RatesRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
@@ -171,6 +179,7 @@ export interface FileRoutesById {
   '/items': typeof ItemsRoute
   '/price-tiers': typeof PriceTiersRoute
   '/purchase-order': typeof PurchaseOrderRoute
+  '/purchase-request': typeof PurchaseRequestRoute
   '/rates': typeof RatesRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
@@ -193,6 +202,7 @@ export interface FileRouteTypes {
     | '/items'
     | '/price-tiers'
     | '/purchase-order'
+    | '/purchase-request'
     | '/rates'
     | '/reports'
     | '/settings'
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | '/items'
     | '/price-tiers'
     | '/purchase-order'
+    | '/purchase-request'
     | '/rates'
     | '/reports'
     | '/settings'
@@ -233,6 +244,7 @@ export interface FileRouteTypes {
     | '/items'
     | '/price-tiers'
     | '/purchase-order'
+    | '/purchase-request'
     | '/rates'
     | '/reports'
     | '/settings'
@@ -254,6 +266,7 @@ export interface RootRouteChildren {
   ItemsRoute: typeof ItemsRoute
   PriceTiersRoute: typeof PriceTiersRoute
   PurchaseOrderRoute: typeof PurchaseOrderRoute
+  PurchaseRequestRoute: typeof PurchaseRequestRoute
   RatesRoute: typeof RatesRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
@@ -316,6 +329,13 @@ declare module '@tanstack/react-router' {
       path: '/purchase-order'
       fullPath: '/purchase-order'
       preLoaderRoute: typeof PurchaseOrderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/purchase-request': {
+      id: '/purchase-request'
+      path: '/purchase-request'
+      fullPath: '/purchase-request'
+      preLoaderRoute: typeof PurchaseRequestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rates': {
@@ -406,6 +426,7 @@ const rootRouteChildren: RootRouteChildren = {
   ItemsRoute: ItemsRoute,
   PriceTiersRoute: PriceTiersRoute,
   PurchaseOrderRoute: PurchaseOrderRoute,
+  PurchaseRequestRoute: PurchaseRequestRoute,
   RatesRoute: RatesRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,

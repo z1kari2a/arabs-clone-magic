@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useEffect } from "react";
-import type { Item, PurchaseOrder, Settings, Supplier, User } from "./erp-types";
+import type { Item, PORow, PurchaseOrder, PurchaseRequest, Settings, Supplier, User } from "./erp-types";
 import { localDb, logAudit, getCurrentScope } from "./local-db";
 import { scheduleCloudBackup } from "./cloud-sync";
 
@@ -7,6 +7,7 @@ type StoreState = {
   suppliers: Supplier[];
   items: Item[];
   purchaseOrders: PurchaseOrder[];
+  purchaseRequests: PurchaseRequest[];
   users: User[];
   settings: Settings;
   session: { username: string } | null;
@@ -49,6 +50,7 @@ const initialState: StoreState = {
   suppliers: [],
   items: [],
   purchaseOrders: [],
+  purchaseRequests: [],
   users: [],
   settings: defaultSettings,
   session: null,
@@ -87,10 +89,11 @@ async function fetchUsers(): Promise<User[]> {
 }
 
 export async function hydrateStore() {
-  const [suppliers, items, purchaseOrders, users, settings] = await Promise.all([
+  const [suppliers, items, purchaseOrders, purchaseRequests, users, settings] = await Promise.all([
     localDb.suppliers.list(),
     localDb.items.list(),
     localDb.purchaseOrders.list(),
+    localDb.purchaseRequests.list(),
     fetchUsers(),
     localDb.settings.get(),
   ]);
@@ -98,6 +101,7 @@ export async function hydrateStore() {
     suppliers,
     items,
     purchaseOrders,
+    purchaseRequests,
     users,
     settings: { ...defaultSettings, ...(settings ?? {}) },
     hydrated: true,
@@ -266,6 +270,52 @@ export async function savePurchaseOrder(po: PurchaseOrder) {
   });
 }
 
+/**
+ * حفظ طلب شراء. مختصر عمداً مقارنةً بـ savePurchaseOrder: الطلب مستند تقديري
+ * قبل الشراء، فلا يُحدِّث دليل الأصناف ولا آخر تكلفة — لا شيء اشتُري بعد.
+ * ما يشترك معه: تثبيت أسعار الصرف على المستند حتى لا تتغيّر أرقامه لاحقاً،
+ * وتصفية الأسطر الفارغة بنفس isRealRow، وكتابة قيد التدقيق.
+ */
+export async function savePurchaseRequest(pr: PurchaseRequest) {
+  const prev = (await localDb.purchaseRequests.list()).find((p) => p.number === pr.number) ?? null;
+  const currencies = state.settings.currencies ?? [];
+  const rateOf = (code?: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
+  const pinnedInv = pr.rate || rateOf(pr.currency) || 1;
+  const clean: PurchaseRequest = {
+    ...pr,
+    rate: pinnedInv,
+    rows: pr.rows.filter(isRealRow).map((r) => ({
+      ...r,
+      rate: r.rate || rateOf(r.currency) || pinnedInv,
+    })),
+  };
+  await localDb.purchaseRequests.upsert(clean);
+  await logAudit({
+    user_email: currentUsername(),
+    action: prev ? "UPDATE" : "INSERT",
+    table_name: "purchase_requests",
+    record_id: pr.number,
+    before_data: prev,
+    after_data: clean,
+  });
+  setState({ purchaseRequests: await localDb.purchaseRequests.list() });
+}
+
+export async function deletePurchaseRequest(number: string) {
+  const removed = await localDb.purchaseRequests.remove(number);
+  if (removed) {
+    await logAudit({
+      user_email: currentUsername(),
+      action: "DELETE",
+      table_name: "purchase_requests",
+      record_id: number,
+      before_data: removed,
+      after_data: null,
+    });
+  }
+  setState({ purchaseRequests: await localDb.purchaseRequests.list() });
+}
+
 // ---- Wholesale list replacement ----
 // The editing screens (dليل الأصناف / الموردون) hand back their COMPLETE list,
 // so persisting it means replacing the table, not upserting row by row. An
@@ -345,7 +395,7 @@ export const erpStore = {
     // Refuse to persist one before hydration has finished: a screen that
     // mounted with an empty list (see the useHydrate ordering) would otherwise
     // wipe the whole table the first time its save button was pressed.
-    const collections = ["suppliers", "items", "purchaseOrders"] as const;
+    const collections = ["suppliers", "items", "purchaseOrders", "purchaseRequests"] as const;
     const wholesale = collections.filter((k) => patch[k] !== undefined);
     if (wholesale.length && !state.hydrated) {
       console.warn(
@@ -372,6 +422,21 @@ export const erpStore = {
         }
       })();
     }
+    if (patch.purchaseRequests) {
+      // نفس مسار أوامر الشراء: الحذف عبر deletePurchaseRequest والحفظ عبر
+      // savePurchaseRequest حتى يُكتب قيد التدقيق وتُثبَّت أسعار الصرف.
+      const prev = state.purchaseRequests;
+      const next = patch.purchaseRequests;
+      const nextNumbers = new Set(next.map((p) => p.number));
+      void (async () => {
+        for (const old of prev) {
+          if (!nextNumbers.has(old.number)) await deletePurchaseRequest(old.number);
+        }
+        for (const p of next) {
+          if (!prev.find((x) => JSON.stringify(x) === JSON.stringify(p))) await savePurchaseRequest(p);
+        }
+      })();
+    }
     setState(patch);
   },
   reset: async () => {
@@ -379,6 +444,7 @@ export const erpStore = {
       localDb.suppliers.replaceAll([]),
       localDb.items.replaceAll([]),
       localDb.purchaseOrders.replaceAll([]),
+      localDb.purchaseRequests.replaceAll([]),
       localDb.settings.set(defaultSettings),
     ]);
     await hydrateStore();
@@ -447,42 +513,114 @@ export function lineCBMOf(r: import("./erp-types").PORow): number {
   return cartonsOf(r) * (r.cbm || 0);
 }
 
-// USD is the ONLY reference currency for costing. Invoice currency (po.currency)
+// ---- نواة الاحتساب المشتركة بين «أمر الشراء» و«طلب الشراء» ----
+// الفرق الوحيد بين المستندين هو مصدر «سعر CBM» و«نسبة المصاريف %»: أمر الشراء
+// يشتقّهما من المصروفات المسجّلة فعلاً، وطلب الشراء يأخذهما كما أدخلهما
+// المستخدم يدوياً (لا شاشة مصروفات فيه). كل ما عدا ذلك — تحويل العملات، تكلفة
+// الكرتون، أعمدة التوزيع الثلاثة والمجاميع — واحد بالضبط، فيعيش هنا مرّة واحدة
+// حتى لا تنحرف حسابات الشاشتين عن بعضهما.
+//
+// USD is the ONLY reference currency for costing. Invoice currency (doc.currency)
 // is used solely to price the goods on the rows; it plays no part in how
 // expenses are computed or distributed. `rate` on any currency = units-per-USD,
 // so converting anything straight to USD is always `amount / rate`.
-export function computePO(po: PurchaseOrder) {
+type CostingDoc = {
+  currency: string;
+  rate: number;
+  rows: PORow[];
+  distributionType: "cbm" | "percentage" | "average";
+};
+
+function costingBase(doc: CostingDoc) {
   // Prefer PINNED rates stored on the document — fall back to live settings only
   // when the row/expense/header has no rate yet (e.g. a brand-new unsaved line).
   const currencies = state.settings.currencies ?? [];
   const liveRate = (code?: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
-  const invRate = po.rate || liveRate(po.currency) || 1;
+  const invRate = doc.rate || liveRate(doc.currency) || 1;
   // Totals run over REAL rows only (see isRealRow) — the blank filler rows the
   // grid renders must never contribute to a total or to the item count.
-  const realRows = po.rows.filter(isRealRow);
-  const totalItems = realRows.length;
-  const totalQty = realRows.reduce((s, r) => s + (r.qty || 0), 0);
+  const realRows = doc.rows.filter(isRealRow);
 
-  const rateOfRow = (r: import("./erp-types").PORow) => r.rate || liveRate(r.currency) || invRate;
+  const rateOfRow = (r: PORow) => r.rate || liveRate(r.currency) || invRate;
   // "سعر الشراء" prices ONE PIECE, and العبوة is how many pieces the package
   // holds — so one package costs (السعر × العبوة). A missing/zero العبوة means
   // the price already is the package price; falling back to 1 keeps the money
   // intact instead of zeroing the whole line out.
   // تكلفة الشراء = (سعر الحبة × العبوة) ÷ سعر الصرف — one package, in USD.
-  const piecesPerPackage = (r: import("./erp-types").PORow) => r.pack || 1;
-  const cartonPurchaseCostOf = (r: import("./erp-types").PORow) => {
+  const piecesPerPackage = (r: PORow) => r.pack || 1;
+  const cartonPurchaseCostOf = (r: PORow) => {
     const rate = rateOfRow(r);
     return rate > 0 ? (r.price * piecesPerPackage(r)) / rate : 0;
   };
 
-  const totalCartons = realRows.reduce((s, r) => s + cartonsOf(r), 0);
-  const totalCBM = realRows.reduce((s, r) => s + lineCBMOf(r), 0);
-  const totalPurchase = realRows.reduce((s, r) => s + cartonsOf(r) * cartonPurchaseCostOf(r), 0);
+  return {
+    liveRate,
+    invRate,
+    piecesPerPackage,
+    cartonPurchaseCostOf,
+    totalItems: realRows.length,
+    totalQty: realRows.reduce((s, r) => s + (r.qty || 0), 0),
+    totalCartons: realRows.reduce((s, r) => s + cartonsOf(r), 0),
+    totalCBM: realRows.reduce((s, r) => s + lineCBMOf(r), 0),
+    totalPurchase: realRows.reduce((s, r) => s + cartonsOf(r) * cartonPurchaseCostOf(r), 0),
+  };
+}
+
+/** توزيع المصاريف على الأسطر بالأسس الثلاثة، انطلاقاً من سعر CBM ونسبة المصاريف. */
+function allocateRows(
+  doc: CostingDoc,
+  base: ReturnType<typeof costingBase>,
+  opts: { cbmPrice: number; pctRate: number; cbmBasisUnusable: boolean },
+) {
+  const { cbmPrice, pctRate, cbmBasisUnusable } = opts;
+  const rowMetrics = doc.rows.map((r) => {
+    const cartons = cartonsOf(r);
+    const purchaseCost = base.cartonPurchaseCostOf(r); // تكلفة الشراء (لكرتون، USD)
+    const lineCBM = cartons * r.cbm;
+    // التكلفة المئوية (لكرتون) — proportional to purchase value.
+    const pctCost = purchaseCost + purchaseCost * (pctRate / 100);
+    // تكلفة CBM (لكرتون)
+    const cbmCost = cbmBasisUnusable ? pctCost : r.cbm * cbmPrice + purchaseCost;
+    const avgCost = (cbmCost + pctCost) / 2; // متوسط التكلفة (لكرتون)
+    const selectedCost =
+      doc.distributionType === "cbm" ? cbmCost :
+      doc.distributionType === "percentage" ? pctCost :
+      avgCost; // "average" and any legacy value (value/qty/avg) fall back to the average
+    const allocatedExpPerCarton = selectedCost - purchaseCost; // مبلغ المصروف للكرتون
+    const linePurchase = cartons * purchaseCost;
+    // "إجمالي أمر الشراء" — ما يدفعه التاجر للمورد على هذا السطر، بعملة السطر
+    // نفسها (ماشي بالدولار): الكمية × العبوة × سعر الحبة. مجموع العمود = قيمة
+    // الفاتورة كما يصدرها المورد.
+    const lineInvoiceTotal = cartons * r.price * base.piecesPerPackage(r);
+    const allocatedExp = allocatedExpPerCarton * cartons;
+    const lineTotalCost = selectedCost * cartons;
+    return {
+      cartons, purchaseCost, lineCBM, linePurchase, lineInvoiceTotal,
+      cbmCost, pctCost, avgCost, selectedCost,
+      allocatedExpPerCarton, allocatedExp, lineTotalCost,
+    };
+  });
+
+  // ما وزّعته الأسطر فعلاً، ومجموع عمود "إجمالي أمر الشراء" بعملة الفاتورة.
+  const allocatedExpenses = doc.rows.reduce(
+    (s, r, i) => (isRealRow(r) ? s + rowMetrics[i].allocatedExp : s),
+    0,
+  );
+  const totalInvoiceAmount = doc.rows.reduce(
+    (s, r, i) => (isRealRow(r) ? s + rowMetrics[i].lineInvoiceTotal : s),
+    0,
+  );
+  return { rowMetrics, allocatedExpenses, totalInvoiceAmount };
+}
+
+export function computePO(po: PurchaseOrder) {
+  const base = costingBase(po);
+  const { totalCBM, totalPurchase } = base;
 
   // All expenses convert straight to USD regardless of their own currency,
   // the PO's invoice currency, or the vendor's currency.
   const totalExpenses = po.expenses.reduce((s, e) => {
-    const er = e.rate || liveRate(e.currency) || 0;
+    const er = e.rate || base.liveRate(e.currency) || 0;
     return s + (er > 0 ? e.amount / er : 0);
   }, 0);
 
@@ -503,56 +641,52 @@ export function computePO(po: PurchaseOrder) {
   // proportional (percentage) basis, which distributes the same expenses correctly.
   const cbmBasisUnusable = totalCBM <= 0 && totalExpenses > 0;
 
-  const rowMetrics = po.rows.map((r) => {
-    const cartons = cartonsOf(r);
-    const purchaseCost = cartonPurchaseCostOf(r); // تكلفة الشراء (لكرتون، USD)
-    const lineCBM = cartons * r.cbm;
-    // التكلفة المئوية (لكرتون) — proportional to purchase value.
-    const pctCost = purchaseCost + purchaseCost * (pctRate / 100);
-    // تكلفة CBM (لكرتون)
-    const cbmCost = cbmBasisUnusable ? pctCost : r.cbm * cbmPrice + purchaseCost;
-    const avgCost = (cbmCost + pctCost) / 2; // متوسط التكلفة (لكرتون)
-    const selectedCost =
-      po.distributionType === "cbm" ? cbmCost :
-      po.distributionType === "percentage" ? pctCost :
-      avgCost; // "average" and any legacy value (value/qty/avg) fall back to the average
-    const allocatedExpPerCarton = selectedCost - purchaseCost; // مبلغ المصروف للكرتون
-    const linePurchase = cartons * purchaseCost;
-    // "إجمالي أمر الشراء" — ما يدفعه التاجر للمورد على هذا السطر، بعملة السطر
-    // نفسها (ماشي بالدولار): الكمية × العبوة × سعر الحبة. مجموع العمود = قيمة
-    // الفاتورة كما يصدرها المورد.
-    const lineInvoiceTotal = cartons * r.price * piecesPerPackage(r);
-    const allocatedExp = allocatedExpPerCarton * cartons;
-    const lineTotalCost = selectedCost * cartons;
-    return {
-      cartons, purchaseCost, lineCBM, linePurchase, lineInvoiceTotal,
-      cbmCost, pctCost, avgCost, selectedCost,
-      allocatedExpPerCarton, allocatedExp, lineTotalCost,
-    };
-  });
+  const { rowMetrics, allocatedExpenses, totalInvoiceAmount } =
+    allocateRows(po, base, { cbmPrice, pctRate, cbmBasisUnusable });
 
   // What the per-row distribution ACTUALLY allocated, versus the real cash total.
   // These agree on every automatic basis, but a manually-typed "نسبة المصروفات %"
   // is free to over/under-allocate — the divergence used to be invisible, leaving
   // the header total and the sum of the item costs quietly contradicting each other.
-  const allocatedExpenses = po.rows.reduce(
-    (s, r, i) => (isRealRow(r) ? s + rowMetrics[i].allocatedExp : s),
-    0,
-  );
   const allocatedTotal = totalPurchase + allocatedExpenses;
   const allocationDiff = allocatedTotal - totalCost;
   const allocationBalanced = Math.abs(allocationDiff) < 0.005;
 
-  // مجموع عمود "إجمالي أمر الشراء" = قيمة الفاتورة بعملتها.
-  const totalInvoiceAmount = po.rows.reduce(
-    (s, r, i) => (isRealRow(r) ? s + rowMetrics[i].lineInvoiceTotal : s),
-    0,
-  );
-
   return {
-    totalItems, totalQty, totalPurchase, totalCBM, totalCartons, totalExpenses,
+    totalItems: base.totalItems, totalQty: base.totalQty, totalPurchase,
+    totalCBM, totalCartons: base.totalCartons, totalExpenses,
     cbmPrice, suggestedPct, pctRate, totalCost, rowMetrics, totalInvoiceAmount,
     cbmBasisUnusable, allocatedExpenses, allocatedTotal, allocationDiff, allocationBalanced,
+  };
+}
+
+/**
+ * احتساب «طلب الشراء». لا مصروفات مسجّلة هنا: «سعر CBM» و«نسبة المصاريف %»
+ * يُدخلان يدوياً، والمصروفات التقديرية هي ما وزّعته الأسطر فعلاً على الأساس
+ * المختار — فيبقى إجمالي التكلفة مطابقاً دائماً لمجموع تكاليف الأصناف، ولا
+ * يظهر أي فرق توزيع كالذي قد يحدث في أمر الشراء.
+ */
+export function computePR(pr: PurchaseRequest) {
+  const base = costingBase(pr);
+  const { totalCBM, totalPurchase } = base;
+
+  const cbmPrice = pr.cbmPrice || 0;
+  const pctRate = pr.expensePercentage || 0;
+  // نفس حارس أمر الشراء: توزيع حسب CBM بلا أي CBM مُدخل لا يوزّع شيئاً، فنرجع
+  // إلى الأساس النسبي بدل أن تختفي المصاريف من الأسطر.
+  const cbmBasisUnusable = totalCBM <= 0 && cbmPrice > 0;
+
+  const { rowMetrics, allocatedExpenses, totalInvoiceAmount } =
+    allocateRows(pr, base, { cbmPrice, pctRate, cbmBasisUnusable });
+
+  const totalExpenses = allocatedExpenses; // مصاريف تقديرية، لا فواتير فعلية
+  const totalCost = totalPurchase + totalExpenses;
+
+  return {
+    totalItems: base.totalItems, totalQty: base.totalQty, totalPurchase,
+    totalCBM, totalCartons: base.totalCartons, totalExpenses,
+    cbmPrice, pctRate, totalCost, rowMetrics, totalInvoiceAmount,
+    cbmBasisUnusable, allocatedExpenses,
   };
 }
 
