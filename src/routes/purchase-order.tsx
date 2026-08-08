@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
-import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtAuto, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
+import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, SaleCell, fmt, fmtAuto, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
 import ExpensesDialog from "@/components/erp/ExpensesDialog";
 import { printPurchaseOrder } from "@/lib/print-po";
 import { erpStore, useErpStore, computePO, savePurchaseOrder, isRealRow, deletePO, cartonsOf, lineCBMOf, stashPO } from "@/lib/erp-store";
@@ -288,6 +288,9 @@ function POPage() {
       "التكلفة المئوية $": metrics.rowMetrics[i]?.pctCost ?? 0,
       "متوسط التكلفة $": metrics.rowMetrics[i]?.avgCost ?? 0,
       "خرج للكرتون$": metrics.rowMetrics[i]?.allocatedExpPerCarton ?? 0,
+      // السعر الفعلي: المكتوب يدوياً إن وُجد، وإلا المحسوب بنسبة الربح.
+      [`سعر البيع (+${markupPct}%)`]:
+        r.salePrice ?? (metrics.rowMetrics[i]?.selectedCost ?? 0) * (1 + markupPct / 100),
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -387,7 +390,11 @@ function POPage() {
             const m = metrics.rowMetrics[i];
             const cartons = cartonsOf(r);
             const rowCur = r.currency ?? po.currency;
-            const salePrice = (m?.selectedCost ?? 0) * (1 + markupPct / 100);
+            // سعر البيع محسوب تلقائياً (التكلفة المعتمدة + نسبة الربح) ما لم
+            // يكتب المستخدم سعراً لهذا السطر — عندها يُعرض المكتوب ويُميَّز بلون.
+            const autoSale = (m?.selectedCost ?? 0) * (1 + markupPct / 100);
+            const saleOverridden = r.salePrice !== undefined;
+            const salePrice = saleOverridden ? r.salePrice! : autoSale;
             const dt = po.distributionType;
             return (
               <tr key={r.id} className="hover:bg-blue-50/40">
@@ -428,7 +435,13 @@ function POPage() {
                 <td className={`border border-slate-200 text-right px-2 bg-sky-50 text-sky-700 ${dt === "percentage" ? "font-bold ring-1 ring-inset ring-sky-400" : ""}`}>{fmt(m?.pctCost ?? 0, 1)}</td>
                 <td className={`border border-slate-200 text-right px-2 bg-amber-50 text-amber-700 ${dt === "average" ? "font-bold ring-1 ring-inset ring-amber-400" : ""}`}>{fmt(m?.avgCost ?? 0, 1)}</td>
                 <td className="border border-slate-200 text-right px-2 bg-orange-50 font-semibold text-orange-700">{fmt(m?.allocatedExpPerCarton ?? 0, 5)}</td>
-                <td className="border border-slate-200 text-right px-2 bg-emerald-50 font-bold text-emerald-700">{fmt(salePrice, 4)}</td>
+                <SaleCell
+                  value={salePrice}
+                  overridden={saleOverridden}
+                  disabled={disabled}
+                  decimals={4}
+                  onChange={(v) => patchRow(r.id, { salePrice: v.trim() === "" ? undefined : parseDecimal(v) })}
+                />
                 <td className="border border-slate-200 text-center">
                   <button disabled={disabled} onClick={() => removeRow(r.id)} className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-40" title="حذف"><Trash2 size={12} /></button>
                 </td>

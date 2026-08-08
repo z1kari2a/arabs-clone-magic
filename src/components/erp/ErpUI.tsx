@@ -208,7 +208,7 @@ export function ErpInput({
         onChange(v);
       }}
       disabled={disabled}
-      className={`w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-slate-50 disabled:text-slate-700 text-${align} ${highlight ? "!bg-[var(--color-erp-highlight)]" : ""} ${className}`}
+      className={`w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white outline-none focus:border-slate-400 disabled:bg-slate-50 disabled:text-slate-700 text-${align} ${highlight ? "!bg-[var(--color-erp-highlight)]" : ""} ${className}`}
     />
   );
 }
@@ -229,7 +229,7 @@ export function ErpSelect({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
-      className="w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-slate-50 text-right"
+      className="w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white outline-none focus:border-slate-400 disabled:bg-slate-50 text-right"
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>{o.label}</option>
@@ -330,6 +330,53 @@ export function ErpTable({
   );
 }
 
+/**
+ * خانة «سعر البيع» — قابلة للكتابة في أمر الشراء وطلب الشراء معاً.
+ *
+ * القيمة المعروضة هي السعر الفعلي: ما كتبه المستخدم على السطر إن وُجد، وإلا
+ * المحسوب (التكلفة المعتمدة + نسبة الربح). مسح الخانة يعيدها إلى الحساب
+ * التلقائي فوراً — ولهذا لا تُستعمل `Cell` هنا: تلك تحتفظ بنصّها بعد المسح
+ * فتبقى الخانة فارغة بصرياً رغم عودة القيمة. هنا يُعرض ما يكتبه المستخدم
+ * أثناء الكتابة فقط، وبعد الخروج من الحقل يُعرض السعر الفعلي دائماً.
+ */
+export function SaleCell({
+  value,
+  overridden,
+  disabled,
+  onChange,
+  decimals = 1,
+}: {
+  value: number;
+  overridden: boolean;
+  disabled?: boolean;
+  onChange: (v: string) => void;
+  /** عدد الخانات العشرية المعروضة حين لا يكون المستخدم يكتب. */
+  decimals?: number;
+}) {
+  const [typing, setTyping] = useState<string | null>(null);
+  const factor = 10 ** decimals;
+  const shown = typing ?? String(Math.round((isFinite(value) ? value : 0) * factor) / factor);
+  return (
+    <td className={`border border-slate-200 p-0 ${overridden ? "bg-fuchsia-50" : "bg-emerald-50"}`}>
+      <input
+        value={shown}
+        inputMode="decimal"
+        disabled={disabled}
+        title={overridden ? "سعر مكتوب يدوياً — امسح الخانة ليعود إلى الحساب التلقائي" : "محسوب تلقائياً — اكتب سعراً لتثبيته"}
+        onFocus={(e) => { setTyping(shown); e.target.select(); }}
+        onBlur={() => setTyping(null)}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v !== "" && !NUMERIC_RE.test(v)) return;
+          setTyping(v);
+          onChange(v);
+        }}
+        className={`w-full px-2 py-1 bg-transparent outline-none text-right font-bold disabled:text-slate-700 ${overridden ? "text-fuchsia-700" : "text-emerald-700"}`}
+      />
+    </td>
+  );
+}
+
 export function Cell({
   value,
   onChange,
@@ -375,7 +422,7 @@ function CellInput({
           onChange(v);
         }}
         disabled={disabled}
-        className={`w-full px-2 py-1 bg-transparent outline-none focus:bg-blue-50 disabled:text-slate-700 text-${align}`}
+        className={`w-full px-2 py-1 bg-transparent outline-none disabled:text-slate-700 text-${align}`}
       />
     </td>
   );

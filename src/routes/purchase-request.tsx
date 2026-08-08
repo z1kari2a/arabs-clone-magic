@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
-import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
+import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, SaleCell, fmt, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
 import { printPurchaseRequest } from "@/lib/print-po";
 import {
   erpStore, useErpStore, computePR, savePurchaseRequest, deletePurchaseRequest,
@@ -686,44 +686,6 @@ function PRPage() {
         </DialogContent>
       </Dialog>
     </ErpLayout>
-  );
-}
-
-/**
- * خانة «سعر البيع» — قابلة للكتابة، ومسحها يعيدها إلى السعر المحسوب تلقائياً
- * (التكلفة المعتمدة + نسبة الربح). لها خانتها الخاصة بدل Cell المشتركة لأن
- * تلك تحتفظ بنصّها بعد المسح، فتبقى الخانة فارغة بصرياً رغم عودة القيمة
- * للحساب التلقائي. هنا: أثناء الكتابة يُعرض ما يكتبه المستخدم، وبعد الخروج
- * من الحقل يُعرض دائماً السعر الفعلي مهما كان مصدره.
- */
-function SaleCell({
-  value, overridden, disabled, onChange,
-}: {
-  value: number;
-  overridden: boolean;
-  disabled?: boolean;
-  onChange: (v: string) => void;
-}) {
-  const [typing, setTyping] = useState<string | null>(null);
-  const shown = typing ?? String(Math.round((isFinite(value) ? value : 0) * 10) / 10);
-  return (
-    <td className={`border border-slate-200 p-0 ${overridden ? "bg-fuchsia-50" : "bg-emerald-50"}`}>
-      <input
-        value={shown}
-        inputMode="decimal"
-        disabled={disabled}
-        title={overridden ? "سعر مكتوب يدوياً — امسح الخانة ليعود إلى الحساب التلقائي" : "محسوب تلقائياً — اكتب سعراً لتثبيته"}
-        onFocus={(e) => { setTyping(shown); e.target.select(); }}
-        onBlur={() => setTyping(null)}
-        onChange={(e) => {
-          const v = e.target.value;
-          if (v !== "" && !/^-?[\d٠-٩۰-۹.,،٫٬\s]*$/.test(v)) return;
-          setTyping(v);
-          onChange(v);
-        }}
-        className={`w-full px-2 py-1 bg-transparent outline-none focus:bg-blue-50 text-right font-bold disabled:text-slate-700 ${overridden ? "text-fuchsia-700" : "text-emerald-700"}`}
-      />
-    </td>
   );
 }
 

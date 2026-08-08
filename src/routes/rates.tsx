@@ -149,14 +149,14 @@ function RatesPage() {
                       readOnly={isBase || !mayWrite}
                       title={isBase ? `${BASE_CODE} هي العملة الأساسية للنظام ولا يمكن تغيير رمزها` : undefined}
                       onChange={(e) => patch(c.code, { code: e.target.value.toUpperCase() })}
-                      className={`w-full px-2 py-1 text-center font-semibold bg-transparent rounded focus:outline-none ${isBase ? "text-emerald-800 cursor-not-allowed" : "focus:bg-blue-50/50"}`}
+                      className={`w-full px-2 py-1 text-center font-semibold bg-transparent rounded focus:outline-none ${isBase ? "text-emerald-800 cursor-not-allowed" : "/50"}`}
                     />
                   </td>
                   <td className="border border-slate-200 p-1">
                     <input
                       value={c.name}
                       onChange={(e) => patch(c.code, { name: e.target.value })}
-                      className="w-full px-2 py-1 text-right bg-transparent focus:outline-none focus:bg-blue-50/50 rounded"
+                      className="w-full px-2 py-1 text-right bg-transparent focus:outline-none/50 rounded"
                     />
                   </td>
                   <td className="border border-slate-200 p-1">

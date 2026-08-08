@@ -159,7 +159,7 @@ export default function ExpensesDialog({
                       value={e.type}
                       disabled={disabled}
                       onChange={(ev) => patch(e.id, { type: ev.target.value })}
-                      className="w-40 px-2 py-1.5 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-right"
+                      className="w-40 px-2 py-1.5 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:border-slate-400 text-right"
                     >
                       <option value="">اختر البيان</option>
                       {types.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -170,7 +170,7 @@ export default function ExpensesDialog({
                       value={e.currency}
                       disabled={disabled}
                       onChange={(ev) => patch(e.id, { currency: ev.target.value, rate: rateOf(ev.target.value) })}
-                      className="w-28 px-2 py-1.5 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      className="w-28 px-2 py-1.5 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:border-slate-400"
                     >
                       <option value="">اختر عملة</option>
                       {currencies.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
@@ -237,7 +237,7 @@ export default function ExpensesDialog({
                   <input value={newType} onChange={(e) => setNewType(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addType(); } }}
                     placeholder="نوع مصروف جديد (مثل: ضرائب، رسوم)..."
-                    className="flex-1 px-3 py-1.5 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-right" />
+                    className="flex-1 px-3 py-1.5 border border-slate-300 rounded-md text-sm focus:outline-none focus:border-slate-400 text-right" />
                   <button onClick={addType} className="px-3 py-1.5 bg-emerald-600 text-white rounded-md text-sm hover:bg-emerald-700 flex items-center gap-1">
                     <Plus size={14} /> إضافة
                   </button>
@@ -287,7 +287,7 @@ function AmountInput({
         buf.setText(v);
         onChange(parseDecimal(v));
       }}
-      className="w-32 px-2 py-1.5 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-right tabular-nums"
+      className="w-32 px-2 py-1.5 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:border-slate-400 text-right tabular-nums"
       placeholder="0.00"
     />
   );

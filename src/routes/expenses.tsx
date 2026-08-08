@@ -252,7 +252,7 @@ function ExpensesPage() {
       <div className="bg-white border border-slate-300 rounded p-2 grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
         <FilterField label="بحث">
           <input id="exp-filter-q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="نوع/بيان/رقم أمر/مورد"
-            className="w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white outline-none focus:ring-1 focus:ring-blue-400 text-right" />
+            className="w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white outline-none focus:border-slate-400 text-right" />
         </FilterField>
         <FilterField label="نوع المصروف">
           <select value={type} onChange={(e) => setType(e.target.value)}
