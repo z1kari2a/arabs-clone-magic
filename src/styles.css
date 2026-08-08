@@ -171,3 +171,18 @@
   position: relative;
   z-index: 1;
 }
+
+/* ---- تحديد النص داخل الحقول: بلا لون ----
+   النقر على أي حقل يُحدِّد محتواه تلقائياً حتى تستبدله الكتابة بدل أن تُدسّ
+   داخله (انظر useNumericBuffer في ErpUI). التحديد نفسه باقٍ والسلوك كما هو،
+   لكن بلا أي تظليل أزرق فوق الرقم — الحقل يبدو نظيفاً كما لو لم يُحدَّد شيء. */
+input::selection,
+textarea::selection {
+  background-color: transparent;
+  color: inherit;
+}
+input::-moz-selection,
+textarea::-moz-selection {
+  background-color: transparent;
+  color: inherit;
+}
