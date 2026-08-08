@@ -14,6 +14,7 @@ import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as ExpensesRouteImport } from './routes/expenses'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as ItemsRouteImport } from './routes/items'
+import { Route as PriceTiersRouteImport } from './routes/price-tiers'
 import { Route as PurchaseOrderRouteImport } from './routes/purchase-order'
 import { Route as RatesRouteImport } from './routes/rates'
 import { Route as ReportsRouteImport } from './routes/reports'
@@ -50,6 +51,11 @@ const HomeRoute = HomeRouteImport.update({
 const ItemsRoute = ItemsRouteImport.update({
   id: '/items',
   path: '/items',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PriceTiersRoute = PriceTiersRouteImport.update({
+  id: '/price-tiers',
+  path: '/price-tiers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PurchaseOrderRoute = PurchaseOrderRouteImport.update({
@@ -122,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/expenses': typeof ExpensesRoute
   '/home': typeof HomeRoute
   '/items': typeof ItemsRoute
+  '/price-tiers': typeof PriceTiersRoute
   '/purchase-order': typeof PurchaseOrderRoute
   '/rates': typeof RatesRoute
   '/reports': typeof ReportsRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/expenses': typeof ExpensesRoute
   '/home': typeof HomeRoute
   '/items': typeof ItemsRoute
+  '/price-tiers': typeof PriceTiersRoute
   '/purchase-order': typeof PurchaseOrderRoute
   '/rates': typeof RatesRoute
   '/reports': typeof ReportsRoute
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/expenses': typeof ExpensesRoute
   '/home': typeof HomeRoute
   '/items': typeof ItemsRoute
+  '/price-tiers': typeof PriceTiersRoute
   '/purchase-order': typeof PurchaseOrderRoute
   '/rates': typeof RatesRoute
   '/reports': typeof ReportsRoute
@@ -182,6 +191,7 @@ export interface FileRouteTypes {
     | '/expenses'
     | '/home'
     | '/items'
+    | '/price-tiers'
     | '/purchase-order'
     | '/rates'
     | '/reports'
@@ -201,6 +211,7 @@ export interface FileRouteTypes {
     | '/expenses'
     | '/home'
     | '/items'
+    | '/price-tiers'
     | '/purchase-order'
     | '/rates'
     | '/reports'
@@ -220,6 +231,7 @@ export interface FileRouteTypes {
     | '/expenses'
     | '/home'
     | '/items'
+    | '/price-tiers'
     | '/purchase-order'
     | '/rates'
     | '/reports'
@@ -240,6 +252,7 @@ export interface RootRouteChildren {
   ExpensesRoute: typeof ExpensesRoute
   HomeRoute: typeof HomeRoute
   ItemsRoute: typeof ItemsRoute
+  PriceTiersRoute: typeof PriceTiersRoute
   PurchaseOrderRoute: typeof PurchaseOrderRoute
   RatesRoute: typeof RatesRoute
   ReportsRoute: typeof ReportsRoute
@@ -289,6 +302,13 @@ declare module '@tanstack/react-router' {
       path: '/items'
       fullPath: '/items'
       preLoaderRoute: typeof ItemsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/price-tiers': {
+      id: '/price-tiers'
+      path: '/price-tiers'
+      fullPath: '/price-tiers'
+      preLoaderRoute: typeof PriceTiersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/purchase-order': {
@@ -384,6 +404,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExpensesRoute: ExpensesRoute,
   HomeRoute: HomeRoute,
   ItemsRoute: ItemsRoute,
+  PriceTiersRoute: PriceTiersRoute,
   PurchaseOrderRoute: PurchaseOrderRoute,
   RatesRoute: RatesRoute,
   ReportsRoute: ReportsRoute,

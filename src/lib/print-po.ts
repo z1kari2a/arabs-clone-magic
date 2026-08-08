@@ -290,12 +290,120 @@ ${tiersTable}
 </body></html>`;
 }
 
+export type TiersPrintOptions = {
+  po: PurchaseOrder;
+  supplier?: Supplier;
+  companyName: string;
+  priceTiers: PriceTier[];
+  /** عملة العرض ورقم صرفها مقابل الدولار (units per 1 USD). */
+  displayCurrency: string;
+  displayRate: number;
+};
+
+/** مستند «التسعيرات حسب الوجهات» وحده — الشاشة المنفصلة تطبع هذا فقط. */
+export function buildPriceTiersHTML(o: TiersPrintOptions): string {
+  const { po, supplier, companyName, priceTiers, displayCurrency, displayRate } = o;
+  const m = computePO(po);
+  const rows = po.rows.map((r, i) => ({ r, i })).filter(({ r }) => r.model || r.name);
+  const printedAt = new Date().toLocaleString("ar", { dateStyle: "short", timeStyle: "short" });
+
+  const body = rows
+    .map(({ r, i }, idx) => {
+      const cost = (m.rowMetrics[i]?.selectedCost ?? 0) * displayRate;
+      const cells = priceTiers
+        .map((t) => {
+          const tc = cost * (1 + (t.extraPct || 0) / 100);
+          return `<td class="l">${n(tc, 2)}</td><td class="l b g">${n(tc * (1 + (t.profitPct || 0) / 100), 2)}</td>`;
+        })
+        .join("");
+      return `<tr><td class="c">${idx + 1}</td><td class="c">${esc(r.model)}</td><td class="r nm">${esc(r.name)}</td><td class="l b">${n(cost, 2)}</td>${cells}</tr>`;
+    })
+    .join("");
+
+  return `<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<title>التسعيرات ${esc(po.number)}</title>
+<style>
+  @page { size: A4 landscape; margin: 8mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Cairo", "Segoe UI", Tahoma, sans-serif; font-size: 8.5pt; color: #111; margin: 0; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start;
+          border-bottom: 2px solid #1e5a8e; padding-bottom: 5px; margin-bottom: 7px; }
+  .co { font-size: 15pt; font-weight: 800; color: #1e5a8e; }
+  .doc { text-align: left; }
+  .doc .t { font-size: 12pt; font-weight: 700; }
+  .doc .num { font-size: 10pt; font-weight: 700; color: #1e5a8e; }
+  .sec { background: #eaf2fa; border: 1px solid #b6c6d6; border-right: 3px solid #1e5a8e;
+         font-weight: 700; padding: 3px 7px; margin: 8px 0 4px; font-size: 9pt; }
+  .info { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid #cbd5e1; }
+  .cell { display: flex; border-bottom: 1px solid #e2e8f0; border-left: 1px solid #e2e8f0; padding: 2px 6px; }
+  .cell .lbl { color: #64748b; min-width: 78px; }
+  .cell .val { font-weight: 600; }
+  table.grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  table.grid th { background: #eaf2fa; border: 1px solid #94a3b8; padding: 3px 2px;
+                  font-size: 7.5pt; font-weight: 700; word-wrap: break-word; }
+  table.grid td { border: 1px solid #cbd5e1; padding: 2px 3px; font-size: 8pt; }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+  .c { text-align: center; } .r { text-align: right; } .l { text-align: left; }
+  .b { font-weight: 700; } .g { color: #15803d; } .nm { white-space: normal; }
+  .empty { text-align: center; color: #94a3b8; padding: 8px; font-style: italic; }
+  .foot { margin-top: 8px; border-top: 1px solid #cbd5e1; padding-top: 3px;
+          display: flex; justify-content: space-between; color: #94a3b8; font-size: 7pt; }
+</style></head>
+<body>
+
+<div class="head">
+  <div>
+    <div class="co">${esc(companyName)}</div>
+    <div style="color:#64748b">${esc(supplier?.name ? `المورد: ${supplier.name}` : "")}</div>
+  </div>
+  <div class="doc">
+    <div class="t">التسعيرات حسب الوجهات</div>
+    <div class="num">${esc(po.number)}</div>
+  </div>
+</div>
+
+<div class="info">
+  <div class="cell"><span class="lbl">الفاتورة</span><span class="val">${esc(po.number)}</span></div>
+  <div class="cell"><span class="lbl">التاريخ</span><span class="val">${esc(po.date)}</span></div>
+  <div class="cell"><span class="lbl">عملة العرض</span><span class="val">${esc(displayCurrency)}</span></div>
+  <div class="cell"><span class="lbl">سعر الصرف</span><span class="val">1 USD = ${n(displayRate, 4)} ${esc(displayCurrency)}</span></div>
+</div>
+
+<div class="sec">قواعد التسعير</div>
+<table class="grid">
+  <thead><tr><th style="width:34%">التسعيرة</th><th>نسبة إضافية على التكلفة %</th><th>نسبة الربح %</th></tr></thead>
+  <tbody>${
+    priceTiers
+      .map((t) => `<tr><td class="r">${esc(t.name)}</td><td class="l">${n(t.extraPct || 0, 2)}</td><td class="l">${n(t.profitPct || 0, 2)}</td></tr>`)
+      .join("") || `<tr><td colspan="3" class="c empty">لا توجد تسعيرات معرّفة</td></tr>`
+  }</tbody>
+</table>
+
+<div class="sec">الأصناف (${rows.length}) — بعملة ${esc(displayCurrency)}</div>
+<table class="grid">
+  <thead><tr>
+    <th style="width:4%">م</th><th style="width:10%">الموديل</th><th style="width:22%">اسم الصنف</th>
+    <th style="width:12%">التكلفة المعتمدة</th>
+    ${priceTiers.map((t) => `<th>تكلفة ${esc(t.name)}</th><th>بيع ${esc(t.name)}</th>`).join("")}
+  </tr></thead>
+  <tbody>${body || `<tr><td colspan="${4 + priceTiers.length * 2}" class="c empty">لا توجد أصناف</td></tr>`}</tbody>
+</table>
+
+<div class="foot">
+  <span>${esc(companyName)} — تسعيرات الفاتورة ${esc(po.number)}</span>
+  <span>طُبع في ${esc(printedAt)}</span>
+</div>
+
+</body></html>`;
+}
+
 /**
- * يطبع المستند من إطار مخفي: الصفحة الأصلية لا تتأثر، ولا يعترضه مانع النوافذ
- * المنبثقة كما يحدث مع window.open.
+ * يطبع مستند HTML من إطار مخفي: الصفحة الأصلية لا تتأثر، ولا يعترضه مانع
+ * النوافذ المنبثقة كما يحدث مع window.open.
  */
-export function printPurchaseOrder(o: PrintOptions): void {
-  const html = buildPurchaseOrderHTML(o);
+function printHTMLDocument(html: string): void {
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
   frame.style.cssText = "position:fixed;right:-10000px;bottom:0;width:1200px;height:900px;border:0;";
@@ -321,4 +429,12 @@ export function printPurchaseOrder(o: PrintOptions): void {
   doc.open();
   doc.write(html);
   doc.close();
+}
+
+export function printPurchaseOrder(o: PrintOptions): void {
+  printHTMLDocument(buildPurchaseOrderHTML(o));
+}
+
+export function printPriceTiers(o: TiersPrintOptions): void {
+  printHTMLDocument(buildPriceTiersHTML(o));
 }

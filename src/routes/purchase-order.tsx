@@ -1,18 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import {
   FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer,
   FileSpreadsheet, Download, CheckCircle2, X, Plus, Wallet, Building2, Copy,
-  ChevronUp, ChevronDown, Coins, Package, RefreshCcw, Info, Check,
+  Coins, Package, RefreshCcw, Info, Check, Tags,
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, fmt, fmtAuto, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
 import ExpensesDialog from "@/components/erp/ExpensesDialog";
 import { printPurchaseOrder } from "@/lib/print-po";
-import { erpStore, useErpStore, computePO, savePurchaseOrder, isRealRow, deletePO, cartonsOf, lineCBMOf } from "@/lib/erp-store";
+import { erpStore, useErpStore, computePO, savePurchaseOrder, isRealRow, deletePO, cartonsOf, lineCBMOf, stashPO } from "@/lib/erp-store";
 import { getCurrentScope, localDb } from "@/lib/local-db";
 import { useAuth, canWrite, canDelete, canApprove } from "@/lib/auth";
 import type { PurchaseOrder, PORow } from "@/lib/erp-types";
@@ -86,6 +86,7 @@ const emptyPO = (num: string, currency = "USD", rate = 1): PurchaseOrder => ({
 });
 
 function POPage() {
+  const router = useRouter();
   const suppliers = useErpStore((s) => s.suppliers);
   const items = useErpStore((s) => s.items);
   const orders = useErpStore((s) => s.purchaseOrders);
@@ -125,7 +126,6 @@ function POPage() {
   const rateOf = rateOfCode;
   // Rate actually used to value an expense: the one pinned on the row, falling
   // back to the live table only for a line that has none yet. Mirrors computePO.
-  const [tierDisplayCurrency, setTierDisplayCurrency] = useState<string>("USD");
 
   // Master (grand-total) currency — used to display totals converted from invoice currency.
   // Defaults to USD (the system's base currency), not settings.defaultCurrency.
@@ -142,9 +142,7 @@ function POPage() {
   // Note: exchange-rate editing lives only in Settings → Currencies panel.
   // Every screen reads settings.currencies read-only.
 
-  // Collapsible sections — let users shrink big tables to save space.
   const [itemsDlg, setItemsDlg] = useState(false);
-  const [showTiers, setShowTiers] = useState(true);
 
   const metrics = useMemo(() => computePO(po), [po]);
   const supplier = suppliers.find((s) => s.code === po.supplierCode);
@@ -233,6 +231,14 @@ function POPage() {
       masterCurrency,
     });
 
+  // «التسعيرات» — شاشة مستقلة. الفاتورة المعروضة قد تكون قيد التحرير ولم تُحفظ
+  // بعد، فنمرّر نسخة منها (stashPO) لتقرأها تلك الشاشة إن لم تجد الرقم بين
+  // الفواتير المحفوظة.
+  const onTiers = () => {
+    stashPO(po);
+    router.navigate({ to: "/price-tiers", search: { po: po.number } });
+  };
+
   const onImport = () => fileRef.current?.click();
   const onCopy = async () => {
     if (!mayWrite) return denied();
@@ -302,6 +308,7 @@ function POPage() {
     { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
     { icon: Wallet, label: "المصروفات", hint: "F4", color: "text-orange-600", onClick: () => setExpDlg(true) },
+    { icon: Tags, label: "التسعيرات", hint: "F6", color: "text-fuchsia-600", onClick: onTiers },
     { icon: CheckCircle2, label: "اعتماد", hint: "F9", color: "text-emerald-700", onClick: onApprove, disabled: po.approved || !mayApprove },
     { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: () => history.back() },
   ];
@@ -317,6 +324,7 @@ function POPage() {
       else if (e.key === "F2") { e.preventDefault(); if (!po.approved) onEdit(); }
       else if (e.key === "F3") { e.preventDefault(); setItemsDlg(true); setSearchDlg(true); }
       else if (e.key === "F4") { e.preventDefault(); setExpDlg(true); }
+      else if (e.key === "F6") { e.preventDefault(); onTiers(); }
       else if (e.key === "F9") { e.preventDefault(); if (!po.approved) onApprove(); }
       else if (e.ctrlKey && k === "d") { e.preventDefault(); onCopy(); }
       else if (e.key === "Escape") { setOpenDlg(false); setSupDlg(false); setExpDlg(false); setSearchDlg(false); setItemsDlg(false); }
@@ -725,60 +733,29 @@ function POPage() {
         </div>
       </div>
 
-      {/* Price tiers */}
-      {priceTiers.length > 0 && (
-        <div className="bg-white border border-slate-300 rounded">
-          <div className="flex items-center justify-between px-2 py-1 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
-            <div className="flex items-center gap-2 text-[11px]">
-              <span className="text-slate-600">عرض التسعيرات بعملة:</span>
-              <select
-                value={tierDisplayCurrency}
-                onChange={(e) => setTierDisplayCurrency(e.target.value)}
-                className="px-2 py-0.5 text-[11px] border border-slate-300 rounded bg-white"
-              >
-                {currencyOptions.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-            <button type="button" onClick={() => setShowTiers((v) => !v)} className="font-semibold text-slate-700 flex items-center gap-1 hover:text-blue-700" title={showTiers ? "طي" : "توسيع"}>
-              {showTiers ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              <StepBadge n={6} /> التسعيرات حسب الوجهات
-            </button>
-            <div className="text-[10px] text-slate-500">1 USD = {fmt(tierDisplayCurrency === "USD" ? 1 : (rateOfCode(tierDisplayCurrency) || 1), 4)} {tierDisplayCurrency}</div>
-          </div>
-          {showTiers && (
-          <ErpTable headers={["م", "الموديل", "اسم الصنف", `التكلفة المعتمدة (${tierDisplayCurrency})`, ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`])]}>
-            {/* rowMetrics is indexed against the UNFILTERED po.rows, so the metric
-                must be looked up by the row's original index. Mapping over a
-                filtered list and reusing its index shifted every cost up by one
-                row for each blank row above it. */}
-            {po.rows.map((r, srcIndex) => ({ r, srcIndex })).filter(({ r }) => r.model || r.name).map(({ r, srcIndex }, i) => {
-              const m = metrics.rowMetrics[srcIndex];
-              // selectedCost is always in USD — convert into the chosen display currency.
-              const conv = tierDisplayCurrency === "USD" ? 1 : (rateOfCode(tierDisplayCurrency) || 1);
-              const avg = (m?.selectedCost ?? 0) * conv;
-              return (
-                <tr key={r.id} className="odd:bg-white even:bg-slate-50/50">
-                  <td className="border border-slate-200 text-center text-slate-500 w-10">{i + 1}</td>
-                  <td className="border border-slate-200 text-center px-2">{r.model}</td>
-                  <td className="border border-slate-200 text-right px-2">{r.name}</td>
-                  <td className="border border-slate-200 text-right px-2 bg-amber-50 font-semibold">{fmt(avg, 4)}</td>
-                  {priceTiers.flatMap((t) => {
-                    const tierCost = avg * (1 + (t.extraPct || 0) / 100);
-                    const salePrice = tierCost * (1 + (t.profitPct || 0) / 100);
-                    return [
-                      <td key={t.id + "c"} className="border border-slate-200 text-right px-2">{fmt(tierCost, 4)}</td>,
-                      <td key={t.id + "s"} className="border border-slate-200 text-right px-2 bg-emerald-50 font-semibold text-emerald-700">{fmt(salePrice, 4)}</td>,
-                    ];
-                  })}
-                </tr>
-              );
-            })}
-          </ErpTable>
-          )}
+      {/* التسعيرات حسب الوجهات لم تعد جدولاً هنا — لها شاشة مستقلة (زر
+          «التسعيرات» في الشريط أو السطر التالي)، تُفتح على نفس الفاتورة. */}
+      <button
+        type="button"
+        onClick={onTiers}
+        className="w-full bg-white border border-slate-300 rounded px-3 py-2 flex items-center justify-between gap-2 hover:bg-fuchsia-50/60 hover:border-fuchsia-300 text-right transition-colors"
+        title="فتح شاشة التسعيرات (F6)"
+      >
+        <div className="flex items-center gap-2 text-xs font-semibold text-fuchsia-700">
+          <span className="flex items-center gap-1 px-2 py-1 bg-fuchsia-600 text-white rounded">
+            <Tags size={12} /> فتح شاشة التسعيرات
+          </span>
+          <span className="text-[10px] text-slate-400 font-normal">F6</span>
         </div>
-      )}
+        <div className="flex items-center gap-2 font-semibold text-slate-700">
+          <StepBadge n={6} />
+          <Tags size={14} />
+          التسعيرات حسب الوجهات ({priceTiers.length})
+        </div>
+        <div className="text-xs text-slate-600">
+          {priceTiers.length ? priceTiers.map((t) => t.name).join(" • ") : "لم تُعرَّف وجهات تسعير بعد"}
+        </div>
+      </button>
 
       {/* Dialogs */}
       <Dialog open={openDlg} onOpenChange={setOpenDlg}>

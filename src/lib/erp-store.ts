@@ -1,6 +1,6 @@
 import { useSyncExternalStore, useEffect } from "react";
 import type { Item, PurchaseOrder, Settings, Supplier, User } from "./erp-types";
-import { localDb, logAudit } from "./local-db";
+import { localDb, logAudit, getCurrentScope } from "./local-db";
 import { scheduleCloudBackup } from "./cloud-sync";
 
 type StoreState = {
@@ -406,6 +406,28 @@ export function useErpStore<T>(selector: (s: StoreState) => T): T {
  */
 export function isRealRow(r: import("./erp-types").PORow): boolean {
   return Boolean(r.model || r.name || (r.qty || 0) > 0);
+}
+
+// ---- تمرير أمر الشراء المفتوح إلى شاشة «التسعيرات» ----
+// شاشة التسعيرات تقرأ الفواتير المحفوظة، لكن المستخدم قد يضغط «التسعيرات» وهو
+// يحرّر فاتورة لم تُحفظ بعد. نخزّن نسخة منها هنا عند الانتقال، وتقرأها الشاشة
+// الأخرى إذا لم تجد الرقم بين المحفوظات. مفتاح مستقل عن مفتاح المسودّة عمداً:
+// كتابة مسودّة لفاتورة محفوظة كانت ستُعيد فتحها في وضع التعديل عند الرجوع.
+const handoffKey = () => `erp:po-handoff-v1:${getCurrentScope() ?? "anon"}`;
+
+/** يحفظ نسخة من أمر الشراء الحالي قبل الانتقال إلى شاشة التسعيرات. */
+export function stashPO(po: PurchaseOrder) {
+  try { localStorage.setItem(handoffKey(), JSON.stringify(po)); } catch { /* ignore */ }
+}
+
+/** يقرأ أمر الشراء المُمرَّر من شاشة أمر الشراء (إن وُجد). */
+export function readStashedPO(): PurchaseOrder | null {
+  try {
+    const raw = localStorage.getItem(handoffKey());
+    return raw ? (JSON.parse(raw) as PurchaseOrder) : null;
+  } catch {
+    return null;
+  }
 }
 
 // ---- Packages: the ONE unit that quantity, price and CBM all speak ----
