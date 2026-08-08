@@ -7,6 +7,7 @@ import { QuickSidebar } from "./QuickSidebar";
 
 const TABS = [
   { to: "/home", label: "الرئيسية" },
+  { to: "/purchase-request", label: "طلبات الشراء" },
   { to: "/purchase-order", label: "أوامر الشراء" },
   { to: "/price-tiers", label: "التسعيرات" },
   { to: "/suppliers", label: "الموردون" },
