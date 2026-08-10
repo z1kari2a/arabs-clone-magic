@@ -12,6 +12,9 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
+// Set only by vite.electron.config.mjs, so it is undefined in the web build.
+const IS_DESKTOP = import.meta.env.VITE_DESKTOP === "true";
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -95,13 +98,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap",
-      },
+      // The desktop build runs from file:// with no network: "/favicon.ico"
+      // cannot resolve there, and Cairo is bundled locally by
+      // electron-app/fonts.css. Keeping these links would make the app wait on
+      // requests that can never succeed on an offline machine.
+      ...(IS_DESKTOP
+        ? []
+        : [
+            { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+            { rel: "preconnect", href: "https://fonts.googleapis.com" },
+            { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+            {
+              rel: "stylesheet",
+              href: "https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap",
+            },
+          ]),
     ],
   }),
   shellComponent: RootShell,

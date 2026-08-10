@@ -30,3 +30,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Desktop build output
+electron-release/
+shell-release/
+.cache/
+bundle.bin
