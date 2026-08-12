@@ -1,0 +1,116 @@
+/*
+ * Desktop-only overrides. Imported by electron-app/entry.tsx, so none of this
+ * reaches the web build.
+ *
+ * Each rule removes a behaviour that reads as "this is a web page": text you
+ * can sweep-select anywhere, images you can drag out of the window, the I-beam
+ * cursor over labels, elastic overscroll, tap highlights, Chromium's scrollbar.
+ */
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden; /* the app owns its scroll areas; the window never scrolls */
+  overscroll-behavior: none;
+}
+
+body {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Data is still data: anything the user might legitimately copy out stays
+   selectable. Chrome (headers, buttons, labels) does not. */
+input,
+textarea,
+[contenteditable="true"],
+td,
+th,
+pre,
+code,
+[data-selectable] {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: auto;
+}
+
+button,
+a,
+[role="button"],
+[role="tab"],
+[role="menuitem"],
+label,
+summary,
+select {
+  cursor: default;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+/* No dragging UI pieces out of the window and into another program. */
+img,
+svg,
+a {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+/* Focus rings only for keyboard users — a mouse click leaving a blue halo is a
+   browser default that no Windows program has. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* A quieter, more Windows-like scrollbar than Chromium's default. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.55) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.45);
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.75);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Printing from the app should produce the document, not a screenshot of a
+   window: no fixed sidebars, no dark chrome. */
+@media print {
+  html,
+  body,
+  #root {
+    height: auto;
+    overflow: visible;
+  }
+
+  [data-no-print],
+  nav,
+  aside {
+    display: none !important;
+  }
+}

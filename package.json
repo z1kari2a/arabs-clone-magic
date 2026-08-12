@@ -16,6 +16,8 @@
     "build:electron": "vite build --config vite.electron.config.mjs",
     "electron:start": "npm run build:electron && electron electron/main.cjs",
     "make:win": "node scripts/make-win.mjs",
+    "make:installer": "node scripts/make-installer.mjs",
+    "make:setup": "npm run make:win && node scripts/make-installer.mjs",
     "make:linux": "node scripts/make-win.mjs --platform=linux",
     "icon": "node scripts/make-icon.mjs",
     "fonts:fetch": "node scripts/fetch-fonts.mjs",

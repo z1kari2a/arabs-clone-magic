@@ -108,7 +108,10 @@ const ignore = [
   /^\/docs($|\/)/,
   /^\/supabase($|\/)/,
   /^\/scripts($|\/)/,
-  /^\/build($|\/)/,
+  // build/ is packaging input, except the icon itself: main.cjs passes it to
+  // BrowserWindow so the window and taskbar show the app's icon rather than
+  // Electron's default.
+  /^\/build\/(?!icon\.ico$)/,
   /^\/electron-app($|\/)/,
   /^\/electron-shell($|\/)/,
   /^\/electron-release($|\/)/,
@@ -199,7 +202,9 @@ if (!existsSync(exe)) throw new Error(`packager finished but ${exe} is missing`)
 const mustExist = [
   "resources/app/electron/main.cjs",
   "resources/app/electron/preload.cjs",
+  "resources/app/electron/splash.html",
   "resources/app/electron/db.cjs",
+  "resources/app/build/icon.ico",
   "resources/app/dist-electron/index.html",
   "resources/app/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
   ...KEEP_MODULES.map((m) => `resources/app/node_modules/${m}/package.json`),
