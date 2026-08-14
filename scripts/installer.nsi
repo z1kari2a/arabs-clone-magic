@@ -49,13 +49,16 @@ SetCompressorDictSize 64
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_FUNCTION LaunchAsUser
 !define MUI_FINISHPAGE_RUN_TEXT "تشغيل البرنامج الآن"
+; One-click install: no Welcome page and no Directory-choice page. Double-
+; clicking the Setup .exe (after the UAC prompt Windows requires for a
+; Program Files install) starts copying files immediately — the only screen
+; before Finish is the progress bar. There is nothing to click, choose, or
+; customize; it always installs to Program Files.
 
 Function LaunchAsUser
   Exec '"$WINDIR\explorer.exe" "$INSTDIR\${EXE_NAME}"'
 FunctionEnd
 
-!insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
