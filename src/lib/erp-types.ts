@@ -155,6 +155,85 @@ export type Settings = {
   masterCurrency?: string;
   /** Predefined expense types shown in the expenses dialog. */
   expenseTypes?: string[];
+  /** Extended company/branch record (بيانات الشركة والفرع). Every field optional. */
+  company?: CompanyProfile;
+};
+
+/**
+ * The full company/branch card as it appears on the classic ERP screen. Every
+ * field is optional on purpose: the program must stay usable with none of it
+ * filled in, so nothing here is ever validated or required. Values are kept as
+ * strings (even the numeric-looking ones) so leading zeros in codes, phone
+ * numbers and postal codes survive a round-trip through storage.
+ */
+export type CompanyProfile = {
+  // --- identity ---
+  companyNo?: string;
+  branchNo?: string;
+  year?: string;
+  companyNameEn?: string;
+  branchName?: string;
+  branchNameEn?: string;
+  groupNo?: string;
+  isMain?: boolean;
+  onyxLiteLink?: boolean;
+  // --- address & contact ---
+  country?: string;
+  governorateNo?: string;
+  city?: string;
+  regionNo?: string;
+  district?: string;
+  street?: string;
+  buildingNo?: string;
+  additionalNo?: string;
+  postalCode?: string;
+  shortAddress?: string;
+  branchAddress?: string;
+  branchAddressEn?: string;
+  phone?: string;
+  website?: string;
+  gps?: string;
+  longitude?: string;
+  latitude?: string;
+  // --- print header ---
+  headerLine1?: string;
+  headerLine2?: string;
+  headerLine3?: string;
+  specs?: string;
+  headerLine1En?: string;
+  headerLine2En?: string;
+  headerLine3En?: string;
+  specsEn?: string;
+  // --- tax & legal ---
+  taxAuthNo?: string;
+  identityType?: string;
+  identityNo?: string;
+  taxSite?: string;
+  taxAccountNan?: string;
+  taxBranchNo?: string;
+  taxGroupNo?: string;
+  statisticalNo?: string;
+  serial?: string;
+  socialSecurityNo?: string;
+  socialSecurityAgency?: string;
+  activityCode?: string;
+  activityName?: string;
+  customersDebtLimit?: string;
+  posName?: string;
+  suspendDate?: string;
+  suspendReason?: string;
+  // --- free codes ---
+  version?: string;
+  code?: string;
+  // --- audit stamps, maintained by the program (never typed by hand) ---
+  createdAt?: string;
+  createdBy?: string;
+  createdDevice?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+  updatedDevice?: string;
+  printCount?: number;
+  editCount?: number;
 };
 
 export type Currency = {

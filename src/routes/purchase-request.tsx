@@ -186,6 +186,7 @@ function PRPage() {
       pr,
       supplier,
       companyName: settings.companyName || "طلب شراء",
+      company: settings.company,
       markupPct,
       priceTiers,
       rateOfCode,

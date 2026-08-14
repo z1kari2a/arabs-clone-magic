@@ -225,6 +225,7 @@ function POPage() {
       po,
       supplier,
       companyName: settings.companyName || "أمر شراء",
+      company: settings.company,
       markupPct,
       priceTiers,
       rateOfCode,

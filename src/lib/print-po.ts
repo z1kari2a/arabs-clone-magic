@@ -5,7 +5,14 @@
 // مستند HTML خاصاً بالورق (A4 أفقي) يحوي الفاتورة كاملة بحساباتها ومجاميعها،
 // ونطبعه من إطار مخفي حتى لا يتأثر بأي شيء في الصفحة.
 
-import type { PurchaseOrder, PurchaseRequest, Supplier, PriceTier, PORow } from "./erp-types";
+import type {
+  PurchaseOrder,
+  PurchaseRequest,
+  Supplier,
+  PriceTier,
+  PORow,
+  CompanyProfile,
+} from "./erp-types";
 import { computePO, computePR, cartonsOf } from "./erp-store";
 
 const esc = (v: unknown) =>
@@ -16,7 +23,10 @@ const esc = (v: unknown) =>
     .replace(/"/g, "&quot;");
 
 const n = (v: number, d = 2) =>
-  (isFinite(v) ? v : 0).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+  (isFinite(v) ? v : 0).toLocaleString("en-US", {
+    minimumFractionDigits: d,
+    maximumFractionDigits: d,
+  });
 
 /** رقم بأقل عدد ممكن من الخانات العشرية (6 → "6"، 0.0417 → "0.0417"). */
 const auto = (v: number, max = 4) => {
@@ -38,6 +48,15 @@ const DOC_CSS = `
   .head { display: flex; justify-content: space-between; align-items: flex-start;
           border-bottom: 2px solid #1e5a8e; padding-bottom: 5px; margin-bottom: 7px; }
   .co { font-size: 15pt; font-weight: 800; color: #1e5a8e; }
+  .co-en { font-size: 9pt; font-weight: 700; color: #334155; }
+  .co-lines { font-size: 8pt; color: #475569; margin-top: 1px; }
+  /* شريط بيانات الشركة: عمودان — الأول يقع يميناً في مستند RTL */
+  .cobar { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px;
+           border: 1px solid #cbd5e1; border-radius: 3px; padding: 3px 8px;
+           margin-bottom: 7px; font-size: 7.8pt; }
+  .cobar .ci { display: flex; gap: 6px; padding: 1px 0; }
+  .cobar .ci .lbl { color: #64748b; min-width: 66px; }
+  .cobar .ci .val { font-weight: 600; color: #0f172a; }
   .doc { text-align: left; }
   .doc .t { font-size: 12pt; font-weight: 700; }
   .doc .num { font-size: 10pt; font-weight: 700; color: #1e5a8e; }
@@ -80,6 +99,82 @@ const DOC_CSS = `
           display: flex; justify-content: space-between; color: #94a3b8; font-size: 7pt; }
   .break { page-break-before: always; }`;
 
+/** أقصى عدد من بيانات الشركة يظهر في الترويسة — 4 يميناً و4 يساراً. */
+const HEAD_MAX = 8;
+
+/**
+ * ترويسة المستند: اسم الشركة (ونصوص ترويستها) على اليمين، ونوع المستند ورقمه
+ * على اليسار، وتحتهما شريط ببيانات الشركة الأساسية فقط — الفرع والعنوان
+ * والتلفون والأرقام الضريبية — موزّعة عمودين (3/3 أو 4/4 حسب المتوفّر).
+ *
+ * لا يُطبع إلا ما عُبّئ فعلاً: كل حقول بطاقة الشركة اختيارية، فالشريط يختفي
+ * كاملاً في التركيبات التي لم يُدخل فيها شيء، ولا تخرج ورقة بعناوين فارغة.
+ * دالة واحدة تخدم المستندات الثلاثة حتى لا تتفرّع الترويسة بينها.
+ */
+function docHeadHTML(o: {
+  companyName: string;
+  company?: CompanyProfile;
+  supplierName?: string;
+  title: string;
+  number: string;
+  badge?: string;
+}): string {
+  const co = o.company ?? {};
+  const t = (v: unknown) => String(v ?? "").trim();
+
+  const address =
+    t(co.branchAddress) ||
+    [t(co.city), t(co.district), t(co.street), t(co.buildingNo)].filter(Boolean).join("، ");
+  const branch = [t(co.branchName), t(co.branchNo) && `(${t(co.branchNo)})`]
+    .filter(Boolean)
+    .join(" ");
+
+  const candidates: [string, string][] = [
+    ["الفرع", branch],
+    ["العنوان", address],
+    ["التلفون", t(co.phone)],
+    ["الرقم الضريبي", t(co.taxAuthNo)],
+    [t(co.identityType) || "المعرف", t(co.identityNo)],
+    ["الموقع", t(co.website)],
+    ["الرمز البريدي", t(co.postalCode)],
+    ["العنوان المختصر", t(co.shortAddress)],
+  ];
+  const shown = candidates.filter(([, v]) => v).slice(0, HEAD_MAX);
+  const half = Math.ceil(shown.length / 2);
+  const col = (pairs: [string, string][]) =>
+    `<div>${pairs
+      .map(
+        ([l, v]) =>
+          // dir="auto" لأن قيمة مثل "+967 1 234567" داخل فقرة عربية تُقلب على
+          // الورق إلى "234567 1 967+" — لا حروف قوية فيها فترث اتجاه الصفحة.
+          `<div class="ci"><span class="lbl">${esc(l)}</span><span class="val" dir="auto">${esc(v)}</span></div>`,
+      )
+      .join("")}</div>`;
+  const bar = shown.length
+    ? `<div class="cobar">${col(shown.slice(0, half))}${col(shown.slice(half))}</div>`
+    : "";
+
+  const lines = [t(co.headerLine1), t(co.headerLine2), t(co.headerLine3)]
+    .filter(Boolean)
+    .join(" · ");
+  const nameEn = t(co.companyNameEn);
+
+  return `<div class="head">
+  <div>
+    <div class="co">${esc(o.companyName)}</div>
+    ${nameEn ? `<div class="co-en">${esc(nameEn)}</div>` : ""}
+    ${lines ? `<div class="co-lines">${esc(lines)}</div>` : ""}
+    <div style="color:#64748b">${esc(o.supplierName ? `المورد: ${o.supplierName}` : "")}</div>
+  </div>
+  <div class="doc">
+    <div class="t">${esc(o.title)}</div>
+    <div class="num">${esc(o.number)}</div>
+    ${o.badge ?? ""}
+  </div>
+</div>
+${bar}`;
+}
+
 const info = (label: string, value: string) =>
   `<div class="cell"><span class="lbl">${esc(label)}</span><span class="val">${esc(value)}</span></div>`;
 
@@ -95,10 +190,20 @@ const realRowsOf = (rows: PORow[]) =>
 
 /** ما تحتاجه جداول الطباعة من نتيجة الاحتساب — يصدُق على computePO و computePR معاً. */
 type PrintMetrics = {
-  rowMetrics: { lineInvoiceTotal: number; purchaseCost: number; cbmCost: number; pctCost: number;
-                avgCost: number; allocatedExpPerCarton: number; selectedCost: number }[];
-  totalQty: number; totalInvoiceAmount: number; totalPurchase: number;
-  totalCBM: number; totalCost: number;
+  rowMetrics: {
+    lineInvoiceTotal: number;
+    purchaseCost: number;
+    cbmCost: number;
+    pctCost: number;
+    avgCost: number;
+    allocatedExpPerCarton: number;
+    selectedCost: number;
+  }[];
+  totalQty: number;
+  totalInvoiceAmount: number;
+  totalPurchase: number;
+  totalCBM: number;
+  totalCost: number;
 };
 
 /** جدول البنود — نفس الأعمدة في أمر الشراء وطلب الشراء. */
@@ -198,6 +303,8 @@ export type PrintOptions = {
   po: PurchaseOrder;
   supplier?: Supplier;
   companyName: string;
+  /** بطاقة الشركة/الفرع (اختيارية بالكامل) — ما عُبّئ منها يظهر في الترويسة. */
+  company?: CompanyProfile;
   markupPct: number;
   priceTiers: PriceTier[];
   /** سعر صرف عملة العرض مقابل الدولار (units per 1 USD). */
@@ -254,17 +361,14 @@ export function buildPurchaseOrderHTML(o: PrintOptions): string {
 <style>${DOC_CSS}</style></head>
 <body>
 
-<div class="head">
-  <div>
-    <div class="co">${esc(companyName)}</div>
-    <div style="color:#64748b">${esc(supplier?.name ? `المورد: ${supplier.name}` : "")}</div>
-  </div>
-  <div class="doc">
-    <div class="t">أمر شراء / احتساب التكلفة</div>
-    <div class="num">${esc(po.number)}</div>
-    <div><span class="badge ${po.approved ? "ok" : "draft"}">${po.approved ? "معتمد" : "مسودة"}</span></div>
-  </div>
-</div>
+${docHeadHTML({
+  companyName,
+  company: o.company,
+  supplierName: supplier?.name,
+  title: "أمر شراء / احتساب التكلفة",
+  number: po.number,
+  badge: `<div><span class="badge ${po.approved ? "ok" : "draft"}">${po.approved ? "معتمد" : "مسودة"}</span></div>`,
+})}
 
 <div class="sec">بيانات المورد وأمر الشراء</div>
 <div class="info">
@@ -328,6 +432,8 @@ export type RequestPrintOptions = {
   pr: PurchaseRequest;
   supplier?: Supplier;
   companyName: string;
+  /** بطاقة الشركة/الفرع (اختيارية بالكامل) — ما عُبّئ منها يظهر في الترويسة. */
+  company?: CompanyProfile;
   markupPct: number;
   priceTiers: PriceTier[];
   rateOfCode: (code: string) => number;
@@ -352,17 +458,14 @@ export function buildPurchaseRequestHTML(o: RequestPrintOptions): string {
 <style>${DOC_CSS}</style></head>
 <body>
 
-<div class="head">
-  <div>
-    <div class="co">${esc(companyName)}</div>
-    <div style="color:#64748b">${esc(supplier?.name ? `المورد: ${supplier.name}` : "")}</div>
-  </div>
-  <div class="doc">
-    <div class="t">طلب شراء / تقدير التكلفة</div>
-    <div class="num">${esc(pr.number)}</div>
-    <div><span class="badge ${pr.approved ? "ok" : "draft"}">${pr.approved ? "معتمد" : "مسودة"}</span></div>
-  </div>
-</div>
+${docHeadHTML({
+  companyName,
+  company: o.company,
+  supplierName: supplier?.name,
+  title: "طلب شراء / تقدير التكلفة",
+  number: pr.number,
+  badge: `<div><span class="badge ${pr.approved ? "ok" : "draft"}">${pr.approved ? "معتمد" : "مسودة"}</span></div>`,
+})}
 
 <div class="sec">بيانات المورد وطلب الشراء</div>
 <div class="info">
@@ -423,6 +526,8 @@ export type TiersPrintOptions = {
   po: PurchaseOrder;
   supplier?: Supplier;
   companyName: string;
+  /** بطاقة الشركة/الفرع (اختيارية بالكامل) — ما عُبّئ منها يظهر في الترويسة. */
+  company?: CompanyProfile;
   priceTiers: PriceTier[];
   /** عملة العرض ورقم صرفها مقابل الدولار (units per 1 USD). */
   displayCurrency: string;
@@ -455,16 +560,13 @@ export function buildPriceTiersHTML(o: TiersPrintOptions): string {
 <style>${DOC_CSS}</style></head>
 <body>
 
-<div class="head">
-  <div>
-    <div class="co">${esc(companyName)}</div>
-    <div style="color:#64748b">${esc(supplier?.name ? `المورد: ${supplier.name}` : "")}</div>
-  </div>
-  <div class="doc">
-    <div class="t">التسعيرات حسب الوجهات</div>
-    <div class="num">${esc(po.number)}</div>
-  </div>
-</div>
+${docHeadHTML({
+  companyName,
+  company: o.company,
+  supplierName: supplier?.name,
+  title: "التسعيرات حسب الوجهات",
+  number: po.number,
+})}
 
 <div class="info">
   <div class="cell"><span class="lbl">الفاتورة</span><span class="val">${esc(po.number)}</span></div>
@@ -478,7 +580,10 @@ export function buildPriceTiersHTML(o: TiersPrintOptions): string {
   <thead><tr><th style="width:34%">التسعيرة</th><th>نسبة إضافية على التكلفة %</th><th>نسبة الربح %</th></tr></thead>
   <tbody>${
     priceTiers
-      .map((t) => `<tr><td class="r">${esc(t.name)}</td><td class="l">${n(t.extraPct || 0, 2)}</td><td class="l">${n(t.profitPct || 0, 2)}</td></tr>`)
+      .map(
+        (t) =>
+          `<tr><td class="r">${esc(t.name)}</td><td class="l">${n(t.extraPct || 0, 2)}</td><td class="l">${n(t.profitPct || 0, 2)}</td></tr>`,
+      )
       .join("") || `<tr><td colspan="3" class="c empty">لا توجد تسعيرات معرّفة</td></tr>`
   }</tbody>
 </table>
@@ -508,7 +613,8 @@ export function buildPriceTiersHTML(o: TiersPrintOptions): string {
 function printHTMLDocument(html: string): void {
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
-  frame.style.cssText = "position:fixed;right:-10000px;bottom:0;width:1200px;height:900px;border:0;";
+  frame.style.cssText =
+    "position:fixed;right:-10000px;bottom:0;width:1200px;height:900px;border:0;";
   document.body.appendChild(frame);
 
   const cleanup = () => {

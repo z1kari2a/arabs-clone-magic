@@ -166,9 +166,26 @@ export function LabelText({ children }: { children: ReactNode }) {
   return <div className="text-xs text-slate-700 text-left pl-2 py-1">{children}</div>;
 }
 
-export function FieldRow({ label, children }: { label: string; children: ReactNode }) {
+/**
+ * `labelWidth` widens the label column for screens whose captions don't fit the
+ * 110px default (the company card's "النص الأول للترويسة بالأجنبي" and friends).
+ * Applied as an inline style because the width is a runtime value — a
+ * `grid-cols-[${n}px_1fr]` class would never be emitted by Tailwind's scanner.
+ */
+export function FieldRow({
+  label,
+  children,
+  labelWidth,
+}: {
+  label: string;
+  children: ReactNode;
+  labelWidth?: number;
+}) {
   return (
-    <div className="grid grid-cols-[110px_1fr] items-center gap-2">
+    <div
+      className="grid grid-cols-[110px_1fr] items-center gap-2"
+      style={labelWidth ? { gridTemplateColumns: `${labelWidth}px 1fr` } : undefined}
+    >
       <LabelText>{label}</LabelText>
       {children}
     </div>

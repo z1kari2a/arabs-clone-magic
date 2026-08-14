@@ -96,6 +96,7 @@ function PriceTiersPage() {
       po,
       supplier,
       companyName: settings.companyName || "التسعيرات",
+      company: settings.company,
       priceTiers,
       displayCurrency,
       displayRate: conv,
