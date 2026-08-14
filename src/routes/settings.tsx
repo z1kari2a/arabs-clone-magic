@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, RefreshCw, Plus, HardDriveDownload, CloudDownload } from "lucide-react";
+import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, RefreshCw, Plus, HardDriveDownload, CloudDownload, ImagePlus, RotateCcw } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, parseDecimal } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore, hydrateStore } from "@/lib/erp-store";
 import { useAuth, canWrite, canDelete } from "@/lib/auth";
 import { pullLatestCloudBackup, restoreFromCloudBackup, getLastCloudPushAt } from "@/lib/cloud-sync";
+import { appIcon, fileToIconDataUrl, normalizeAppName, DEFAULT_APP_NAME } from "@/lib/branding";
 import type { PriceTier } from "@/lib/erp-types";
 
 export const Route = createFileRoute("/settings")({
@@ -24,7 +25,17 @@ export const Route = createFileRoute("/settings")({
 
 function SettingsPage() {
   const settings = useErpStore((s) => s.settings);
+  const hydrated = useErpStore((s) => s.hydrated);
   const [local, setLocal] = useState(settings);
+
+  // `local` is seeded at mount, which can happen before hydrateStore() has
+  // read the stored settings — in which case it holds the defaults. Saving
+  // that snapshot writes the defaults back over the real values, and a custom
+  // app name/icon would disappear on a Save the user never meant as a reset.
+  // Re-seed once the real settings land.
+  useEffect(() => {
+    if (hydrated) setLocal(settings);
+  }, [hydrated]);
   // Price tiers drive every sale price on the purchase-order screen, and
   // reset/restore destroy data — gate both behind the right role.
   const { role } = useAuth();
@@ -56,12 +67,41 @@ function SettingsPage() {
         defaultCurrency,
         language: local.language,
         priceTiers: local.priceTiers,
+        // Empty string means "back to the bundled default", and the helpers in
+        // branding.ts read a missing field that way — so drop it rather than
+        // storing "" and having every screen re-check for it.
+        appName: normalizeAppName(local.appName ?? "") || undefined,
+        appIcon: local.appIcon || undefined,
       },
     });
     toast.success("تم حفظ الإعدادات");
   };
   const onReset = () => { if (!mayReset) return toast.error("إعادة تعيين النظام تتطلب صلاحية مدير"); if (confirm("إعادة تعيين كل البيانات؟")) { erpStore.reset(); toast.success("تم إعادة التعيين"); location.reload(); } };
   const noop = () => {};
+
+  // ---- App identity (name + icon) ----
+  const iconInput = useRef<HTMLInputElement>(null);
+
+  const onPickIcon = async (file: File | undefined) => {
+    if (!file) return;
+    if (!mayWrite) return toast.error("ليس لديك صلاحية لتعديل الإعدادات");
+    try {
+      setLocal((prev) => ({ ...prev, appIcon: "" })); // clear a stale preview while decoding
+      const dataUrl = await fileToIconDataUrl(file);
+      setLocal((prev) => ({ ...prev, appIcon: dataUrl }));
+      toast.success("تم تحميل الأيقونة — اضغط حفظ لتطبيقها");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "تعذّر قراءة الصورة");
+    } finally {
+      // Without this, picking the same file twice in a row fires no change event.
+      if (iconInput.current) iconInput.current.value = "";
+    }
+  };
+
+  const onClearIcon = () => {
+    if (!mayWrite) return toast.error("ليس لديك صلاحية لتعديل الإعدادات");
+    setLocal((prev) => ({ ...prev, appIcon: "" }));
+  };
 
   // Cloud backup rides on the license activation, which only the licensed shell
   // build provides. Checked once on mount: reading `window` during render would
@@ -206,6 +246,69 @@ function SettingsPage() {
           </div>
         </Panel>
       </div>
+
+      <Panel title="هوية التطبيق (الاسم والأيقونة)" className="mt-2">
+        <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4 items-start">
+          <div className="flex flex-col items-center gap-2">
+            <img
+              src={local.appIcon || appIcon(settings)}
+              alt="أيقونة التطبيق"
+              className="w-20 h-20 rounded-xl object-contain border border-slate-300 bg-white p-1"
+            />
+            <input
+              ref={iconInput}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="hidden"
+              onChange={(e) => void onPickIcon(e.target.files?.[0])}
+            />
+            <div className="flex gap-1">
+              <button
+                onClick={() => iconInput.current?.click()}
+                disabled={!mayWrite}
+                className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-blue-300 rounded hover:bg-blue-50 disabled:opacity-50"
+              >
+                <ImagePlus size={12} className="text-blue-600" /> اختيار صورة
+              </button>
+              <button
+                onClick={onClearIcon}
+                disabled={!mayWrite || !(local.appIcon || settings.appIcon)}
+                className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-50"
+              >
+                <RotateCcw size={12} className="text-slate-600" /> الافتراضية
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <FieldRow label="اسم التطبيق">
+              <ErpInput
+                value={local.appName ?? ""}
+                onChange={(v) => setLocal({ ...local, appName: v })}
+                align="right"
+                placeholder={DEFAULT_APP_NAME}
+              />
+            </FieldRow>
+            <div className="text-xs text-slate-600 space-y-1">
+              <p>
+                الاسم والأيقونة يظهران في شريط عنوان البرنامج وتبويب المتصفح، ويُحفظان مع بقية
+                الإعدادات — فتُزامَن تلقائياً إلى بقية الأجهزة عند النسخ الاحتياطي السحابي.
+              </p>
+              <p>اترك الاسم فارغاً للعودة إلى الاسم الافتراضي. الصورة تُصغَّر تلقائياً إلى 256×256.</p>
+              <p className="text-amber-700">
+                ملاحظة: أيقونة ملف التثبيت وأيقونة الاختصار على سطح المكتب مدمجة داخل ملف
+                البرنامج نفسه ولا تتغيّر من هنا — تتغيّر أيقونة النافذة وشريط المهام فقط.
+              </p>
+            </div>
+            <button
+              onClick={onSave}
+              disabled={!mayWrite}
+              className="flex items-center gap-2 px-3 py-2 text-xs bg-blue-50 border border-blue-200 rounded text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+            >
+              <Save size={14} /> حفظ وتطبيق
+            </button>
+          </div>
+        </div>
+      </Panel>
 
       <Panel title="تسعيرات الفروع / الوجهات" className="mt-2">
         <div className="flex justify-between items-center mb-2">

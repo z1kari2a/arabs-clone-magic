@@ -23,6 +23,10 @@ contextBridge.exposeInMainWorld("erpNative", {
   backupTo: (dest) => ipcRenderer.invoke("db:backup", dest),
   restoreFrom: (src) => ipcRenderer.invoke("db:restore", src),
 
+  // Renames/re-icons the live window. Only the main process can touch either,
+  // so the settings screen reaches them through here.
+  setBranding: (branding) => ipcRenderer.invoke("app:setBranding", branding),
+
   // Native shell actions, so in-app buttons can open real Windows dialogs
   // instead of the browser-flavoured equivalents.
   info: () => ipcRenderer.invoke("app:info"),

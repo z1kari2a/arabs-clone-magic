@@ -27,4 +27,5 @@ contextBridge.exposeInMainWorld("erpNative", {
   backupTo: (dest) => ipcRenderer.invoke("db:backup", dest),
   restoreFrom: (src) => ipcRenderer.invoke("db:restore", src),
   backupNow: () => ipcRenderer.invoke("db:backupNow"),
+  setBranding: (branding) => ipcRenderer.invoke("app:setBranding", branding),
 });

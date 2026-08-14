@@ -2,6 +2,7 @@ import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { Minus, Square, X, Circle, Keyboard, LogOut, ShieldCheck, Menu } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useErpStore, useHydrate } from "@/lib/erp-store";
+import { appIcon, appName } from "@/lib/branding";
 import { useAuth } from "@/lib/auth";
 import { QuickSidebar } from "./QuickSidebar";
 
@@ -70,8 +71,13 @@ export default function ErpLayout({
           >
             <Menu size={16} />
           </button>
-          <div className="w-6 h-6 rounded bg-white/20 flex items-center justify-center text-[10px] font-bold">ERP</div>
-          <span className="text-sm font-semibold">{settings.companyName}</span>
+          <img
+            src={appIcon(settings)}
+            alt=""
+            className="w-6 h-6 rounded object-contain bg-white/10"
+          />
+          <span className="text-sm font-semibold">{appName(settings)}</span>
+          <span className="text-[11px] opacity-75 hidden sm:inline">{settings.companyName}</span>
         </div>
         <div className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold">{title}</div>
         <div className="flex items-center gap-1">

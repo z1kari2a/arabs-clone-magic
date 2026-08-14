@@ -133,6 +133,19 @@ export type AuditEntry = {
 
 export type Settings = {
   companyName: string;
+  /**
+   * Name the program presents itself under — window title, browser tab, title
+   * bar. Distinct from `companyName`, which labels who the data belongs to: a
+   * reseller renames the product without renaming the customer.
+   */
+  appName?: string;
+  /**
+   * Custom launcher/tab icon as a `data:image/png;base64,...` URL, normalized to
+   * 256x256 on upload (see src/lib/branding.ts). Stored inline rather than as a
+   * file path so it travels with the settings row through the cloud backup and
+   * lands on every device the account is restored to.
+   */
+  appIcon?: string;
   defaultCurrency: string;
   fiscalYear: string;
   language: "ar" | "en";

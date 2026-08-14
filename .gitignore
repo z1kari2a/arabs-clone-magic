@@ -40,3 +40,7 @@ electron-release/
 shell-release/
 .cache/
 bundle.bin
+
+# النسخة المحمولة المرفوعة عمداً. الاعتماديات الأصلية (better-sqlite3, bcryptjs)
+# جزء من البرنامج نفسه — بدونها لا يفتح، والقاعدة `node_modules` أعلاه تحذفها.
+!release/ERP-Portable-Windows/resources/app/node_modules/

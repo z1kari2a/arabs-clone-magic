@@ -7,7 +7,7 @@
 // Heartbeat runs every 30 minutes. If the server revokes the license or the
 // subscription expires, the shell locks the UI on the next heartbeat.
 
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, Menu, nativeImage } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
@@ -227,9 +227,58 @@ async function heartbeat() {
   return { ok: false, error: json.error };
 }
 
+// ---- Branding --------------------------------------------------------------
+// Mirrors electron/main.cjs: the name and icon chosen in الإعدادات live in the
+// renderer's settings row, so the last applied pair is cached here and used at
+// window-creation time, before the bundle has booted.
+
+const APP_TITLE = "ERP — نظام المشتريات";
+
+function brandingPath() {
+  return path.join(app.getPath("userData"), "branding.json");
+}
+
+function loadBranding() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(brandingPath(), "utf8"));
+    return {
+      name: typeof saved?.name === "string" && saved.name.trim() ? saved.name.trim() : null,
+      icon:
+        typeof saved?.icon === "string" && saved.icon.startsWith("data:image/") ? saved.icon : null,
+    };
+  } catch {
+    return { name: null, icon: null };
+  }
+}
+
+function applyBranding(branding) {
+  const name =
+    typeof branding?.name === "string" && branding.name.trim() ? branding.name.trim() : null;
+  const icon =
+    typeof branding?.icon === "string" && branding.icon.startsWith("data:image/")
+      ? branding.icon
+      : null;
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setTitle(name ?? APP_TITLE);
+    const image = icon ? nativeImage.createFromDataURL(icon) : null;
+    if (image && !image.isEmpty()) mainWindow.setIcon(image);
+  }
+
+  try {
+    fs.writeFileSync(brandingPath(), JSON.stringify({ name, icon }));
+  } catch {
+    /* a read-only profile just means the next launch starts from the default */
+  }
+  return true;
+}
+
 // ---- Windows ---------------------------------------------------------------
 
 function createWindow() {
+  const branding = loadBranding();
+  const customIcon = branding.icon ? nativeImage.createFromDataURL(branding.icon) : null;
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -237,7 +286,8 @@ function createWindow() {
     minHeight: 700,
     show: false,
     backgroundColor: "#1e293b",
-    title: "ERP — نظام المشتريات",
+    title: branding.name ?? APP_TITLE,
+    icon: customIcon && !customIcon.isEmpty() ? customIcon : undefined,
     webPreferences: {
       preload: path.join(__dirname, "shell-preload.cjs"),
       contextIsolation: true,
@@ -335,4 +385,5 @@ function registerIpc() {
   ipcMain.handle("db:backup", (_e, dest) => db.backup(dest));
   ipcMain.handle("db:restore", (_e, src) => db.restore(src));
   ipcMain.handle("db:backupNow", () => autoBackup());
+  ipcMain.handle("app:setBranding", (_e, branding) => applyBranding(branding));
 }

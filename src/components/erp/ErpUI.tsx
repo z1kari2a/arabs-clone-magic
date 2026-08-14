@@ -183,6 +183,7 @@ export function ErpInput({
   highlight,
   className = "",
   type = "text",
+  placeholder,
 }: {
   value: string | number;
   onChange: (v: string) => void;
@@ -191,6 +192,7 @@ export function ErpInput({
   highlight?: boolean;
   className?: string;
   type?: string;
+  placeholder?: string;
 }) {
   const isNumeric = type === "number" || typeof value === "number";
   const buf = useNumericBuffer(value, isNumeric);
@@ -198,6 +200,7 @@ export function ErpInput({
     <input
       value={buf.text}
       type={isNumeric ? "text" : type}
+      placeholder={placeholder}
       inputMode={isNumeric ? "decimal" : undefined}
       onFocus={buf.onFocus}
       onBlur={buf.onBlur}

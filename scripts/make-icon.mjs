@@ -1,20 +1,23 @@
-// Builds build/icon.ico (multi-resolution) from public/favicon.ico.
+// Builds build/icon.ico and public/favicon.ico (multi-resolution) from the
+// master artwork in public/app-icon.png.
 //
-// public/favicon.ico holds a single 256x256 PNG. Windows will downscale that
-// for the taskbar and Explorer's small-icon views, which looks muddy — a real
-// application icon carries a purpose-made image at each size. This script
-// renders all seven standard sizes with sharp and assembles a proper ICO.
+// Windows downscales a single large image for the taskbar and Explorer's
+// small-icon views, which looks muddy — a real application icon carries a
+// purpose-made image at each size. This script renders all seven standard sizes
+// with sharp and assembles a proper ICO.
 //
 //   node scripts/make-icon.mjs
 //
-// Output is committed, so packaging never depends on sharp being installed.
+// The master is a 512px PNG rather than an .ico so there is one place to
+// replace when the brand changes. Both outputs are committed, so packaging
+// never depends on sharp being installed.
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
-const SRC = path.resolve("public/favicon.ico");
-const OUT = path.resolve("build/icon.ico");
+const SRC = path.resolve("public/app-icon.png");
+const OUTPUTS = [path.resolve("build/icon.ico"), path.resolve("public/favicon.ico")];
 
 // Sizes Windows actually asks for. Vista+ reads PNG-compressed entries, but the
 // shell is happiest with uncompressed DIBs at the small sizes, so we only use
@@ -55,30 +58,7 @@ function encodeDib(rgba, size) {
   return Buffer.concat([header, xor, mask]);
 }
 
-/** sharp cannot decode .ico, so pull the largest embedded image out by hand. */
-function largestImageInIco(ico) {
-  const count = ico.readUInt16LE(4);
-  let best = null;
-  for (let i = 0; i < count; i++) {
-    const at = 6 + i * 16;
-    const width = ico[at] || 256;
-    const size = ico.readUInt32LE(at + 8);
-    const offset = ico.readUInt32LE(at + 12);
-    if (!best || width > best.width) best = { width, data: ico.subarray(offset, offset + size) };
-  }
-  if (!best) throw new Error(`${SRC} contains no images`);
-  const isPng = best.data
-    .subarray(0, 8)
-    .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-  if (!isPng) {
-    throw new Error(
-      `${SRC} stores its ${best.width}px image as a raw DIB; re-export the favicon as a PNG-based .ico`,
-    );
-  }
-  return best.data;
-}
-
-const src = largestImageInIco(await readFile(SRC));
+const src = await readFile(SRC);
 
 const images = [];
 for (const size of SIZES) {
@@ -114,7 +94,10 @@ images.forEach((img, i) => {
   offset += img.data.length;
 });
 
-await mkdir(path.dirname(OUT), { recursive: true });
-await writeFile(OUT, Buffer.concat([dir, entries, ...images.map((i) => i.data)]));
+const ico = Buffer.concat([dir, entries, ...images.map((i) => i.data)]);
+for (const out of OUTPUTS) {
+  await mkdir(path.dirname(out), { recursive: true });
+  await writeFile(out, ico);
+}
 
-console.log(`icon: ${images.length} sizes (${SIZES.join(", ")}) -> ${OUT}`);
+console.log(`icon: ${images.length} sizes (${SIZES.join(", ")}) -> ${OUTPUTS.join(", ")}`);

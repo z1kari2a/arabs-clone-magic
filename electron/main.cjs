@@ -16,6 +16,7 @@ const {
   screen,
   session,
   nativeTheme,
+  nativeImage,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -226,6 +227,59 @@ function saveWindowState() {
   }
 }
 
+// ------------------------------------------------------------------- branding
+
+// The window title and icon the user chose in الإعدادات. They live in the
+// renderer's settings row, which is only readable after the page has booted —
+// so the last applied pair is mirrored here, next to the window state, and the
+// window opens with it instead of flashing the stock name for a second first.
+
+function brandingPath() {
+  return path.join(app.getPath("userData"), "branding.json");
+}
+
+function loadBranding() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(brandingPath(), "utf8"));
+    return {
+      name: typeof saved?.name === "string" && saved.name.trim() ? saved.name.trim() : null,
+      icon: typeof saved?.icon === "string" && saved.icon.startsWith("data:image/") ? saved.icon : null,
+    };
+  } catch {
+    return { name: null, icon: null };
+  }
+}
+
+/** `icon` is a data: URL, or null to fall back to the bundled build/icon.ico. */
+function applyBranding(branding) {
+  const name =
+    typeof branding?.name === "string" && branding.name.trim() ? branding.name.trim() : null;
+  const icon =
+    typeof branding?.icon === "string" && branding.icon.startsWith("data:image/")
+      ? branding.icon
+      : null;
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setTitle(name ?? APP_TITLE);
+    // A failed decode returns an empty image; setting that would blank the
+    // window icon rather than leave the previous one alone.
+    const image = icon ? nativeImage.createFromDataURL(icon) : bundledIcon();
+    if (image && !image.isEmpty()) mainWindow.setIcon(image);
+  }
+
+  try {
+    fs.writeFileSync(brandingPath(), JSON.stringify({ name, icon }));
+  } catch {
+    /* a read-only profile just means the next launch starts from the default */
+  }
+  return true;
+}
+
+function bundledIcon() {
+  const file = path.join(__dirname, "..", "build", "icon.ico");
+  return fs.existsSync(file) ? nativeImage.createFromPath(file) : null;
+}
+
 // --------------------------------------------------------------------- splash
 
 // Shown for the second or two the renderer needs to boot. Without it Windows
@@ -256,7 +310,9 @@ function closeSplash() {
 
 function createWindow() {
   const state = loadWindowState();
-  const icon = path.join(__dirname, "..", "build", "icon.ico");
+  const branding = loadBranding();
+  const customIcon = branding.icon ? nativeImage.createFromDataURL(branding.icon) : null;
+  const windowIcon = customIcon && !customIcon.isEmpty() ? customIcon : bundledIcon();
 
   mainWindow = new BrowserWindow({
     width: state.width,
@@ -267,8 +323,8 @@ function createWindow() {
     minHeight: 640,
     show: false,
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#0f172a" : "#f1f5f9",
-    title: APP_TITLE,
-    icon: fs.existsSync(icon) ? icon : undefined,
+    title: branding.name ?? APP_TITLE,
+    icon: windowIcon ?? undefined,
     autoHideMenuBar: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -557,6 +613,7 @@ function registerIpc() {
     platform: process.platform,
     dataDir: path.dirname(db.dbPath()),
   }));
+  ipcMain.handle("app:setBranding", (_e, branding) => applyBranding(branding));
   ipcMain.handle("app:backupDialog", backupDb);
   ipcMain.handle("app:restoreDialog", restoreDb);
   ipcMain.handle("app:print", () => mainWindow?.webContents.print({ silent: false }));

@@ -33,6 +33,11 @@ type NativeBridge = {
   restoreFrom: (srcPath: string) => Promise<void>;
   /** Only implemented by the shell build's preload (electron/shell-preload.cjs). */
   backupNow?: () => Promise<string | null>;
+  /**
+   * Renames/re-icons the desktop window. Optional because the browser build has
+   * no bridge at all, and an older installed copy has no such handler.
+   */
+  setBranding?: (branding: { name: string; icon: string | null }) => Promise<boolean>;
 };
 
 declare global {

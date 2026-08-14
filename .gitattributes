@@ -1,1 +1,11 @@
 release/ERP-Desktop-Windows/*.exe filter=lfs diff=lfs merge=lfs -text
+
+# النسخة المحمولة: ملفات Electron الثنائية. ERP.exe وحده 212 ميغابايت — فوق حد
+# GitHub (100 ميغابايت) لأي ملف خارج LFS، فيُرفض الدفع بدونه.
+release/ERP-Portable-Windows/**/*.exe filter=lfs diff=lfs merge=lfs -text
+release/ERP-Portable-Windows/**/*.dll filter=lfs diff=lfs merge=lfs -text
+release/ERP-Portable-Windows/**/*.dat filter=lfs diff=lfs merge=lfs -text
+release/ERP-Portable-Windows/**/*.bin filter=lfs diff=lfs merge=lfs -text
+release/ERP-Portable-Windows/**/*.pak filter=lfs diff=lfs merge=lfs -text
+release/ERP-Portable-Windows/**/*.node filter=lfs diff=lfs merge=lfs -text
+release/ERP-Portable-Windows/**/*.asar filter=lfs diff=lfs merge=lfs -text

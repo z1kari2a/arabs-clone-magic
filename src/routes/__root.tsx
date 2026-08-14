@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { Toaster } from "../components/ui/sonner";
+import { useBranding } from "../lib/branding";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
 // Set only by vite.electron.config.mjs, so it is undefined in the web build.
@@ -146,6 +147,9 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  // Mounted above every route so a rename applies on whatever screen the user
+  // happens to be on — including the login screen, which renders no layout.
+  useBranding();
 
   return (
     <QueryClientProvider client={queryClient}>
