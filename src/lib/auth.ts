@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Role } from "./erp-types";
-import { localDb, hashPassword, randomSalt, newId, logAudit, setCurrentScope, type LocalUser } from "./local-db";
+import { localDb, hashPassword, verifyPassword, randomSalt, newId, logAudit, setCurrentScope, type LocalUser } from "./local-db";
 
 // -------- Local authentication (no cloud) --------
 // Session lives in sessionStorage so it survives reloads but not tab close.
@@ -48,14 +48,12 @@ async function init() {
   if (initialized || typeof window === "undefined") return;
   initialized = true;
   try {
-    let users = await localDb.users.list();
-    if (users.length === 0) {
-      // Seed the built-in admin demo account so the system has an approver
-      // out of the box. New self-signups start EMPTY (no seed data) and
-      // pending admin approval — see signUp().
-      await seedAdminAccount();
-      users = await localDb.users.list();
-    }
+    // No account is created for the user. A seeded built-in admin used to be
+    // written here, which made `needsBootstrap` false on a freshly installed
+    // copy: the login screen then asked for credentials nobody had been given,
+    // and anyone who registered instead landed in "قيد المراجعة" with no admin
+    // to approve them. First launch must ask for the admin account itself.
+    const users = await localDb.users.list();
     const current = readSession();
     if (current) setCurrentScope(current.id);
     else setCurrentScope(null);
@@ -77,34 +75,14 @@ async function init() {
   emit();
 }
 
-async function seedAdminAccount() {
-  // Only the admin account itself is auto-created so a real person can
-  // approve pending signups on first launch. No demo suppliers/items/purchase
-  // orders are seeded — the account starts completely empty.
-  const salt = await randomSalt();
-  const passwordHash = await hashPassword("Admin@2026!", salt);
-  const admin: LocalUser = {
-    id: newId(),
-    username: "admin@demo.local",
-    fullName: "مدير النظام",
-    role: "admin",
-    active: true,
-    passwordHash,
-    salt,
-    createdAt: new Date().toISOString(),
-  };
-  await localDb.users.upsert(admin);
-}
-
 export async function signIn(username: string, password: string): Promise<void> {
   const users = await localDb.users.list();
-  const u = users.find(
-    (x) => x.username.toLowerCase() === username.toLowerCase() && x.active !== false,
-  );
-  if (!u) throw new Error("المستخدم غير موجود أو معطّل");
+  const u = users.find((x) => x.username.toLowerCase() === username.trim().toLowerCase());
+  if (!u) throw new Error("المستخدم غير موجود");
+  if (u.active === false) throw new Error("هذا الحساب معطّل — تواصل مع المدير");
   if (u.pending) throw new Error("حسابك قيد المراجعة من قبل المدير");
-  const hash = await hashPassword(password, u.salt);
-  if (hash !== u.passwordHash) throw new Error("كلمة المرور غير صحيحة");
+  if (!(await verifyPassword(password, u.salt, u.passwordHash)))
+    throw new Error("كلمة المرور غير صحيحة");
   const sess: SessionUser = { id: u.id, username: u.username, fullName: u.fullName, role: u.role };
   writeSession(sess);
   setCurrentScope(u.id);

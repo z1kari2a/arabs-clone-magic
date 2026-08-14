@@ -10,6 +10,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import { Toaster } from "../components/ui/sonner";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
 // Set only by vite.electron.config.mjs, so it is undefined in the web build.
@@ -122,6 +123,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  // The desktop build is client-mounted into #root inside an already-parsed
+  // document (electron-app/index.html owns <html>/<head>/<body>). Rendering the
+  // shell there makes React 19 adopt the real <html>/<body> as Host Singletons
+  // while the root container stays nested inside <body> — its event system then
+  // spins forever on the first discrete event and the window hangs on the login
+  // screen. Only the SSR web build renders the document itself.
+  if (IS_DESKTOP) return <>{children}</>;
+
   return (
     <html lang="ar" dir="rtl">
       <head>
@@ -142,6 +151,19 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      {/* Every screen reports success and failure through toast() — "كلمة المرور
+          غير صحيحة", "تم الحفظ", "يجب اختيار المورد". Without this host mounted
+          none of them are ever drawn, and the app looks like it ignored the
+          click or froze. It belongs here, above all routes, and not inside a
+          layout that some screens do not use. */}
+      <Toaster
+        position="top-center"
+        dir="rtl"
+        richColors
+        closeButton
+        duration={5000}
+        toastOptions={{ style: { fontFamily: "inherit", textAlign: "right" } }}
+      />
     </QueryClientProvider>
   );
 }

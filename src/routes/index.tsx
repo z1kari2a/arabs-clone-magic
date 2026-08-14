@@ -34,9 +34,16 @@ function LoginPage() {
   useEffect(() => { if (!canSignup && mode === "signup") setMode("login"); }, [canSignup, mode]);
 
   useEffect(() => {
-    if (session) {
-      void hydrateStore().then(() => router.navigate({ to: "/home" }));
-    }
+    if (!session) return;
+    // A rejected hydration must not strand a signed-in user on the login form
+    // with no explanation — go through to /home and let the screens show
+    // whatever loaded.
+    void hydrateStore()
+      .catch((err) => {
+        console.error("hydrateStore failed", err);
+        toast.error("تعذّر تحميل البيانات المحلية");
+      })
+      .finally(() => router.navigate({ to: "/home" }));
   }, [session, router]);
 
   const submit = async (e: React.FormEvent) => {

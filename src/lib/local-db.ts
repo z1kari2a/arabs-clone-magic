@@ -24,7 +24,11 @@ type NativeBridge = {
   getKV: (key: string) => Promise<any>;
   setKV: (key: string, value: any) => Promise<void>;
   hashPassword: (password: string, salt: string) => Promise<string>;
+  verifyPassword: (password: string, salt: string, hash: string) => Promise<boolean>;
   randomSalt: () => Promise<string>;
+  appendAudit: (entry: Omit<AuditEntry, "id" | "created_at">) => Promise<number | null>;
+  getAudit: (limit?: number) => Promise<AuditEntry[]>;
+  dbStatus: () => Promise<{ backend: string; path: string; error: string | null }>;
   backupTo: (destPath: string) => Promise<void>;
   restoreFrom: (srcPath: string) => Promise<void>;
   /** Only implemented by the shell build's preload (electron/shell-preload.cjs). */
@@ -221,6 +225,30 @@ export async function randomSalt(): Promise<string> {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * Checks a password against a stored hash. Never re-hash and compare instead:
+ * the desktop build stores bcrypt hashes, and bcrypt produces a different hash
+ * every time it runs, so an equality check against a fresh hash always fails —
+ * which is why every login in the Windows build used to be rejected.
+ */
+export async function verifyPassword(
+  password: string,
+  salt: string,
+  storedHash: string,
+): Promise<boolean> {
+  if (!storedHash) return false;
+  const n = native();
+  if (n?.verifyPassword) return n.verifyPassword(password, salt, storedHash);
+  if (/^\$2[abxy]?\$/.test(storedHash)) {
+    // A bcrypt hash in the browser: the account was created (or restored from a
+    // backup taken) on the desktop build. bcryptjs is pure JS, so it verifies
+    // here too — it is only imported when such a hash actually turns up.
+    const bcrypt = (await import("bcryptjs")).default;
+    return bcrypt.compare(salt + ":" + password, storedHash);
+  }
+  return (await hashPassword(password, salt)) === storedHash;
+}
+
 export async function hashPassword(password: string, salt: string): Promise<string> {
   const n = native();
   if (n) return n.hashPassword(password, salt);
@@ -291,7 +319,11 @@ function rotr(x: number, n: number): number {
 
 // ---------- Audit log ----------
 const AUDIT_TABLE = "audit_log";
-const AUDIT_MAX = 5000;
+// Entries carry full before/after snapshots — a purchase order with a hundred
+// lines each time. The browser has to rewrite the whole array on every entry,
+// so the cap is what bounds the cost of saving anything; the desktop build
+// appends a single row and keeps more (see electron/db.cjs).
+const AUDIT_MAX = 500;
 
 export async function logAudit(entry: {
   user_email: string | null;
@@ -301,6 +333,14 @@ export async function logAudit(entry: {
   before_data: unknown;
   after_data: unknown;
 }): Promise<void> {
+  const n = native();
+  // One INSERT. The old path read the entire log out of the database, unshifted
+  // one entry, and wrote all of it back — through IPC, twice, on every single
+  // edit. That is what made saving a large purchase order freeze the window.
+  if (n?.appendAudit) {
+    await n.appendAudit(entry);
+    return;
+  }
   // Serialized like every other mutation: concurrent audit writes used to read
   // the same snapshot, hand out the same `id`, and drop all but one entry.
   return withTableLock(AUDIT_TABLE, async () => {
@@ -317,6 +357,8 @@ export async function logAudit(entry: {
 }
 
 export async function getAudit(): Promise<AuditEntry[]> {
+  const n = native();
+  if (n?.getAudit) return n.getAudit();
   return getAll<AuditEntry>(AUDIT_TABLE);
 }
 

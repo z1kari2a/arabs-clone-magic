@@ -116,6 +116,9 @@ const ignore = [
   /^\/electron-shell($|\/)/,
   /^\/electron-release($|\/)/,
   /^\/shell-release($|\/)/,
+  // The shipped installer lives here. Packaging it would bury the previous
+  // Setup .exe inside the new one and roughly double every release.
+  /^\/release($|\/)/,
   /^\/dist($|\/)/,
   // Every root-level dotfile. This is the rule that keeps .env out of the
   // package — packager copies it happily otherwise, and a .env shipped to a

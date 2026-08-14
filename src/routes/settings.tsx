@@ -63,6 +63,12 @@ function SettingsPage() {
   const onReset = () => { if (!mayReset) return toast.error("إعادة تعيين النظام تتطلب صلاحية مدير"); if (confirm("إعادة تعيين كل البيانات؟")) { erpStore.reset(); toast.success("تم إعادة التعيين"); location.reload(); } };
   const noop = () => {};
 
+  // Cloud backup rides on the license activation, which only the licensed shell
+  // build provides. Checked once on mount: reading `window` during render would
+  // differ between the server pass and the client one.
+  const [cloudAvailable, setCloudAvailable] = useState(false);
+  useEffect(() => setCloudAvailable(typeof window !== "undefined" && !!window.erpLicense), []);
+
   const [lastLocalBackup, setLastLocalBackup] = useState<string | null>(null);
   const [lastCloudBackup, setLastCloudBackup] = useState<string | null>(getLastCloudPushAt());
   const [backingUp, setBackingUp] = useState(false);
@@ -159,10 +165,19 @@ function SettingsPage() {
               يتم تخزين بيانات النظام محلياً على هذا الجهاز، مع نسخ احتياطي تلقائي دوري
               {lastLocalBackup ? ` — آخر نسخة يدوية: ${lastLocalBackup}` : ""}.
             </p>
-            <p>
-              النسخ السحابي (يتطلب ترخيصاً فعّالاً واتصال إنترنت):{" "}
-              {lastCloudBackup ? new Date(lastCloudBackup).toLocaleString("ar") : "لم تتم أي مزامنة بعد"}
-            </p>
+            {cloudAvailable ? (
+              <p>
+                النسخ السحابي (يتطلب ترخيصاً فعّالاً واتصال إنترنت):{" "}
+                {lastCloudBackup
+                  ? new Date(lastCloudBackup).toLocaleString("ar")
+                  : "لم تتم أي مزامنة بعد"}
+              </p>
+            ) : (
+              <p>
+                هذه نسخة تعمل بلا إنترنت — لا يوجد نسخ سحابي، والنسخ الاحتياطية تُحفظ داخل مجلد
+                البيانات.
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={onBackupNow}
@@ -171,13 +186,19 @@ function SettingsPage() {
               >
                 <HardDriveDownload size={14} /> {backingUp ? "جارٍ النسخ..." : "نسخ احتياطي الآن"}
               </button>
-              <button
-                onClick={onRestoreFromCloud}
-                disabled={restoring}
-                className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
-              >
-                <CloudDownload size={14} /> {restoring ? "جارٍ الاسترجاع..." : "استعادة من السحابة"}
-              </button>
+              {/* Offered only where it can actually work. In the offline
+                  desktop build there is no license bridge, so this button could
+                  do nothing but fail — and a button that always fails reads as
+                  a broken program. */}
+              {cloudAvailable && (
+                <button
+                  onClick={onRestoreFromCloud}
+                  disabled={restoring}
+                  className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                >
+                  <CloudDownload size={14} /> {restoring ? "جارٍ الاسترجاع..." : "استعادة من السحابة"}
+                </button>
+              )}
               <button onClick={onReset} className="flex items-center gap-2 px-3 py-2 bg-rose-50 border border-rose-200 rounded text-rose-700 hover:bg-rose-100">
                 <RefreshCw size={14} /> إعادة تعيين النظام
               </button>

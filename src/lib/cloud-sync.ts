@@ -100,6 +100,11 @@ let fallbackTimer: ReturnType<typeof setInterval> | null = null;
 /** Debounced push, called after any local mutation. Safe to call often. */
 export function scheduleCloudBackup(): void {
   if (typeof window === "undefined") return;
+  // The offline desktop build has no license bridge, so every push would be a
+  // guaranteed no-op. Starting timers for it anyway meant a fetch attempt after
+  // each edit plus one every 30 minutes forever, on a machine that may have no
+  // network at all — and a blocked or hanging request is a stall the user sees.
+  if (!window.erpLicense) return;
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => { void pushCloudBackup(); }, DEBOUNCE_MS);
   if (!fallbackTimer) {

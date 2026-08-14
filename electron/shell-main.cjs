@@ -327,7 +327,11 @@ function registerIpc() {
   ipcMain.handle("db:getKV", (_e, key) => db.getKV(key));
   ipcMain.handle("db:setKV", (_e, key, value) => db.setKV(key, value));
   ipcMain.handle("db:hashPassword", (_e, pw, salt) => db.hashPassword(pw, salt));
+  ipcMain.handle("db:verifyPassword", (_e, pw, salt, hash) => db.verifyPassword(pw, salt, hash));
   ipcMain.handle("db:randomSalt", () => db.randomSalt());
+  ipcMain.handle("db:appendAudit", (_e, entry) => db.appendAudit(entry));
+  ipcMain.handle("db:getAudit", (_e, limit) => db.getAudit(limit));
+  ipcMain.handle("db:status", () => db.status());
   ipcMain.handle("db:backup", (_e, dest) => db.backup(dest));
   ipcMain.handle("db:restore", (_e, src) => db.restore(src));
   ipcMain.handle("db:backupNow", () => autoBackup());

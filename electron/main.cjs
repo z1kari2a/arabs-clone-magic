@@ -14,6 +14,7 @@ const {
   Menu,
   shell,
   screen,
+  session,
   nativeTheme,
 } = require("electron");
 const path = require("path");
@@ -26,6 +27,10 @@ const IS_DEV = process.argv.includes("--dev");
 let mainWindow = null;
 let splashWindow = null;
 let quitConfirmed = false;
+// Shown once the window is up — a modal dialog before that would sit behind the
+// splash screen with nothing to attach to.
+let pendingDbWarning = null;
+let backupTimer = null;
 
 // Windows groups taskbar buttons and toast notifications by this id. Without
 // it the taskbar shows the generic "Electron" identity instead of the app's.
@@ -46,11 +51,14 @@ if (!app.requestSingleInstanceLock()) {
 
 function start() {
   app.whenReady().then(() => {
-    db.init(path.join(app.getPath("userData"), "erp.db"));
+    openDatabase();
+    goOffline();
     registerIpc();
     buildMenu();
     createSplash();
     createWindow();
+    autoBackup();
+    backupTimer = setInterval(autoBackup, AUTO_BACKUP_MS);
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -58,8 +66,111 @@ function start() {
   });
 
   app.on("window-all-closed", () => {
+    if (backupTimer) clearInterval(backupTimer);
     if (process.platform !== "darwin") app.quit();
   });
+}
+
+// ------------------------------------------------------------------- database
+
+// The installed program's database is created here, on first launch, inside the
+// user's own profile (%APPDATA%\erp\erp.db) — an installer cannot do it, since
+// it runs elevated and would put the file in the administrator's profile.
+//
+// If that folder is not writable (a locked-down or roaming corporate profile),
+// fall back to Documents\ERP rather than starting with no database at all.
+function openDatabase() {
+  const candidates = [
+    path.join(app.getPath("userData"), "erp.db"),
+    path.join(app.getPath("documents"), "ERP", "erp.db"),
+  ];
+
+  let result = null;
+  for (const candidate of candidates) {
+    result = db.init(candidate);
+    if (db.ready()) break;
+  }
+
+  if (!db.ready()) {
+    dialog.showErrorBox(
+      "تعذّر إنشاء قاعدة البيانات",
+      [
+        "لم يستطع البرنامج إنشاء ملف البيانات على هذا الجهاز.",
+        "",
+        `المسار: ${candidates[0]}`,
+        result?.error ? `السبب: ${result.error}` : "",
+        "",
+        "شغّل البرنامج بحساب له صلاحية الكتابة على مجلد المستخدم.",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    );
+    app.exit(1);
+    return;
+  }
+
+  // The database opened, but not the way it should have. The user is told once,
+  // after the window is up, because the app is fully usable either way.
+  if (result?.error || result?.backend === "json") {
+    pendingDbWarning = {
+      message:
+        result.backend === "json"
+          ? "البرنامج يعمل بوضع تخزين احتياطي"
+          : "تنبيه بشأن قاعدة البيانات",
+      detail:
+        (result.backend === "json"
+          ? "تعذّر تشغيل محرّك SQLite على هذا الجهاز، فتم تخزين البيانات في ملف عادي. البرنامج يعمل بشكل كامل، لكن يُنصح بإعادة التثبيت.\n\n"
+          : "") + (result.error ?? "") + `\n\nملف البيانات: ${db.dbPath()}`,
+    };
+  }
+}
+
+// -------------------------------------------------------------- auto backups
+
+// The offline build has no cloud to fall back on, so the only thing standing
+// between a customer and a lost year of invoices is a copy on the same disk.
+// One is taken at every launch and every six hours, keeping the last 14.
+const BACKUP_KEEP = 14;
+const AUTO_BACKUP_MS = 6 * 60 * 60 * 1000;
+
+function backupsDir() {
+  return path.join(path.dirname(db.dbPath()), "backups");
+}
+
+function autoBackup() {
+  if (!db.ready()) return null;
+  try {
+    const dir = backupsDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const dest = path.join(dir, `erp-${stamp}${path.extname(db.dbPath())}`);
+    db.backup(dest);
+    const files = fs
+      .readdirSync(dir)
+      .filter((f) => f.startsWith("erp-"))
+      .sort();
+    while (files.length > BACKUP_KEEP) fs.unlinkSync(path.join(dir, files.shift()));
+    return dest;
+  } catch (err) {
+    console.error("autoBackup failed", err);
+    return null;
+  }
+}
+
+// ------------------------------------------------------------------- offline
+
+// The installed program is an offline product: everything it renders is loaded
+// from disk. Any http(s) request it makes would be a bug, and on a machine with
+// no internet a bug like that shows up as a screen that hangs waiting for a
+// timeout — so requests to the network are refused outright instead.
+function goOffline() {
+  session.defaultSession.webRequest.onBeforeRequest(
+    { urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] },
+    (details, callback) => {
+      console.warn("blocked network request:", details.url);
+      callback({ cancel: true });
+    },
+  );
 }
 
 // ---------------------------------------------------------------- window state
@@ -176,6 +287,17 @@ function createWindow() {
     closeSplash();
     mainWindow.show();
     mainWindow.focus();
+    if (pendingDbWarning) {
+      const warning = pendingDbWarning;
+      pendingDbWarning = null;
+      dialog.showMessageBox(mainWindow, {
+        type: "warning",
+        title: APP_TITLE,
+        buttons: ["موافق"],
+        noLink: true,
+        ...warning,
+      });
+    }
   });
 
   // The window title is the program's, not the document's: a stray <title> in
@@ -347,7 +469,7 @@ function buildMenu() {
         { type: "separator" },
         {
           label: "مجلد البيانات",
-          click: () => shell.openPath(app.getPath("userData")),
+          click: () => shell.openPath(path.dirname(db.dbPath())),
         },
         { type: "separator" },
         {
@@ -404,8 +526,9 @@ function showAbout() {
     detail: [
       `الإصدار ${app.getVersion()}`,
       "تطوير: Fikra Digital",
+      "يعمل بلا إنترنت — كل البيانات على هذا الجهاز",
       "",
-      `مجلد البيانات: ${app.getPath("userData")}`,
+      `ملف البيانات: ${db.dbPath()}`,
     ].join("\n"),
     buttons: ["موافق"],
     noLink: true,
@@ -420,14 +543,19 @@ function registerIpc() {
   ipcMain.handle("db:getKV", (_e, key) => db.getKV(key));
   ipcMain.handle("db:setKV", (_e, key, value) => db.setKV(key, value));
   ipcMain.handle("db:hashPassword", (_e, pw, salt) => db.hashPassword(pw, salt));
+  ipcMain.handle("db:verifyPassword", (_e, pw, salt, hash) => db.verifyPassword(pw, salt, hash));
   ipcMain.handle("db:randomSalt", () => db.randomSalt());
+  ipcMain.handle("db:appendAudit", (_e, entry) => db.appendAudit(entry));
+  ipcMain.handle("db:getAudit", (_e, limit) => db.getAudit(limit));
+  ipcMain.handle("db:status", () => db.status());
+  ipcMain.handle("db:backupNow", () => autoBackup());
   ipcMain.handle("db:backup", (_e, dest) => db.backup(dest));
   ipcMain.handle("db:restore", (_e, src) => db.restore(src));
 
   ipcMain.handle("app:info", () => ({
     version: app.getVersion(),
     platform: process.platform,
-    dataDir: app.getPath("userData"),
+    dataDir: path.dirname(db.dbPath()),
   }));
   ipcMain.handle("app:backupDialog", backupDb);
   ipcMain.handle("app:restoreDialog", restoreDb);

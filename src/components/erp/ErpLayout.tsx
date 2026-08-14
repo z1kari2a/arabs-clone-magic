@@ -129,7 +129,12 @@ export default function ErpLayout({
               <span className="hidden md:flex items-center gap-1 opacity-90"><Keyboard size={12} /> Ctrl+N جديد • Ctrl+S حفظ • F2 تعديل • F3 بحث • F9 اعتماد • Esc إغلاق</span>
             </div>
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1"><Circle size={8} className="fill-emerald-400 text-emerald-400" /> متصل</span>
+              {/* The old label said "متصل" unconditionally — a connection
+                  indicator that never checked anything, in a program whose
+                  whole point is that it needs no connection. */}
+              <span className="flex items-center gap-1" title="كل البيانات محفوظة على هذا الجهاز">
+                <Circle size={8} className="fill-emerald-400 text-emerald-400" /> قاعدة بيانات محلية
+              </span>
               <span className="tabular-nums">{clock}</span>
             </div>
           </div>
