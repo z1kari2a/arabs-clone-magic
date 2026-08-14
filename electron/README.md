@@ -11,7 +11,7 @@ npm run make:setup      # = make:win ثم make:installer
 النتيجة ملف واحد:
 
 ```
-electron-release/ERP-Setup-1.0.0.exe     ≈ 95 ميغابايت
+electron-release/ERP-Setup-1.0.1.exe     ≈ 95 ميغابايت
 ```
 
 يحتاج **NSIS** على جهاز البناء: `apt-get install nsis`.
@@ -26,7 +26,7 @@ electron-release/ERP-Setup-1.0.0.exe     ≈ 95 ميغابايت
 | اللغة | واجهة التثبيت بالعربية |
 | عند الإزالة | يُحذف البرنامج فقط — البيانات في `%APPDATA%\erp` تبقى |
 | نسخة قيد التشغيل | تُغلق تلقائياً قبل التحديث (`taskkill`) |
-| تثبيت صامت | `ERP-Setup-1.0.0.exe /S` — مفيد للتوزيع على عدة أجهزة |
+| تثبيت صامت | `ERP-Setup-1.0.1.exe /S` — مفيد للتوزيع على عدة أجهزة |
 
 السكربت: `scripts/make-installer.mjs` + `scripts/installer.nsi`
 (الملف الثاني محفوظ بترميز UTF-8 مع BOM، وهو شرط ليقرأ `makensis` النصوص

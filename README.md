@@ -201,7 +201,7 @@ npm run make:setup
 ينتج **ملفاً واحداً** يُرسل للعميل:
 
 ```
-electron-release/ERP-Setup-1.0.0.exe     ≈ 95 ميغابايت
+electron-release/ERP-Setup-1.0.1.exe     ≈ 95 ميغابايت
 ```
 
 عند تشغيله على ويندوز يقوم بما يقوم به أي برنامج تجاري:
@@ -417,7 +417,7 @@ certbot --nginx -d fikradigital.online -d www.fikradigital.online
 | `npm run electron:start` | بناء الواجهة ثم تشغيل التطبيق محلياً |
 | `npm run build:electron` | بناء الواجهة فقط إلى `dist-electron/` |
 | `npm run make:win` | حزمة ويندوز كاملة → `electron-release/ERP-win32-x64/ERP.exe` |
-| `npm run make:setup` | حزمة ويندوز **+ مثبِّت** → `electron-release/ERP-Setup-1.0.0.exe` |
+| `npm run make:setup` | حزمة ويندوز **+ مثبِّت** → `electron-release/ERP-Setup-1.0.1.exe` |
 | `npm run make:installer` | المثبِّت وحده (من حزمة مبنية مسبقاً) |
 | `npm run make:linux` | نفس التحزيم لكن لهدف لينكس |
 | `npm run shell:start` | تشغيل «قشرة الترخيص» (النسخة المحمية) |
