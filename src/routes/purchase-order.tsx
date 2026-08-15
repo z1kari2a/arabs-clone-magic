@@ -12,7 +12,7 @@ import Ribbon from "@/components/erp/Ribbon";
 import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, SaleCell, fmt, fmtAuto, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
 import ExpensesDialog from "@/components/erp/ExpensesDialog";
 import { printPurchaseOrder } from "@/lib/print-po";
-import { erpStore, useErpStore, computePO, savePurchaseOrder, isRealRow, deletePO, cartonsOf, lineCBMOf, stashPO } from "@/lib/erp-store";
+import { erpStore, useErpStore, computePO, savePurchaseOrder, isRealRow, deletePO, cartonsOf, lineCBMOf, stashPO, repinRates } from "@/lib/erp-store";
 import { getCurrentScope, localDb } from "@/lib/local-db";
 import { useAuth, canWrite, canDelete, canApprove } from "@/lib/auth";
 import type { PurchaseOrder, PORow } from "@/lib/erp-types";
@@ -158,6 +158,30 @@ function POPage() {
   const disabled = !editing || po.approved || !mayWrite;
 
   const patch = (p: Partial<PurchaseOrder>) => setPo({ ...po, ...p });
+  // سعر صرف الرأس يخصّ عملة الفاتورة، فيسري على كل سطر ومصروف بنفس العملة.
+  // كان يُكتب على الرأس وحده، بينما الحساب يفضّل السعر المثبَّت على السطر
+  // (erp-store.ts: costingBase) — فالأسطر القادمة من دليل الأصناف تبقى على سعرها
+  // القديم ولا يتحرك إلا ما لا سعر له، فيبدو أن التعديل "لا يتحدث".
+  // الأسطر بعملة أخرى لا تُمسّ — لها سعرها، و«تحديث الأسعار» هو ما يطالها.
+  // تغيير عملة الفاتورة: الأسطر التي لا تحمل عملة صريحة تتبع الرأس، فيتبع
+  // سعرُها سعرَه — وإلا بقي عليها سعر العملة السابقة الذي كتبه setDocRate.
+  // السطر ذو العملة الصريحة يبقى كما هو (له عملته وسعره).
+  const setDocCurrency = (code: string) => {
+    const n = rateOf(code);
+    setPo((cur) => ({
+      ...cur,
+      currency: code,
+      rate: n,
+      rows: cur.rows.map((r) => (r.currency ? r : { ...r, rate: n })),
+    }));
+  };
+  const setDocRate = (n: number) =>
+    setPo((cur) => ({
+      ...cur,
+      rate: n,
+      rows: cur.rows.map((r) => ((r.currency ?? cur.currency) === cur.currency ? { ...r, rate: n } : r)),
+      expenses: cur.expenses.map((e) => (e.currency === cur.currency ? { ...e, rate: n } : e)),
+    }));
   const patchRow = (id: number, p: Partial<PORow>) =>
     setPo({ ...po, rows: po.rows.map((r) => (r.id === id ? { ...r, ...p } : r)) });
   const addRow = () =>
@@ -240,7 +264,25 @@ function POPage() {
     router.navigate({ to: "/price-tiers", search: { po: po.number } });
   };
 
-  const onImport = () => fileRef.current?.click();
+  // زر الاستيراد كان معطّلاً خارج وضع التعديل، فيضغطه المستخدم ولا يحدث شيء ولا
+  // تُشرح له العلّة. صار يتصرّف كزر «إضافة سطر»: يفتح وضع التعديل بنفسه، ويقول
+  // صراحةً لماذا يرفض حين يرفض. والاستيراد يستبدل كل الأسطر — فيُستأذن أولاً.
+  const onImport = () => {
+    if (!mayWrite) return denied();
+    if (po.approved) return toast.error("الأمر معتمد — انسخه (Ctrl+D) ثم استورد في النسخة الجديدة");
+    if (po.rows.some(isRealRow) && !confirm("سيستبدل الاستيراد كل أسطر الأمر الحالية. متابعة؟")) return;
+    if (!editing) setEditing(true);
+    fileRef.current?.click();
+  };
+  // «تحديث الأسعار»: يسحب أسعار الصرف من جدول العملات إلى الرأس وكل الأسطر
+  // والمصروفات. بدونه يبقى المستند على السعر المثبَّت لحظة إضافة كل سطر، فيبدو
+  // أن تعديل «أسعار الصرف» لا أثر له. المستند المحفوظ/المعتمد لا يُمسّ — الزر
+  // معطّل خارج وضع التعديل تماماً كبقية حقول الشاشة.
+  const onRefreshRates = () => {
+    if (disabled) return;
+    setPo((cur) => repinRates(cur));
+    toast.success("تم تحديث أسعار الصرف على كل الأسطر والمصروفات — اضغط «حفظ» لتثبيتها");
+  };
   const onCopy = async () => {
     if (!mayWrite) return denied();
     autoLoadedRef.current = true;
@@ -309,7 +351,8 @@ function POPage() {
     { icon: Trash2, label: "حذف", hint: "Del", color: "text-rose-600", onClick: onDelete, disabled: !mayDelete },
     { icon: Search, label: "بحث", hint: "F3", color: "text-indigo-500", onClick: () => { setItemsDlg(true); setSearchDlg(true); } },
     { icon: Printer, label: "طباعة", hint: "Ctrl+P", color: "text-slate-600", onClick: onPrint },
-    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled },
+    // لا `disabled` هنا: onImport يفتح وضع التعديل بنفسه ويشرح رفضه — انظر تعريفه.
+    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled: po.approved || !mayWrite },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
     { icon: Wallet, label: "المصروفات", hint: "F4", color: "text-orange-600", onClick: () => setExpDlg(true) },
     { icon: Tags, label: "التسعيرات", hint: "F6", color: "text-fuchsia-600", onClick: onTiers },
@@ -526,20 +569,28 @@ function POPage() {
             <FieldRow label="رقم الفاتورة"><ErpInput value={po.number} onChange={(v) => patch({ number: v, invoiceNo: v })} disabled={po.approved} highlight /></FieldRow>
             <FieldRow label="التاريخ"><ErpInput value={po.date} onChange={(v) => patch({ date: v })} disabled={disabled} /></FieldRow>
             <FieldRow label="العملة">
-              <ErpSelect value={po.currency} onChange={(v) => patch({ currency: v, rate: rateOf(v) })} disabled={disabled} options={currencyOptions} />
+              <ErpSelect value={po.currency} onChange={setDocCurrency} disabled={disabled} options={currencyOptions} />
             </FieldRow>
             <FieldRow label={`سعر صرف ⁦1 USD = ? ${po.currency}⁩`}>
-              <ErpInput
-                value={String(po.rate)}
-                onChange={(v) => {
-                  const n = parseDecimal(v);
-                  if (!(n > 0)) return;
-                  // Pin this rate on THIS document only — do not touch the
-                  // global currency table (that's Settings → أسعار الصرف's job).
-                  patch({ rate: n });
-                }}
-                disabled={disabled}
-              />
+              <div className="flex items-center gap-1">
+                <ErpInput
+                  value={String(po.rate)}
+                  onChange={(v) => {
+                    const n = parseDecimal(v);
+                    if (!(n > 0)) return;
+                    setDocRate(n);
+                  }}
+                  disabled={disabled}
+                />
+                <button
+                  onClick={onRefreshRates}
+                  disabled={disabled}
+                  title="تحديث أسعار الصرف من جدول العملات على كل الأسطر والمصروفات"
+                  className="shrink-0 p-1.5 border border-slate-300 rounded text-slate-600 hover:bg-blue-50 hover:border-blue-300 disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <RefreshCcw size={13} />
+                </button>
+              </div>
             </FieldRow>
             <FieldRow label="رقم الحاوية"><ErpInput value={po.containerNo} onChange={(v) => patch({ containerNo: v })} disabled={disabled} /></FieldRow>
             <FieldRow label="حجم الحاوية"><ErpInput value={po.containerSize} onChange={(v) => patch({ containerSize: v })} disabled={disabled} /></FieldRow>

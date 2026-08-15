@@ -59,6 +59,20 @@ Function LaunchAsUser
   Exec '"$WINDIR\explorer.exe" "$INSTDIR\${EXE_NAME}"'
 FunctionEnd
 
+; Silent update install (electron/updater.cjs runs this file as
+; `ERP-Setup-x.y.z.exe /S --force-run`): /S is NSIS's own switch and skips every
+; page, --force-run is ours and means "start the new version when you are done",
+; since there is no Finish page left to click. Without it the user's program
+; would simply vanish after agreeing to update.
+!macro RunIfRequested
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "--force-run" $R1
+  ${IfNot} ${Errors}
+    Call LaunchAsUser
+  ${EndIf}
+!macroend
+
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
@@ -116,6 +130,8 @@ Section "install"
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
   IntFmt $0 "0x%08X" $0
   WriteRegDWORD HKLM "${REG_UNINSTALL}" "EstimatedSize" "$0"
+
+  !insertmacro RunIfRequested
 SectionEnd
 
 ; ----------------------------------------------------------------- uninstall

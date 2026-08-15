@@ -21,6 +21,7 @@ const {
 const path = require("path");
 const fs = require("fs");
 const db = require("./db.cjs");
+const updater = require("./updater.cjs");
 
 const APP_TITLE = "ERP — نظام المشتريات";
 const IS_DEV = process.argv.includes("--dev");
@@ -58,6 +59,7 @@ function start() {
     buildMenu();
     createSplash();
     createWindow();
+    updater.init({ window: () => mainWindow, quitForInstall });
     autoBackup();
     backupTimer = setInterval(autoBackup, AUTO_BACKUP_MS);
 
@@ -513,6 +515,24 @@ function relaunch() {
   app.exit(0);
 }
 
+// Closes the program on the updater's behalf: the installer is already running
+// elevated behind the UAC prompt the user just accepted, and it kills ERP.exe
+// to free the files it is about to overwrite. Getting out of its way in an
+// orderly fashion — window state saved, a fresh backup taken, the database file
+// closed — is the difference between an update and a crash. No close
+// confirmation: the user has already answered that question twice.
+function quitForInstall() {
+  quitConfirmed = true;
+  saveWindowState();
+  autoBackup();
+  try {
+    db.close();
+  } catch {
+    /* a database that never opened does not need closing */
+  }
+  app.exit(0);
+}
+
 // ----------------------------------------------------------------------- menu
 
 function buildMenu() {
@@ -565,6 +585,7 @@ function buildMenu() {
     {
       label: "مساعدة",
       submenu: [
+        { label: "التحقق من وجود تحديث…", click: checkForUpdate },
         { label: "إعادة تشغيل البرنامج", click: relaunch },
         { type: "separator" },
         { label: "حول البرنامج", click: showAbout },
@@ -586,6 +607,77 @@ function showAbout() {
       "",
       `ملف البيانات: ${db.dbPath()}`,
     ].join("\n"),
+    buttons: ["موافق"],
+    noLink: true,
+  });
+}
+
+// A check the user asked for has to answer, even when the answer is "nothing
+// new" — the background checks stay silent, but a menu item that looks like it
+// did nothing reads as broken.
+async function checkForUpdate() {
+  if (!updater.state.supported) {
+    dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: "التحديثات",
+      message: "التحديث التلقائي متاح في النسخة المثبّتة على Windows فقط.",
+      detail: `الإصدار الحالي: ${app.getVersion()}`,
+      buttons: ["موافق"],
+      noLink: true,
+    });
+    return;
+  }
+
+  const state = await updater.check(true);
+
+  if (state.phase === "ready") {
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: "تحديث جاهز",
+      message: `الإصدار ${state.version} جاهز للتثبيت`,
+      buttons: ["لاحقاً", "إعادة التشغيل الآن"],
+      defaultId: 1,
+      cancelId: 0,
+      noLink: true,
+    });
+    if (response === 1) updater.install();
+    return;
+  }
+
+  // Found one, but automatic downloading is switched off — so ask, rather than
+  // start a 100 MB transfer the user has already said no to once.
+  if (state.phase === "available" && !state.auto) {
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: "يوجد تحديث جديد",
+      message: `الإصدار ${state.version} متاح`,
+      detail: "التنزيل التلقائي معطّل. يمكنك تنزيل هذا التحديث الآن.",
+      buttons: ["لاحقاً", "تنزيل الآن"],
+      defaultId: 1,
+      cancelId: 0,
+      noLink: true,
+    });
+    if (response === 1) void updater.download();
+    return;
+  }
+
+  const downloading = state.phase === "available" || state.phase === "downloading";
+
+  dialog.showMessageBox(mainWindow, {
+    type: state.phase === "error" ? "warning" : "info",
+    title: "التحديثات",
+    message:
+      state.phase === "error"
+        ? "تعذّر التحقق من التحديثات"
+        : downloading
+          ? "يوجد تحديث جديد"
+          : "لا يوجد تحديث",
+    detail:
+      state.phase === "error"
+        ? state.error
+        : downloading
+          ? `يجري تنزيل الإصدار ${state.version} في الخلفية. ستُطلب منك إعادة التشغيل عند اكتماله.`
+          : `الإصدار الحالي ${app.getVersion()} هو الأحدث.`,
     buttons: ["موافق"],
     noLink: true,
   });

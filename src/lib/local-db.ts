@@ -38,6 +38,36 @@ type NativeBridge = {
    * no bridge at all, and an older installed copy has no such handler.
    */
   setBranding?: (branding: { name: string; icon: string | null }) => Promise<boolean>;
+  /**
+   * Automatic updates. Optional for the same two reasons as setBranding: the
+   * browser build has no bridge, and a copy installed before this shipped has
+   * an older preload with no `updates` on it.
+   */
+  updates?: UpdateBridge;
+};
+
+/** Mirrors the `state` object in electron/updater.cjs. */
+export type UpdateState = {
+  phase: "idle" | "checking" | "none" | "available" | "downloading" | "ready" | "error";
+  currentVersion: string;
+  version: string | null;
+  notes: string | null;
+  percent: number;
+  error: string | null;
+  checkedAt: number | null;
+  auto: boolean;
+  /** false outside the installed Windows build — nothing to update there. */
+  supported: boolean;
+};
+
+type UpdateBridge = {
+  state: () => Promise<UpdateState>;
+  check: () => Promise<UpdateState>;
+  download: () => Promise<UpdateState>;
+  install: () => Promise<boolean>;
+  setAuto: (auto: boolean) => Promise<UpdateState>;
+  /** Returns the unsubscribe function. */
+  onState: (callback: (state: UpdateState) => void) => () => void;
 };
 
 declare global {

@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, Building2 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { ErpTable, Cell } from "@/components/erp/ErpUI";
+import { cell } from "@/lib/sheet";
 import { erpStore, useErpStore } from "@/lib/erp-store";
 import { useAuth, canWrite, canDelete } from "@/lib/auth";
 import type { Supplier } from "@/lib/erp-types";
@@ -28,6 +29,7 @@ function SuppliersPage() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState(false);
   const [list, setList] = useState<Supplier[]>(suppliers);
+  const fileRef = useRef<HTMLInputElement>(null);
   const hydrated = useErpStore((s) => s.hydrated);
   const { role } = useAuth();
   const mayWrite = canWrite(role);
@@ -85,6 +87,79 @@ function SuppliersPage() {
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Suppliers");
     XLSX.writeFile(wb, "suppliers.xlsx"); toast.success("تم التصدير");
   };
+  // ---- استيراد Excel ----
+  // كود المورد هو المفتاح: الموجود يُحدَّث والجديد يُضاف — لا تُستبدل القائمة
+  // كلّها. عمود ناقص يُبقي القيمة الحالية. الأعمدة المقبولة: رؤوس هذا الجدول
+  // بالعربية، وأسماء الحقول الإنجليزية التي يصدّرها الزر المجاور.
+  const onImport = () => {
+    if (!mayWrite) return toast.error("ليس لديك صلاحية لهذا الإجراء");
+    fileRef.current?.click();
+  };
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    let data: Record<string, unknown>[] = [];
+    try {
+      const wb = XLSX.read(await f.arrayBuffer());
+      data = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0]]);
+    } catch {
+      return toast.error("تعذّرت قراءة الملف — تأكد أنه ملف Excel صالح");
+    }
+    if (!data.length) return toast.error("الملف فارغ — لا توجد أسطر لاستيرادها");
+
+    const text = (v: unknown, fallback: string) => (v === undefined ? fallback : String(v).trim());
+    const next = [...list];
+    let added = 0, updated = 0, skipped = 0;
+    for (const row of data) {
+      const code = String(cell(row, "كود المورد", "code") ?? "").trim();
+      if (!code) { skipped++; continue; }
+      const name = cell(row, "اسم المورد", "name");
+      const country = cell(row, "الدولة", "country");
+      const city = cell(row, "المدينة", "city");
+      const phone = cell(row, "الهاتف", "phone");
+      const email = cell(row, "البريد الإلكتروني", "email");
+      const currency = cell(row, "العملة", "currency");
+      const notes = cell(row, "ملاحظات", "notes");
+      // الحالة تُكتب في الملف نصاً («نشط»/«موقوف») أو منطقياً (TRUE/FALSE) —
+      // وأي شيء آخر يترك المورد على حالته الحالية بدل أن يوقفه بالخطأ.
+      const raw = cell(row, "الحالة", "active");
+      const activeText = raw === undefined ? "" : String(raw).trim().toLowerCase();
+      const active =
+        ["نشط", "true", "1", "yes", "active"].includes(activeText) ? true :
+        ["موقوف", "false", "0", "no", "inactive"].includes(activeText) ? false : undefined;
+
+      const at = next.findIndex((s) => s.code === code);
+      if (at < 0) {
+        next.push({
+          code,
+          name: text(name, ""), country: text(country, ""), city: text(city, ""),
+          phone: text(phone, ""), email: text(email, ""),
+          currency: text(currency, "USD"), notes: text(notes, ""),
+          active: active ?? true,
+        });
+        added++;
+      } else {
+        const prev = next[at];
+        next[at] = {
+          ...prev,
+          name: text(name, prev.name), country: text(country, prev.country), city: text(city, prev.city),
+          phone: text(phone, prev.phone), email: text(email, prev.email),
+          currency: text(currency, prev.currency), notes: text(notes, prev.notes),
+          active: active ?? prev.active,
+        };
+        updated++;
+      }
+    }
+
+    if (!added && !updated) return toast.error("لا يوجد عمود «كود المورد» في الملف — لم يُستورد شيء");
+    setList(next);
+    setEditing(true);
+    toast.success(
+      `تم استيراد ${added + updated} مورد (${added} جديد، ${updated} محدَّث` +
+        `${skipped ? `، ${skipped} سطر بلا كود` : ""}) — اضغط «حفظ» لتثبيتها`,
+    );
+  };
   const noop = () => {};
 
   const actions = [
@@ -95,7 +170,7 @@ function SuppliersPage() {
     { icon: Trash2, label: "حذف", color: "text-rose-600", onClick: () => toast.info("استخدم زر الحذف في نهاية سطر المورد") },
     { icon: Search, label: "بحث", color: "text-indigo-500", onClick: () => document.getElementById("sup-search")?.focus() },
     { icon: Printer, label: "طباعة", color: "text-slate-600", onClick: () => window.print() },
-    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: noop },
+    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled: !mayWrite },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
     { icon: CheckCircle2, label: "اعتماد", color: "text-emerald-700", onClick: onSave, disabled: !mayWrite },
     { icon: X, label: "إغلاق", color: "text-rose-600", onClick: () => history.back() },
@@ -103,6 +178,7 @@ function SuppliersPage() {
 
   return (
     <ErpLayout title="الموردون" ribbon={<Ribbon actions={actions} />}>
+      <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={onFile} className="hidden" />
       <div className="bg-white border border-slate-300 rounded">
         <div className="flex items-center justify-between px-3 py-2 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
           <div className="flex items-center gap-2 font-semibold text-slate-700"><Building2 size={16} /> قائمة الموردين ({filtered.length})</div>

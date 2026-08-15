@@ -38,6 +38,7 @@ import {
   restoreFromCloudBackup,
   getLastCloudPushAt,
 } from "@/lib/cloud-sync";
+import UpdatePanel from "@/components/erp/UpdatePanel";
 import { appIcon, fileToIconDataUrl, normalizeAppName, DEFAULT_APP_NAME } from "@/lib/branding";
 import type { CompanyProfile, PriceTier } from "@/lib/erp-types";
 
@@ -463,7 +464,9 @@ function SettingsPage() {
     { icon: Trash2, label: "حذف", color: "text-rose-600", onClick: noop },
     { icon: Search, label: "بحث", color: "text-indigo-500", onClick: noop },
     { icon: Printer, label: "طباعة", color: "text-slate-600", onClick: onPrint },
-    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: noop },
+    // معطّل عمداً: لا شيء في الإعدادات يُستورد من Excel — الزر يبقى في مكانه حفاظاً على ترتيب الشريط
+    // الموحّد (Ribbon.STANDARD_ORDER)، لكنه لا يوهم بأنه يعمل.
+    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: noop, disabled: true },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: noop },
     {
       icon: CheckCircle2,
@@ -570,6 +573,8 @@ function SettingsPage() {
           </div>
         </Panel>
       </div>
+
+      <UpdatePanel className="mt-2 max-w-4xl" />
 
       <Panel title="هوية التطبيق (الاسم والأيقونة)" className="mt-2">
         <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4 items-start">

@@ -1,5 +1,5 @@
 import { useSyncExternalStore, useEffect } from "react";
-import type { Item, PORow, PurchaseOrder, PurchaseRequest, Settings, Supplier, User } from "./erp-types";
+import type { Expense, Item, PORow, PurchaseOrder, PurchaseRequest, Settings, Supplier, User } from "./erp-types";
 import { localDb, logAudit, getCurrentScope } from "./local-db";
 import { scheduleCloudBackup } from "./cloud-sync";
 
@@ -121,6 +121,32 @@ export function updateCurrencyRate(code: string, rate: number) {
   const nextSettings = { ...state.settings, currencies: nextList };
   void localDb.settings.set(nextSettings);
   setState({ settings: nextSettings });
+}
+
+// ============ إعادة تثبيت أسعار الصرف على مستند قيد التحرير ============
+// كل سطر ومصروف يحمل سعر صرف مثبَّتاً عليه (savePurchaseOrder / costingBase)،
+// وهذا هو الصحيح للمستندات المحفوظة: أرقامها لا تتحرك تحت تعديل لاحق على جدول
+// العملات. لكنه كان يسري أيضاً على مستند ما زال المستخدم يحرّره — فيعدّل سعر
+// الصرف في «أسعار الصرف» ولا يتغيّر شيء أمامه، لأن أسطره ثبّتت السعر لحظة
+// إضافتها. هذه الدالة هي ما يقف خلف زر «تحديث الأسعار» في أمر/طلب الشراء:
+// تعيد قراءة الجدول الحيّ وتكتبه على الرأس وكل الأسطر والمصروفات.
+//
+// سعر غير موجود في الجدول (عملة حُذفت مثلاً) يُبقي المثبَّت كما هو بدل أن يصفّر
+// السطر — القسمة على صفر تعيد 0 في كل الحسابات.
+export function repinRates<
+  T extends { currency: string; rate: number; rows: PORow[]; expenses?: Expense[] },
+>(doc: T): T {
+  const currencies = state.settings.currencies ?? [];
+  const live = (code?: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
+  const next: T = {
+    ...doc,
+    rate: live(doc.currency) || doc.rate,
+    rows: doc.rows.map((r) => ({ ...r, rate: live(r.currency ?? doc.currency) || r.rate })),
+  };
+  if (doc.expenses) {
+    next.expenses = doc.expenses.map((e) => ({ ...e, rate: live(e.currency) || e.rate }));
+  }
+  return next;
 }
 
 // ============ Mutations ============

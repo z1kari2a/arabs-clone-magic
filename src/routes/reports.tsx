@@ -71,7 +71,9 @@ function ReportsPage() {
     { icon: Trash2, label: "حذف", color: "text-rose-600", onClick: noop },
     { icon: Search, label: "بحث", color: "text-indigo-500", onClick: noop },
     { icon: Printer, label: "طباعة", color: "text-slate-600", onClick: () => window.print() },
-    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: noop },
+    // معطّل عمداً: التقارير تُصدَّر ولا تُستورد — الزر يبقى في مكانه حفاظاً على ترتيب الشريط
+    // الموحّد (Ribbon.STANDARD_ORDER)، لكنه لا يوهم بأنه يعمل.
+    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: noop, disabled: true },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
     { icon: Wallet, label: "المصروفات", hint: "F4", color: "text-orange-600", onClick: () => { setReportId("expenses"); toast.success("تم عرض تقرير المصروفات"); } },
     { icon: CheckCircle2, label: "اعتماد", color: "text-emerald-700", onClick: noop },

@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import {
   FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer,
   FileSpreadsheet, Download, CheckCircle2, X, Plus, Building2, Copy,
-  Coins, Package, Info, Check,
+  Coins, Package, Info, Check, RefreshCcw,
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
@@ -18,7 +18,7 @@ import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, SaleCell, fmt, fm
 import { printPurchaseRequest } from "@/lib/print-po";
 import {
   erpStore, useErpStore, computePR, savePurchaseRequest, deletePurchaseRequest,
-  isRealRow, cartonsOf, lineCBMOf,
+  isRealRow, cartonsOf, lineCBMOf, repinRates,
 } from "@/lib/erp-store";
 import { getCurrentScope, localDb } from "@/lib/local-db";
 import { useAuth, canWrite, canDelete, canApprove } from "@/lib/auth";
@@ -127,6 +127,24 @@ function PRPage() {
   const disabled = !editing || pr.approved || !mayWrite;
 
   const patch = (p: Partial<PurchaseRequest>) => setPr({ ...pr, ...p });
+  // نفس منطق أمر الشراء (انظر setDocRate/setDocCurrency هناك): سعر صرف الرأس
+  // يخصّ عملة الطلب فيسري على كل سطر بنفس العملة، وإلا بقيت أسطر دليل الأصناف
+  // على سعرها المثبَّت وبدا أن تعديل السعر لا أثر له.
+  const setDocCurrency = (code: string) => {
+    const n = rateOf(code);
+    setPr((cur) => ({
+      ...cur,
+      currency: code,
+      rate: n,
+      rows: cur.rows.map((r) => (r.currency ? r : { ...r, rate: n })),
+    }));
+  };
+  const setDocRate = (n: number) =>
+    setPr((cur) => ({
+      ...cur,
+      rate: n,
+      rows: cur.rows.map((r) => ((r.currency ?? cur.currency) === cur.currency ? { ...r, rate: n } : r)),
+    }));
   const patchRow = (id: number, p: Partial<PORow>) =>
     setPr({ ...pr, rows: pr.rows.map((r) => (r.id === id ? { ...r, ...p } : r)) });
   const addRow = () =>
@@ -193,7 +211,21 @@ function PRPage() {
       masterCurrency,
     });
 
-  const onImport = () => fileRef.current?.click();
+  // الزر كان معطّلاً خارج وضع التعديل فلا يستجيب ولا يشرح السبب — صار يفتح
+  // وضع التعديل بنفسه، ويستأذن قبل استبدال الأسطر الموجودة.
+  const onImport = () => {
+    if (!mayWrite) return denied();
+    if (pr.approved) return toast.error("الطلب معتمد — انسخه (Ctrl+D) ثم استورد في النسخة الجديدة");
+    if (pr.rows.some(isRealRow) && !confirm("سيستبدل الاستيراد كل أسطر الطلب الحالية. متابعة؟")) return;
+    if (!editing) setEditing(true);
+    fileRef.current?.click();
+  };
+  // يسحب أسعار الصرف من جدول العملات إلى الرأس وكل الأسطر (لا مصروفات هنا).
+  const onRefreshRates = () => {
+    if (disabled) return;
+    setPr((cur) => repinRates(cur));
+    toast.success("تم تحديث أسعار الصرف على كل الأسطر — اضغط «حفظ» لتثبيتها");
+  };
   const onCopy = async () => {
     if (!mayWrite) return denied();
     autoLoadedRef.current = true;
@@ -257,7 +289,7 @@ function PRPage() {
     { icon: Trash2, label: "حذف", hint: "Del", color: "text-rose-600", onClick: onDelete, disabled: !mayDelete },
     { icon: Search, label: "بحث", hint: "F3", color: "text-indigo-500", onClick: () => { setItemsDlg(true); setSearchDlg(true); } },
     { icon: Printer, label: "طباعة", hint: "Ctrl+P", color: "text-slate-600", onClick: onPrint },
-    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled },
+    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled: pr.approved || !mayWrite },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
     { icon: CheckCircle2, label: "اعتماد", hint: "F9", color: "text-emerald-700", onClick: onApprove, disabled: pr.approved || !mayApprove },
     { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: () => history.back() },
@@ -456,19 +488,28 @@ function PRPage() {
             <FieldRow label="رقم الطلب"><ErpInput value={pr.number} onChange={(v) => patch({ number: v, invoiceNo: v })} disabled={pr.approved} highlight /></FieldRow>
             <FieldRow label="التاريخ"><ErpInput value={pr.date} onChange={(v) => patch({ date: v })} disabled={disabled} /></FieldRow>
             <FieldRow label="العملة">
-              <ErpSelect value={pr.currency} onChange={(v) => patch({ currency: v, rate: rateOf(v) })} disabled={disabled} options={currencyOptions} />
+              <ErpSelect value={pr.currency} onChange={setDocCurrency} disabled={disabled} options={currencyOptions} />
             </FieldRow>
             <FieldRow label={`سعر صرف ⁦1 USD = ? ${pr.currency}⁩`}>
-              <ErpInput
-                value={String(pr.rate)}
-                onChange={(v) => {
-                  const num = parseDecimal(v);
-                  if (!(num > 0)) return;
-                  // يُثبَّت على هذا المستند فقط — جدول العملات يُعدَّل من الإعدادات.
-                  patch({ rate: num });
-                }}
-                disabled={disabled}
-              />
+              <div className="flex items-center gap-1">
+                <ErpInput
+                  value={String(pr.rate)}
+                  onChange={(v) => {
+                    const num = parseDecimal(v);
+                    if (!(num > 0)) return;
+                    setDocRate(num);
+                  }}
+                  disabled={disabled}
+                />
+                <button
+                  onClick={onRefreshRates}
+                  disabled={disabled}
+                  title="تحديث أسعار الصرف من جدول العملات على كل الأسطر"
+                  className="shrink-0 p-1.5 border border-slate-300 rounded text-slate-600 hover:bg-blue-50 hover:border-blue-300 disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <RefreshCcw size={13} />
+                </button>
+              </div>
             </FieldRow>
             <FieldRow label="رقم الحاوية"><ErpInput value={pr.containerNo} onChange={(v) => patch({ containerNo: v })} disabled={disabled} /></FieldRow>
             <FieldRow label="حجم الحاوية"><ErpInput value={pr.containerSize} onChange={(v) => patch({ containerSize: v })} disabled={disabled} /></FieldRow>

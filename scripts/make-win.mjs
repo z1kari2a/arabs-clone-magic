@@ -33,6 +33,20 @@ const ROOT = path.resolve();
 const OUT_DIR = path.join(ROOT, "electron-release");
 const APP_NAME = "ERP";
 
+// Where the installed program looks for updates (electron/updater.cjs).
+// electron-updater reads this from resources/app-update.yml — the file is not
+// optional even when the feed is set in code, because the download step reads
+// `updaterCacheDirName` straight off it and fails if it is missing. This is the
+// one place the repository coordinates are written.
+const UPDATE_CONFIG = [
+  "provider: github",
+  "owner: z1kari2a",
+  "repo: arabs-clone-magic",
+  // %LOCALAPPDATA%\erp-updater — where a downloaded installer waits.
+  "updaterCacheDirName: erp-updater",
+  "",
+].join("\n");
+
 // Windows is the product; `--platform=linux` stays available because the old
 // electron:build:linux script offered it, and it is a cheap way to sanity-check
 // the packaged layout on the build machine itself.
@@ -98,7 +112,58 @@ if (isWin && !existsSync(iconPath))
 // hoists both to the top level, so dropping them would break
 // `require("better-sqlite3")` inside the packaged app. prebuild-install and its
 // large tree are install-time only and stay out.
-const KEEP_MODULES = ["better-sqlite3", "bcryptjs", "bindings", "file-uri-to-path"];
+//
+// electron-updater is the exception to the hand-picked list: its own dependency
+// tree (builder-util-runtime, js-yaml, semver, …) is a dozen packages deep and
+// changes between releases, so it is resolved from node_modules at build time.
+// Leaving one of them out does not fail the build — it fails at runtime, on a
+// customer's machine, the first time the app looks for an update.
+const KEEP_MODULES = [
+  "better-sqlite3",
+  "bcryptjs",
+  "bindings",
+  "file-uri-to-path",
+  ...(await dependencyClosure("electron-updater")),
+];
+
+/**
+ * Every top-level node_modules folder needed to `require(name)` at runtime.
+ * Packages nested inside a kept one (node_modules/x/node_modules/y) come along
+ * with their parent folder and need no entry of their own.
+ */
+async function dependencyClosure(name) {
+  const found = new Set();
+  const visited = new Set();
+
+  async function visit(dep, fromDir) {
+    // npm hoists to the top level but may nest a conflicting version, so look
+    // the way Node does: up the folder chain from whoever is requiring it.
+    let dir = fromDir;
+    let manifest = null;
+    for (;;) {
+      const candidate = path.join(dir, "node_modules", dep, "package.json");
+      if (existsSync(candidate)) {
+        manifest = candidate;
+        break;
+      }
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+    if (!manifest) throw new Error(`cannot package ${name}: ${dep} is not installed`);
+    if (visited.has(manifest)) return;
+    visited.add(manifest);
+
+    if (dir === ROOT) found.add(dep);
+    const pkg = JSON.parse(await readFile(manifest, "utf8"));
+    for (const child of Object.keys(pkg.dependencies ?? {})) {
+      await visit(child, path.dirname(manifest));
+    }
+  }
+
+  await visit(name, ROOT);
+  return [...found];
+}
 
 // Paths arrive as "/electron/main.cjs" — repo-root-relative with a leading slash.
 const ignore = [
@@ -202,8 +267,15 @@ const [appPath] = await packager({
 const exe = path.join(appPath, isWin ? `${APP_NAME}.exe` : APP_NAME);
 if (!existsSync(exe)) throw new Error(`packager finished but ${exe} is missing`);
 
+// Next to resources/app, not inside it: process.resourcesPath is where
+// electron-updater looks, and packager's afterCopy hook only ever sees the app
+// folder one level deeper.
+await writeFile(path.join(appPath, "resources", "app-update.yml"), UPDATE_CONFIG);
+
 const mustExist = [
+  "resources/app-update.yml",
   "resources/app/electron/main.cjs",
+  "resources/app/electron/updater.cjs",
   "resources/app/electron/preload.cjs",
   "resources/app/electron/splash.html",
   "resources/app/electron/db.cjs",

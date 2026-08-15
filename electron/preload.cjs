@@ -39,6 +39,23 @@ contextBridge.exposeInMainWorld("erpNative", {
   // Chromium's, which look like a web page's dialogs.
   confirmSync: (message) => ipcRenderer.sendSync("app:confirm", String(message ?? "")),
   alertSync: (message) => ipcRenderer.sendSync("app:alert", String(message ?? "")),
+  // Automatic updates (electron/updater.cjs). `onState` is a subscription: the
+  // main process pushes every phase change — checking, download progress,
+  // ready — and returns the unsubscribe function React's effect needs.
+  updates: {
+    state: () => ipcRenderer.invoke("update:state"),
+    check: () => ipcRenderer.invoke("update:check"),
+    download: () => ipcRenderer.invoke("update:download"),
+    install: () => ipcRenderer.invoke("update:install"),
+    setAuto: (auto) => ipcRenderer.invoke("update:setAuto", auto),
+    onState: (callback) => {
+      // The event object carries a sender the renderer must never see.
+      const handler = (_event, state) => callback(state);
+      ipcRenderer.on("update:state", handler);
+      return () => ipcRenderer.removeListener("update:state", handler);
+    },
+  },
+
   minimize: () => ipcRenderer.invoke("app:minimize"),
   toggleMaximize: () => ipcRenderer.invoke("app:toggleMaximize"),
   quit: () => ipcRenderer.invoke("app:quit"),

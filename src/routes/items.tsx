@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, Package } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { ErpTable, Cell, fmt, parseDecimal } from "@/components/erp/ErpUI";
+import { cell, num } from "@/lib/sheet";
 import { erpStore, useErpStore } from "@/lib/erp-store";
 import { useAuth, canWrite, canDelete } from "@/lib/auth";
 import type { Item } from "@/lib/erp-types";
@@ -30,6 +31,7 @@ function ItemsPage() {
   const [list, setList] = useState<Item[]>(items);
   const [editing, setEditing] = useState(false);
   const [search, setSearch] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
   const hydrated = useErpStore((s) => s.hydrated);
   const { role } = useAuth();
   const mayWrite = canWrite(role);
@@ -88,6 +90,86 @@ function ItemsPage() {
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Items");
     XLSX.writeFile(wb, "items.xlsx");
   };
+
+  // ---- استيراد Excel ----
+  // الموديل هو المفتاح: الصنف الموجود يُحدَّث والجديد يُضاف — لا يُستبدل الدليل
+  // كلّه، فملف يحوي عشرة أصناف لا يجوز أن يمحو مئة. عمود ناقص في الملف يُبقي
+  // القيمة الحالية كما هي بدل أن يصفّرها.
+  // الأعمدة المقبولة هي نفسها التي يصدّرها الزر المجاور (بالعربية) ومقابلاتها
+  // الإنجليزية، حتى يعمل الاستيراد على ملف خرج من هذه الشاشة نفسها.
+  const onImport = () => {
+    if (!mayWrite) return toast.error("ليس لديك صلاحية لهذا الإجراء");
+    fileRef.current?.click();
+  };
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    let data: Record<string, unknown>[] = [];
+    try {
+      const wb = XLSX.read(await f.arrayBuffer());
+      data = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0]]);
+    } catch {
+      return toast.error("تعذّرت قراءة الملف — تأكد أنه ملف Excel صالح");
+    }
+    if (!data.length) return toast.error("الملف فارغ — لا توجد أسطر لاستيرادها");
+
+    const next = [...list];
+    let added = 0, updated = 0, skipped = 0;
+    for (const row of data) {
+      const code = String(cell(row, "الموديل", "model", "code") ?? "").trim();
+      if (!code) { skipped++; continue; }
+      const name = cell(row, "اسم الصنف", "name");
+      const barcode = cell(row, "الباركود", "barcode");
+      const unit = cell(row, "الوحدة", "unit");
+      const pack = cell(row, "العبوة", "pack");
+      const price = cell(row, "آخر سعر", "سعر الشراء", "price");
+      const cbm = cell(row, "CBM الكرتون", "CBM", "cbm");
+      const cost = cell(row, "آخر تكلفة (USD)", "lastCost");
+      // عملة غير موجودة في جدول العملات تُتجاهل: تخزينها يجعل كل حساب يقع على
+      // سعر صرف 0 (انظر costingBase) فتخرج التكاليف أصفاراً.
+      const cur = String(cell(row, "العملة", "currency") ?? "").trim().toUpperCase();
+      const currency = currencies.some((c) => c.code === cur) ? cur : undefined;
+
+      const at = next.findIndex((it) => it.code === code);
+      if (at < 0) {
+        next.push({
+          code,
+          name: String(name ?? ""),
+          barcode: String(barcode ?? ""),
+          units: [{ name: String(unit ?? "حبة"), pack: num(pack, 1), lastPrice: num(price, 0) }],
+          cbmPerCarton: num(cbm, 0),
+          lastCost: num(cost, 0),
+          currency: currency ?? defaultCurrency,
+        });
+        added++;
+      } else {
+        const prev = next[at];
+        const u0 = prev.units[0] ?? { name: "حبة", pack: 1, lastPrice: 0 };
+        next[at] = {
+          ...prev,
+          name: name === undefined ? prev.name : String(name),
+          barcode: barcode === undefined ? prev.barcode : String(barcode),
+          units: [
+            { name: unit === undefined ? u0.name : String(unit), pack: num(pack, u0.pack), lastPrice: num(price, u0.lastPrice) },
+            ...prev.units.slice(1),
+          ],
+          cbmPerCarton: num(cbm, prev.cbmPerCarton),
+          lastCost: num(cost, prev.lastCost),
+          currency: currency ?? prev.currency,
+        };
+        updated++;
+      }
+    }
+
+    if (!added && !updated) return toast.error("لا يوجد عمود «الموديل» في الملف — لم يُستورد شيء");
+    setList(next);
+    setEditing(true);
+    toast.success(
+      `تم استيراد ${added + updated} صنف (${added} جديد، ${updated} محدَّث` +
+        `${skipped ? `، ${skipped} سطر بلا موديل` : ""}) — اضغط «حفظ» لتثبيتها`,
+    );
+  };
   const noop = () => {};
 
   const actions = [
@@ -98,7 +180,7 @@ function ItemsPage() {
     { icon: Trash2, label: "حذف", color: "text-rose-600", onClick: () => toast.info("استخدم زر الحذف في نهاية سطر الصنف") },
     { icon: Search, label: "بحث", color: "text-indigo-500", onClick: () => document.getElementById("it-search")?.focus() },
     { icon: Printer, label: "طباعة", color: "text-slate-600", onClick: () => window.print() },
-    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: noop },
+    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled: !mayWrite },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
     { icon: CheckCircle2, label: "اعتماد", color: "text-emerald-700", onClick: onSave, disabled: !mayWrite },
     { icon: X, label: "إغلاق", color: "text-rose-600", onClick: () => history.back() },
@@ -106,6 +188,7 @@ function ItemsPage() {
 
   return (
     <ErpLayout title="دليل الأصناف" ribbon={<Ribbon actions={actions} />}>
+      <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={onFile} className="hidden" />
       <div className="bg-white border border-slate-300 rounded">
         <div className="flex items-center justify-between px-3 py-2 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
           <div className="flex items-center gap-2 font-semibold text-slate-700"><Package size={16} /> الأصناف ({filtered.length})</div>

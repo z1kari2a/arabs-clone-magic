@@ -201,7 +201,7 @@ npm run make:setup
 ينتج **ملفاً واحداً** يُرسل للعميل:
 
 ```
-electron-release/ERP-Setup-1.0.1.exe     ≈ 95 ميغابايت
+electron-release/ERP-Setup-1.0.2.exe     ≈ 95 ميغابايت
 ```
 
 عند تشغيله على ويندوز يقوم بما يقوم به أي برنامج تجاري:
@@ -212,6 +212,31 @@ electron-release/ERP-Setup-1.0.1.exe     ≈ 95 ميغابايت
 - واجهة التثبيت **بالعربية**، والإزالة **لا تحذف بياناتك** (`%APPDATA%\erp`)
 
 يحتاج جهاز البناء إلى NSIS: `apt-get install nsis` (أو تثبيت NSIS على ويندوز).
+
+### التحديث التلقائي (auto-update)
+
+النسخة المثبّتة تحدّث نفسها من **GitHub Releases**: تتحقق بعد 20 ثانية من
+الإقلاع ثم كل 4 ساعات، تنزّل الإصدار الجديد في الخلفية، ثم تطلب من المستخدم
+**إعادة التشغيل** فقط — لا تنزيل يدوي ولا إعادة تثبيت.
+
+لنشر إصدار جديد للعملاء:
+
+```bash
+# 1) ارفع الرقم في package.json  (مثلاً 1.0.2 → 1.0.3)
+npm run make:setup           # 2) بناء المثبِّت الجديد
+npm run release:publish      # 3) إنشاء الوسم v1.0.3 ورفع المثبِّت + latest.yml
+```
+
+الخطوة الثالثة ترفع ملفين: المثبِّت نفسه، و`latest.yml` الذي يقرأه البرنامج
+ليعرف أن هناك إصداراً أحدث ويتحقق من بصمة الملف قبل تثبيته. **الوسم لا بد أن
+يكون `v<version>` بالضبط**، وإلا تجاهله المحدِّث.
+
+عند العميل: صندوق «تحديث جاهز» عند اكتمال التنزيل، وبطاقة **«تحديثات البرنامج»**
+في الإعدادات (الإصدار الحالي، نسبة التنزيل، زر «التحقق الآن»، وخيار إيقاف
+التحديث التلقائي)، و«مساعدة ← التحقق من وجود تحديث…» في القائمة العلوية.
+التثبيت يطلب موافقة UAC مرة واحدة، والبيانات في `%APPDATA%\erp` لا تتأثر.
+
+التفاصيل الكاملة في [`electron/README.md`](electron/README.md).
 
 ### بناء مجلد البرنامج فقط (بلا مثبِّت)
 
@@ -417,8 +442,10 @@ certbot --nginx -d fikradigital.online -d www.fikradigital.online
 | `npm run electron:start` | بناء الواجهة ثم تشغيل التطبيق محلياً |
 | `npm run build:electron` | بناء الواجهة فقط إلى `dist-electron/` |
 | `npm run make:win` | حزمة ويندوز كاملة → `electron-release/ERP-win32-x64/ERP.exe` |
-| `npm run make:setup` | حزمة ويندوز **+ مثبِّت** → `electron-release/ERP-Setup-1.0.1.exe` |
+| `npm run make:setup` | حزمة ويندوز **+ مثبِّت** → `electron-release/ERP-Setup-1.0.2.exe` |
 | `npm run make:installer` | المثبِّت وحده (من حزمة مبنية مسبقاً) |
+| `npm run release:publish` | نشر المثبِّت + `latest.yml` على GitHub Releases (التحديث التلقائي) |
+| `npm run release:check` | كتابة `latest.yml` فقط، بلا رفع (تجربة) |
 | `npm run make:linux` | نفس التحزيم لكن لهدف لينكس |
 | `npm run shell:start` | تشغيل «قشرة الترخيص» (النسخة المحمية) |
 | `npm run shell:build:win` | تحزيم قشرة الترخيص لويندوز |
