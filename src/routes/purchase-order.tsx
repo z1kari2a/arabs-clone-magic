@@ -9,10 +9,12 @@ import {
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
+import { useCloseGuard } from "@/components/erp/CloseGuard";
 import { Panel, FieldRow, LabelText, ErpInput, ErpSelect, ErpTable, Cell, SaleCell, fmt, fmtAuto, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
 import ExpensesDialog from "@/components/erp/ExpensesDialog";
 import { printPurchaseOrder } from "@/lib/print-po";
 import { erpStore, useErpStore, computePO, savePurchaseOrder, isRealRow, deletePO, cartonsOf, lineCBMOf, stashPO, repinRates } from "@/lib/erp-store";
+import { cell, numCell } from "@/lib/sheet";
 import { getCurrentScope, localDb } from "@/lib/local-db";
 import { useAuth, canWrite, canDelete, canApprove } from "@/lib/auth";
 import type { PurchaseOrder, PORow } from "@/lib/erp-types";
@@ -204,15 +206,30 @@ function POPage() {
     setEditing(true);
     toast.success("تم إنشاء أمر شراء جديد");
   };
-  const onSave = () => {
-    if (!mayWrite) return denied();
-    if (!po.supplierCode) return toast.error("يجب اختيار المورد");
+  // يُعيد true عند نجاح الحفظ و false عند رفضه — حارس الإغلاق (useCloseGuard)
+  // يعتمد على هذه القيمة: حفظ مرفوض يعني أن الشاشة تبقى مفتوحة بدل أن تُغلق
+  // وتضيع البيانات.
+  //
+  // غير متزامنة عمداً: كانت تستدعي `savePurchaseOrder` بلا انتظار ثم تُظهر «تم
+  // الحفظ» وتُعيد true فوراً — فيغادر حارس الإغلاق الشاشة والكتابة ما زالت
+  // جارية، وأي فشل بعدها يضيع بلا أثر. الآن لا تُقال «تم الحفظ» إلا بعد أن
+  // يكتمل الحفظ فعلاً، ويُقال الفشل صراحةً.
+  const onSave = async (): Promise<boolean> => {
+    if (!mayWrite) { denied(); return false; }
+    if (!po.supplierCode) { toast.error("يجب اختيار المورد"); return false; }
     const filled = po.rows.filter(isRealRow);
-    if (!filled.length) return toast.error("يجب إضافة صنف واحد على الأقل");
-    savePurchaseOrder({ ...po, rows: filled });
+    if (!filled.length) { toast.error("يجب إضافة صنف واحد على الأقل"); return false; }
+    try {
+      await savePurchaseOrder({ ...po, rows: filled });
+    } catch (err) {
+      console.error("savePurchaseOrder failed", err);
+      toast.error("تعذّر حفظ أمر الشراء — لم تُكتب البيانات. المستند ما زال مفتوحاً أمامك.");
+      return false;
+    }
     setEditing(false);
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
     toast.success("تم حفظ أمر الشراء");
+    return true;
   };
   const onEdit = () => {
     if (!mayWrite) return denied();
@@ -232,13 +249,20 @@ function POPage() {
     setEditing(false);
     toast.success("تم الحذف");
   };
-  const onApprove = () => {
+  const onApprove = async () => {
     if (!mayApprove) return denied();
     const filled = po.rows.filter(isRealRow);
     if (!po.supplierCode || !filled.length) return toast.error("لا يمكن اعتماد أمر ناقص");
     const approved = { ...po, rows: filled, approved: true };
+    // الاعتماد يكتب «آخر تكلفة» على كل صنف في الدليل — لا يجوز إعلان نجاحه قبل
+    // أن تكتمل تلك الكتابة، ولا قفل الشاشة على حالة «معتمد» إن فشلت.
+    try {
+      await savePurchaseOrder(approved);
+    } catch (err) {
+      console.error("approve failed", err);
+      return toast.error("تعذّر اعتماد أمر الشراء — لم تُكتب البيانات");
+    }
     setPo(approved);
-    savePurchaseOrder(approved);
     setEditing(false);
     toast.success("تم اعتماد أمر الشراء");
   };
@@ -291,25 +315,56 @@ function POPage() {
     setEditing(true);
     toast.success("تم نسخ الأمر - عدّل ثم احفظ");
   };
+  // ---- استيراد Excel ----
+  // يمرّ كلّه عبر `cell`/`numCell` (src/lib/sheet.ts) لسببين:
+  //
+  //  1. رأس عمود فيه مسافة زائدة أو باختلاف في حالة الأحرف — «الكمية » بدل
+  //     «الكمية» — كان يفوت المطابقة الحرفية، فتُستورد أصفارٌ في كل الأسطر بصمت.
+  //  2. `Number()` الخام يُنتج NaN من أي خلية نصية، وNaN يسري في كل الحسابات حتى
+  //     مجاميع الفاتورة، ثم يعرضه `fmt()` رقماً هادئاً هو «0.00». الآن تُعدّ
+  //     الخلايا غير المقروءة وتُقال للمستخدم بدل أن تُبتلع.
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (!f) return;
-    const wb = XLSX.read(await f.arrayBuffer());
-    const data = XLSX.utils.sheet_to_json<any>(wb.Sheets[wb.SheetNames[0]]);
-    const rows: PORow[] = data.map((r, i) => ({
-      id: i + 1,
-      model: String(r.model ?? r["الموديل"] ?? ""),
-      name: String(r.name ?? r["اسم الصنف"] ?? ""),
-      unit: String(r.unit ?? r["الوحدة"] ?? "حبة"),
-      pack: Number(r.pack ?? r["العبوة"] ?? 1),
-      qty: Number(r.qty ?? r["الكمية"] ?? 0),
-      price: Number(r.price ?? r["سعر الشراء"] ?? 0),
-      // Accept the header this screen itself exports ("CBM الكرتون") as well as a
-      // bare "CBM" — importing our own export used to land a zero CBM on every row.
-      cbm: Number(r.cbm ?? r["CBM الكرتون"] ?? r["CBM"] ?? 0),
-    }));
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+
+    let data: Record<string, unknown>[] = [];
+    try {
+      const wb = XLSX.read(await f.arrayBuffer());
+      data = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0]]);
+    } catch {
+      return toast.error("تعذّرت قراءة الملف — تأكد أنه ملف Excel صالح");
+    }
+    if (!data.length) return toast.error("الملف فارغ — لا توجد أسطر لاستيرادها");
+
+    let unreadable = 0;
+    const rows: PORow[] = data.map((r, i) => {
+      const pack = numCell(cell(r, "العبوة", "pack"), 1);
+      const qty = numCell(cell(r, "الكمية", "qty"), 0);
+      const price = numCell(cell(r, "سعر الشراء", "price"), 0);
+      // يقبل رأس العمود الذي تصدّره هذه الشاشة نفسها («CBM الكرتون») و«CBM» المجرّد.
+      const cbm = numCell(cell(r, "CBM الكرتون", "CBM", "cbm"), 0);
+      unreadable += [pack, qty, price, cbm].filter((c) => c.bad).length;
+      return {
+        id: i + 1,
+        model: String(cell(r, "الموديل", "model") ?? ""),
+        name: String(cell(r, "اسم الصنف", "name") ?? ""),
+        unit: String(cell(r, "الوحدة", "unit") ?? "حبة"),
+        pack: pack.value,
+        qty: qty.value,
+        price: price.value,
+        cbm: cbm.value,
+      };
+    });
+
     setPo({ ...po, rows });
     toast.success(`تم استيراد ${rows.length} صنف`);
-    e.target.value = "";
+    if (unreadable) {
+      toast.warning(
+        `${unreadable} خانة رقمية غير مقروءة في الملف — أُخذت بالقيمة الافتراضية. راجع أعمدة الكمية والسعر والعبوة وCBM.`,
+        { duration: 8000 },
+      );
+    }
   };
   const onExport = () => {
     // Keep the ORIGINAL index for the rowMetrics lookup while dropping the blank
@@ -342,6 +397,29 @@ function POPage() {
     toast.success("تم التصدير إلى Excel");
   };
 
+  // ── حارس الإغلاق ──
+  // «بيانات غير محفوظة» = شاشة في وضع التعديل كُتب فيها شيء فعلاً. أمر معتمد
+  // أو شاشة عرض فقط لا شيء فيها يُحفظ، فيكتفي الحارس بسؤال تأكيد بسيط.
+  const hasUnsaved = editing && !po.approved && (Boolean(po.supplierCode) || po.rows.some(isRealRow));
+  const saveDraft = () => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(po));
+      toast.success("تم حفظ المسودّة — ستُستعاد عند العودة إلى الشاشة");
+    } catch {
+      toast.error("تعذّر حفظ المسودّة");
+    }
+  };
+  const dropDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+  };
+  const closeGuard = useCloseGuard({
+    dirty: hasUnsaved,
+    title: `أمر الشراء ${po.number}`,
+    onSave: mayWrite ? onSave : undefined,
+    onSaveDraft: saveDraft,
+    onDiscard: dropDraft,
+  });
+
   const actions = [
     { icon: FilePlus2, label: "جديد", hint: "Ctrl+N", color: "text-emerald-600", onClick: onNew, disabled: !mayWrite },
     { icon: Copy, label: "نسخ", hint: "Ctrl+D", color: "text-purple-600", onClick: onCopy, disabled: !mayWrite },
@@ -357,14 +435,14 @@ function POPage() {
     { icon: Wallet, label: "المصروفات", hint: "F4", color: "text-orange-600", onClick: () => setExpDlg(true) },
     { icon: Tags, label: "التسعيرات", hint: "F6", color: "text-fuchsia-600", onClick: onTiers },
     { icon: CheckCircle2, label: "اعتماد", hint: "F9", color: "text-emerald-700", onClick: onApprove, disabled: po.approved || !mayApprove },
-    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: () => history.back() },
+    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
   ];
 
   // Windows-like keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      if (e.ctrlKey && k === "s") { e.preventDefault(); if (editing) onSave(); }
+      if (e.ctrlKey && k === "s") { e.preventDefault(); if (editing) void onSave(); }
       else if (e.ctrlKey && k === "n") { e.preventDefault(); onNew(); }
       else if (e.ctrlKey && k === "o") { e.preventDefault(); setOpenDlg(true); }
       else if (e.ctrlKey && k === "p") { e.preventDefault(); onPrint(); }
@@ -372,14 +450,22 @@ function POPage() {
       else if (e.key === "F3") { e.preventDefault(); setItemsDlg(true); setSearchDlg(true); }
       else if (e.key === "F4") { e.preventDefault(); setExpDlg(true); }
       else if (e.key === "F6") { e.preventDefault(); onTiers(); }
-      else if (e.key === "F9") { e.preventDefault(); if (!po.approved) onApprove(); }
+      else if (e.key === "F9") { e.preventDefault(); if (!po.approved) void onApprove(); }
       else if (e.ctrlKey && k === "d") { e.preventDefault(); onCopy(); }
-      else if (e.key === "Escape") { setOpenDlg(false); setSupDlg(false); setExpDlg(false); setSearchDlg(false); setItemsDlg(false); }
+      // Esc كان يغلق النوافذ المنبثقة فقط، بينما تلميح زر «إغلاق» يَعِد بأنه
+      // يغلق الشاشة. صار يفعل الاثنين بالترتيب الطبيعي: أقرب نافذة مفتوحة
+      // أولاً، وإن لم تكن هناك نافذة فهو طلب إغلاق الشاشة (بسؤال).
+      else if (e.key === "Escape") {
+        if (closeGuard.pending) return; // نافذة السؤال نفسها تُغلق بـ Esc
+        if (openDlg || supDlg || expDlg || searchDlg || itemsDlg) {
+          setOpenDlg(false); setSupDlg(false); setExpDlg(false); setSearchDlg(false); setItemsDlg(false);
+        } else closeGuard.requestClose();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [po, editing]);
+  }, [po, editing, openDlg, supDlg, expDlg, searchDlg, itemsDlg, closeGuard.pending]);
 
   // ── Draft autosave: restore on mount, save on every edit ──
   useEffect(() => {
@@ -709,7 +795,7 @@ function POPage() {
 
           <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-white">
             <button
-              onClick={() => { onSave(); setItemsDlg(false); }}
+              onClick={() => { void onSave(); setItemsDlg(false); }}
               disabled={!mayWrite || po.approved}
               className="flex items-center gap-1 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40"
             >
@@ -876,6 +962,8 @@ function POPage() {
         }}
         onSaveExpenseTypes={(types) => erpStore.set({ settings: { ...settings, expenseTypes: types } })}
       />
+
+      {closeGuard.dialog}
     </ErpLayout>
   );
 }

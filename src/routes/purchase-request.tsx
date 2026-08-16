@@ -14,12 +14,14 @@ import {
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
+import { useCloseGuard } from "@/components/erp/CloseGuard";
 import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, SaleCell, fmt, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
 import { printPurchaseRequest } from "@/lib/print-po";
 import {
   erpStore, useErpStore, computePR, savePurchaseRequest, deletePurchaseRequest,
   isRealRow, cartonsOf, lineCBMOf, repinRates,
 } from "@/lib/erp-store";
+import { cell, numCell } from "@/lib/sheet";
 import { getCurrentScope, localDb } from "@/lib/local-db";
 import { useAuth, canWrite, canDelete, canApprove } from "@/lib/auth";
 import type { PurchaseRequest, PORow } from "@/lib/erp-types";
@@ -165,15 +167,25 @@ function PRPage() {
     setEditing(true);
     toast.success("تم إنشاء طلب شراء جديد");
   };
-  const onSave = () => {
-    if (!mayWrite) return denied();
-    if (!pr.supplierCode) return toast.error("يجب اختيار المورد");
+  // يُعيد true/false ليعرف حارس الإغلاق (useCloseGuard) هل يُغلق الشاشة أم
+  // يُبقيها مفتوحة لأن الحفظ رُفض. ونفس علّة شاشة أمر الشراء: «تم الحفظ» لا
+  // تُقال قبل أن تكتمل الكتابة فعلاً، والفشل يُقال بدل أن يضيع بصمت.
+  const onSave = async (): Promise<boolean> => {
+    if (!mayWrite) { denied(); return false; }
+    if (!pr.supplierCode) { toast.error("يجب اختيار المورد"); return false; }
     const filled = pr.rows.filter(isRealRow);
-    if (!filled.length) return toast.error("يجب إضافة صنف واحد على الأقل");
-    void savePurchaseRequest({ ...pr, rows: filled });
+    if (!filled.length) { toast.error("يجب إضافة صنف واحد على الأقل"); return false; }
+    try {
+      await savePurchaseRequest({ ...pr, rows: filled });
+    } catch (err) {
+      console.error("savePurchaseRequest failed", err);
+      toast.error("تعذّر حفظ طلب الشراء — لم تُكتب البيانات. المستند ما زال مفتوحاً أمامك.");
+      return false;
+    }
     setEditing(false);
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
     toast.success("تم حفظ طلب الشراء");
+    return true;
   };
   const onEdit = () => {
     if (!mayWrite) return denied();
@@ -189,13 +201,18 @@ function PRPage() {
     setEditing(false);
     toast.success("تم الحذف");
   };
-  const onApprove = () => {
+  const onApprove = async () => {
     if (!mayApprove) return denied();
     const filled = pr.rows.filter(isRealRow);
     if (!pr.supplierCode || !filled.length) return toast.error("لا يمكن اعتماد طلب ناقص");
     const approved = { ...pr, rows: filled, approved: true };
+    try {
+      await savePurchaseRequest(approved);
+    } catch (err) {
+      console.error("approve failed", err);
+      return toast.error("تعذّر اعتماد طلب الشراء — لم تُكتب البيانات");
+    }
     setPr(approved);
-    void savePurchaseRequest(approved);
     setEditing(false);
     toast.success("تم اعتماد طلب الشراء");
   };
@@ -234,23 +251,49 @@ function PRPage() {
     setEditing(true);
     toast.success("تم نسخ الطلب - عدّل ثم احفظ");
   };
+  // نفس مسار الاستيراد في شاشة أمر الشراء — انظر التعليق هناك: مطابقة متساهلة
+  // لرؤوس الأعمدة، ولا NaN يتسرّب إلى الحساب، والخلايا غير المقروءة تُقال للمستخدم.
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (!f) return;
-    const wb = XLSX.read(await f.arrayBuffer());
-    const data = XLSX.utils.sheet_to_json<any>(wb.Sheets[wb.SheetNames[0]]);
-    const rows: PORow[] = data.map((r, i) => ({
-      id: i + 1,
-      model: String(r.model ?? r["الموديل"] ?? ""),
-      name: String(r.name ?? r["اسم الصنف"] ?? ""),
-      unit: String(r.unit ?? r["الوحدة"] ?? "حبة"),
-      pack: Number(r.pack ?? r["العبوة"] ?? 1),
-      qty: Number(r.qty ?? r["الكمية"] ?? 0),
-      price: Number(r.price ?? r["سعر الشراء"] ?? 0),
-      cbm: Number(r.cbm ?? r["CBM الكرتون"] ?? r["CBM"] ?? 0),
-    }));
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+
+    let data: Record<string, unknown>[] = [];
+    try {
+      const wb = XLSX.read(await f.arrayBuffer());
+      data = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0]]);
+    } catch {
+      return toast.error("تعذّرت قراءة الملف — تأكد أنه ملف Excel صالح");
+    }
+    if (!data.length) return toast.error("الملف فارغ — لا توجد أسطر لاستيرادها");
+
+    let unreadable = 0;
+    const rows: PORow[] = data.map((r, i) => {
+      const pack = numCell(cell(r, "العبوة", "pack"), 1);
+      const qty = numCell(cell(r, "الكمية", "qty"), 0);
+      const price = numCell(cell(r, "سعر الشراء", "price"), 0);
+      const cbm = numCell(cell(r, "CBM الكرتون", "CBM", "cbm"), 0);
+      unreadable += [pack, qty, price, cbm].filter((c) => c.bad).length;
+      return {
+        id: i + 1,
+        model: String(cell(r, "الموديل", "model") ?? ""),
+        name: String(cell(r, "اسم الصنف", "name") ?? ""),
+        unit: String(cell(r, "الوحدة", "unit") ?? "حبة"),
+        pack: pack.value,
+        qty: qty.value,
+        price: price.value,
+        cbm: cbm.value,
+      };
+    });
+
     setPr({ ...pr, rows });
     toast.success(`تم استيراد ${rows.length} صنف`);
-    e.target.value = "";
+    if (unreadable) {
+      toast.warning(
+        `${unreadable} خانة رقمية غير مقروءة في الملف — أُخذت بالقيمة الافتراضية. راجع أعمدة الكمية والسعر والعبوة وCBM.`,
+        { duration: 8000 },
+      );
+    }
   };
   const onExport = () => {
     const data = pr.rows.map((r, i) => ({ r, i })).filter(({ r }) => isRealRow(r)).map(({ r, i }, n) => ({
@@ -280,6 +323,27 @@ function PRPage() {
     toast.success("تم التصدير إلى Excel");
   };
 
+  // ── حارس الإغلاق (نفس منطق شاشة أمر الشراء) ──
+  const hasUnsaved = editing && !pr.approved && (Boolean(pr.supplierCode) || pr.rows.some(isRealRow));
+  const saveDraft = () => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(pr));
+      toast.success("تم حفظ المسودّة — ستُستعاد عند العودة إلى الشاشة");
+    } catch {
+      toast.error("تعذّر حفظ المسودّة");
+    }
+  };
+  const dropDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+  };
+  const closeGuard = useCloseGuard({
+    dirty: hasUnsaved,
+    title: `طلب الشراء ${pr.number}`,
+    onSave: mayWrite ? onSave : undefined,
+    onSaveDraft: saveDraft,
+    onDiscard: dropDraft,
+  });
+
   const actions = [
     { icon: FilePlus2, label: "جديد", hint: "Ctrl+N", color: "text-emerald-600", onClick: onNew, disabled: !mayWrite },
     { icon: Copy, label: "نسخ", hint: "Ctrl+D", color: "text-purple-600", onClick: onCopy, disabled: !mayWrite },
@@ -292,26 +356,31 @@ function PRPage() {
     { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled: pr.approved || !mayWrite },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
     { icon: CheckCircle2, label: "اعتماد", hint: "F9", color: "text-emerald-700", onClick: onApprove, disabled: pr.approved || !mayApprove },
-    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: () => history.back() },
+    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
   ];
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      if (e.ctrlKey && k === "s") { e.preventDefault(); if (editing) onSave(); }
+      if (e.ctrlKey && k === "s") { e.preventDefault(); if (editing) void onSave(); }
       else if (e.ctrlKey && k === "n") { e.preventDefault(); onNew(); }
       else if (e.ctrlKey && k === "o") { e.preventDefault(); setOpenDlg(true); }
       else if (e.ctrlKey && k === "p") { e.preventDefault(); onPrint(); }
       else if (e.key === "F2") { e.preventDefault(); if (!pr.approved) onEdit(); }
       else if (e.key === "F3") { e.preventDefault(); setItemsDlg(true); setSearchDlg(true); }
-      else if (e.key === "F9") { e.preventDefault(); if (!pr.approved) onApprove(); }
+      else if (e.key === "F9") { e.preventDefault(); if (!pr.approved) void onApprove(); }
       else if (e.ctrlKey && k === "d") { e.preventDefault(); onCopy(); }
-      else if (e.key === "Escape") { setOpenDlg(false); setSupDlg(false); setSearchDlg(false); setItemsDlg(false); }
+      else if (e.key === "Escape") {
+        if (closeGuard.pending) return;
+        if (openDlg || supDlg || searchDlg || itemsDlg) {
+          setOpenDlg(false); setSupDlg(false); setSearchDlg(false); setItemsDlg(false);
+        } else closeGuard.requestClose();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pr, editing]);
+  }, [pr, editing, openDlg, supDlg, searchDlg, itemsDlg, closeGuard.pending]);
 
   // ── المسودّة: استرجاع عند الفتح، وحفظ تلقائي مع كل تعديل ──
   useEffect(() => {
@@ -611,7 +680,7 @@ function PRPage() {
 
           <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-white">
             <button
-              onClick={() => { onSave(); setItemsDlg(false); }}
+              onClick={() => { void onSave(); setItemsDlg(false); }}
               disabled={!mayWrite || pr.approved}
               className="flex items-center gap-1 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40"
             >
@@ -727,6 +796,8 @@ function PRPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {closeGuard.dialog}
     </ErpLayout>
   );
 }

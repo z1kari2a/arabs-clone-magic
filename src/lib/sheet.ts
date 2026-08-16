@@ -22,8 +22,32 @@ export function cell(row: Record<string, unknown>, ...names: string[]): unknown 
   return undefined;
 }
 
-/** رقم من خلية، مع قيمة يُرجَع إليها حين يكون العمود غائباً أو فارغاً. */
+// نص خلية يمكن قراءته رقماً: يبدأ برقم (لاتيني أو هندي أو فارسي) بعد إشارة
+// اختيارية، ولا يحوي بعده إلا أرقاماً وفواصل ومسافات. كل ما عداه — «غير محدد»،
+// «-»، «؟»، اسم صنف وقع في عمود الكمية — نصٌّ لا رقم.
+const NUMERIC_TEXT = /^[-+]?[\d٠-٩۰-۹][\d٠-٩۰-۹\s.,،٫٬]*$/;
+
+/**
+ * رقم من خلية، مع الإبلاغ عمّا إذا كانت الخلية مكتوبة بما لا يُقرأ رقماً.
+ *
+ * `bad` هو الفرق بين «العمود غائب أو فارغ» و«العمود مكتوب فيه شيء لم نفهمه».
+ * الأول حالة طبيعية تُرجِع القيمة الافتراضية بصمت؛ الثاني يجب أن يُقال للمستخدم،
+ * لأن ابتلاعه صامتاً يعني فاتورة كاملة بأرقام خاطئة لا يشكّ فيها أحد.
+ */
+export function numCell(value: unknown, fallback: number): { value: number; bad: boolean } {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return { value: fallback, bad: false };
+  }
+  // خلية رقمية في الملف نفسه: تُؤخذ كما هي، إلا أن تكون NaN/Infinity.
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? { value, bad: false } : { value: fallback, bad: true };
+  }
+  const text = String(value).trim();
+  if (!NUMERIC_TEXT.test(text)) return { value: fallback, bad: true };
+  return { value: parseDecimal(text), bad: false };
+}
+
+/** رقم من خلية، مع قيمة يُرجَع إليها حين يكون العمود غائباً أو فارغاً أو غير مقروء. */
 export function num(value: unknown, fallback: number): number {
-  if (value === undefined || value === null || String(value).trim() === "") return fallback;
-  return parseDecimal(typeof value === "number" ? value : String(value));
+  return numCell(value, fallback).value;
 }

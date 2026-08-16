@@ -46,6 +46,18 @@ const defaultSettings: Settings = {
   ],
 };
 
+/**
+ * رقم صالح دائماً. كل قيمة تدخل الحساب تمرّ من هنا.
+ *
+ * السبب: استيراد Excel كان يقرأ الأرقام بـ`Number()` الخام، فخلية نصية واحدة
+ * («-» أو مسافة أو اسم وقع في عمود الكمية) تُنتج NaN. وNaN معدٍ: يسري في كل
+ * جمع وضرب حتى يبلغ مجاميع الفاتورة، ثم يعرضه `fmt()` رقماً هادئاً هو «0.00» —
+ * فاتورة كاملة بأصفار لا يشكّ فيها أحد. الاستيراد نفسه أُصلح (sheet.ts: numCell)،
+ * وهذه الحارسة هي الخط الثاني: مستند قديم محفوظ فيه NaN، أو أي مسار إدخال يُضاف
+ * لاحقاً، لا يجوز أن يُسقط الحساب كله.
+ */
+const fin = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+
 const initialState: StoreState = {
   suppliers: [],
   items: [],
@@ -88,7 +100,12 @@ async function fetchUsers(): Promise<User[]> {
   }));
 }
 
+// النطاق الذي رُطِّب المخزن لأجله. `useHydrate` تقرأه لتعرف هل القراءة الكاملة
+// لازمة أصلاً — انظر تعليقها أدناه.
+let hydratedScope: string | null = null;
+
 export async function hydrateStore() {
+  hydratedScope = getCurrentScope();
   const [suppliers, items, purchaseOrders, purchaseRequests, users, settings] = await Promise.all([
     localDb.suppliers.list(),
     localDb.items.list(),
@@ -108,8 +125,24 @@ export async function hydrateStore() {
   });
 }
 
+/**
+ * يضمن أن المخزن مُرطَّب — ولا يعيد الترطيب بلا داعٍ.
+ *
+ * يُستدعى من `ErpLayout`، والتخطيط يُعاد تركيبه مع كل انتقال بين شاشتين. فكان
+ * كل نقرة تبويب تُعيد قراءة الموردين والأصناف وأوامر الشراء وطلبات الشراء
+ * والمستخدمين والإعدادات كاملةً من التخزين — ست قراءات كاملة للتنقّل الواحد،
+ * تمرّ في نسخة سطح المكتب عبر IPC وتُعيد رسم كل شاشة مفتوحة معها.
+ *
+ * القراءة تحدث الآن مرة واحدة لكل حساب. وما يُبطلها صراحةً يستدعي
+ * `hydrateStore()` مباشرةً: تسجيل الدخول، والاستعادة من السحابة، وإعادة تعيين
+ * النظام، وشاشة المستخدمين بعد كل تعديل. وتغيّر الحساب يُرصد بمقارنة النطاق،
+ * فلا يرى المستخدم التالي بيانات سابقه.
+ */
 export function useHydrate() {
-  useEffect(() => { void hydrateStore(); }, []);
+  useEffect(() => {
+    if (state.hydrated && hydratedScope === getCurrentScope()) return;
+    void hydrateStore();
+  }, []);
 }
 
 // ============ Currency rate helper ============
@@ -224,15 +257,15 @@ export async function savePurchaseOrder(po: PurchaseOrder) {
   // Pin exchange rates onto every entity so historical documents never shift
   // when settings.currencies rates are edited later.
   const currencies = state.settings.currencies ?? [];
-  const rateOf = (code?: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
-  const pinnedInv = po.rate || rateOf(po.currency) || 1;
+  const rateOf = (code?: string) => fin(currencies.find((c) => c.code === code)?.rate);
+  const pinnedInv = fin(po.rate) || rateOf(po.currency) || 1;
   const pinnedRows = validRows.map((r) => ({
     ...r,
-    rate: r.rate || rateOf(r.currency) || pinnedInv,
+    rate: fin(r.rate) || rateOf(r.currency) || pinnedInv,
   }));
   const pinnedExpenses = po.expenses.map((e) => ({
     ...e,
-    rate: e.rate || rateOf(e.currency) || 0,
+    rate: fin(e.rate) || rateOf(e.currency),
   }));
   const clean: PurchaseOrder = {
     ...po,
@@ -250,13 +283,24 @@ export async function savePurchaseOrder(po: PurchaseOrder) {
     after_data: clean,
   });
 
-  // Auto-create/update items catalog
+  // ---- Auto-create/update the items catalog ----
+  // كل التعديلات تُجمع في الذاكرة أولاً ثم تُكتب دفعة واحدة. الحلقة السابقة كانت
+  // تستدعي `items.upsert` لكل سطر، وكل استدعاء يقرأ جدول الأصناف كاملاً ويكتبه
+  // كاملاً عبر IPC — أمر بمئة سطر على دليل فيه ألفا صنف كان يعني حتى مئتي دورة
+  // قراءة‑وكتابة كاملة، وهو ما جعل حفظ فاتورة كبيرة يبدو كتجمّد. الآن كتابة واحدة.
   const items = await localDb.items.list();
+  const byCode = new Map(items.map((i) => [i.code, i]));
+  const touched = new Map<string, Item>();
+  const stage = (it: Item) => {
+    touched.set(it.code, it);
+    byCode.set(it.code, it); // الأسطر التالية ترى أثر السابقة، تماماً كالحلقة القديمة
+  };
+
   for (const row of pinnedRows) {
     if (!row.model) continue;
-    const existing = items.find((i) => i.code === row.model);
+    const existing = byCode.get(row.model);
     if (!existing) {
-      const newItem: Item = {
+      stage({
         code: row.model,
         name: row.name,
         barcode: "",
@@ -265,14 +309,13 @@ export async function savePurchaseOrder(po: PurchaseOrder) {
         lastCost: 0,
         currency: row.currency || po.currency,
         rate: row.rate,
-      };
-      await localDb.items.upsert(newItem);
+      });
     } else if (po.approved) {
       const units = [...existing.units];
       const idx = units.findIndex((u) => u.name === row.unit);
       if (idx >= 0) units[idx] = { ...units[idx], lastPrice: row.price, pack: row.pack };
       else units.push({ name: row.unit, pack: row.pack || 1, lastPrice: row.price });
-      await localDb.items.upsert({
+      stage({
         ...existing,
         units,
         cbmPerCarton: row.cbm,
@@ -283,13 +326,14 @@ export async function savePurchaseOrder(po: PurchaseOrder) {
   }
   if (po.approved) {
     const metrics = computePO(clean);
-    const list = await localDb.items.list();
     for (let i = 0; i < pinnedRows.length; i++) {
       const m = metrics.rowMetrics[i];
-      const it = list.find((x) => x.code === pinnedRows[i].model);
-      if (m && it) await localDb.items.upsert({ ...it, lastCost: m.selectedCost });
+      const it = byCode.get(pinnedRows[i].model);
+      if (m && it) stage({ ...it, lastCost: m.selectedCost });
     }
   }
+  if (touched.size) await localDb.items.upsertMany([...touched.values()]);
+
   setState({
     purchaseOrders: await localDb.purchaseOrders.list(),
     items: await localDb.items.list(),
@@ -305,14 +349,14 @@ export async function savePurchaseOrder(po: PurchaseOrder) {
 export async function savePurchaseRequest(pr: PurchaseRequest) {
   const prev = (await localDb.purchaseRequests.list()).find((p) => p.number === pr.number) ?? null;
   const currencies = state.settings.currencies ?? [];
-  const rateOf = (code?: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
-  const pinnedInv = pr.rate || rateOf(pr.currency) || 1;
+  const rateOf = (code?: string) => fin(currencies.find((c) => c.code === code)?.rate);
+  const pinnedInv = fin(pr.rate) || rateOf(pr.currency) || 1;
   const clean: PurchaseRequest = {
     ...pr,
     rate: pinnedInv,
     rows: pr.rows.filter(isRealRow).map((r) => ({
       ...r,
-      rate: r.rate || rateOf(r.currency) || pinnedInv,
+      rate: fin(r.rate) || rateOf(r.currency) || pinnedInv,
     })),
   };
   await localDb.purchaseRequests.upsert(clean);
@@ -532,11 +576,11 @@ export function readStashedPO(): PurchaseOrder | null {
 // CBM (hence سعر CBM) was off by orders of magnitude. Nothing divides by it now.
 /** عدد الطرود في السطر = الكمية. Basis for CBM and for every per-package cost. */
 export function cartonsOf(r: import("./erp-types").PORow): number {
-  return r.qty || 0;
+  return fin(r.qty);
 }
 /** إجمالي CBM للسطر = الكمية × CBM الطرد. */
 export function lineCBMOf(r: import("./erp-types").PORow): number {
-  return cartonsOf(r) * (r.cbm || 0);
+  return cartonsOf(r) * fin(r.cbm);
 }
 
 // ---- نواة الاحتساب المشتركة بين «أمر الشراء» و«طلب الشراء» ----
@@ -561,22 +605,22 @@ function costingBase(doc: CostingDoc) {
   // Prefer PINNED rates stored on the document — fall back to live settings only
   // when the row/expense/header has no rate yet (e.g. a brand-new unsaved line).
   const currencies = state.settings.currencies ?? [];
-  const liveRate = (code?: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
-  const invRate = doc.rate || liveRate(doc.currency) || 1;
+  const liveRate = (code?: string) => fin(currencies.find((c) => c.code === code)?.rate);
+  const invRate = fin(doc.rate) || liveRate(doc.currency) || 1;
   // Totals run over REAL rows only (see isRealRow) — the blank filler rows the
   // grid renders must never contribute to a total or to the item count.
   const realRows = doc.rows.filter(isRealRow);
 
-  const rateOfRow = (r: PORow) => r.rate || liveRate(r.currency) || invRate;
+  const rateOfRow = (r: PORow) => fin(r.rate) || liveRate(r.currency) || invRate;
   // "سعر الشراء" prices ONE PIECE, and العبوة is how many pieces the package
   // holds — so one package costs (السعر × العبوة). A missing/zero العبوة means
   // the price already is the package price; falling back to 1 keeps the money
   // intact instead of zeroing the whole line out.
   // تكلفة الشراء = (سعر الحبة × العبوة) ÷ سعر الصرف — one package, in USD.
-  const piecesPerPackage = (r: PORow) => r.pack || 1;
+  const piecesPerPackage = (r: PORow) => fin(r.pack) || 1;
   const cartonPurchaseCostOf = (r: PORow) => {
     const rate = rateOfRow(r);
-    return rate > 0 ? (r.price * piecesPerPackage(r)) / rate : 0;
+    return rate > 0 ? (fin(r.price) * piecesPerPackage(r)) / rate : 0;
   };
 
   return {
@@ -585,7 +629,7 @@ function costingBase(doc: CostingDoc) {
     piecesPerPackage,
     cartonPurchaseCostOf,
     totalItems: realRows.length,
-    totalQty: realRows.reduce((s, r) => s + (r.qty || 0), 0),
+    totalQty: realRows.reduce((s, r) => s + cartonsOf(r), 0),
     totalCartons: realRows.reduce((s, r) => s + cartonsOf(r), 0),
     totalCBM: realRows.reduce((s, r) => s + lineCBMOf(r), 0),
     totalPurchase: realRows.reduce((s, r) => s + cartonsOf(r) * cartonPurchaseCostOf(r), 0),
@@ -602,11 +646,11 @@ function allocateRows(
   const rowMetrics = doc.rows.map((r) => {
     const cartons = cartonsOf(r);
     const purchaseCost = base.cartonPurchaseCostOf(r); // تكلفة الشراء (لكرتون، USD)
-    const lineCBM = cartons * r.cbm;
+    const lineCBM = lineCBMOf(r);
     // التكلفة المئوية (لكرتون) — proportional to purchase value.
-    const pctCost = purchaseCost + purchaseCost * (pctRate / 100);
+    const pctCost = purchaseCost + purchaseCost * (fin(pctRate) / 100);
     // تكلفة CBM (لكرتون)
-    const cbmCost = cbmBasisUnusable ? pctCost : r.cbm * cbmPrice + purchaseCost;
+    const cbmCost = cbmBasisUnusable ? pctCost : fin(r.cbm) * cbmPrice + purchaseCost;
     const avgCost = (cbmCost + pctCost) / 2; // متوسط التكلفة (لكرتون)
     const selectedCost =
       doc.distributionType === "cbm" ? cbmCost :
@@ -617,7 +661,7 @@ function allocateRows(
     // "إجمالي أمر الشراء" — ما يدفعه التاجر للمورد على هذا السطر، بعملة السطر
     // نفسها (ماشي بالدولار): الكمية × العبوة × سعر الحبة. مجموع العمود = قيمة
     // الفاتورة كما يصدرها المورد.
-    const lineInvoiceTotal = cartons * r.price * base.piecesPerPackage(r);
+    const lineInvoiceTotal = cartons * fin(r.price) * base.piecesPerPackage(r);
     const allocatedExp = allocatedExpPerCarton * cartons;
     const lineTotalCost = selectedCost * cartons;
     return {
@@ -646,8 +690,8 @@ export function computePO(po: PurchaseOrder) {
   // All expenses convert straight to USD regardless of their own currency,
   // the PO's invoice currency, or the vendor's currency.
   const totalExpenses = po.expenses.reduce((s, e) => {
-    const er = e.rate || base.liveRate(e.currency) || 0;
-    return s + (er > 0 ? e.amount / er : 0);
+    const er = fin(e.rate) || base.liveRate(e.currency);
+    return s + (er > 0 ? fin(e.amount) / er : 0);
   }, 0);
 
   // "سعر CBM" shown at the top of the order — ONE unified price for the whole
@@ -657,7 +701,11 @@ export function computePO(po: PurchaseOrder) {
   const cbmPrice = totalCBM > 0 ? totalExpenses / totalCBM : 0;
   // "نسبة المصروفات %" default suggestion — user may override on the document (po.expensePercentage).
   const suggestedPct = totalPurchase > 0 ? (totalExpenses / totalPurchase) * 100 : 0;
-  const pctRate = po.expensePercentage ?? suggestedPct;
+  // نسبة مكتوبة يدوياً تُحترم حتى لو كانت صفراً (لذلك ليست `||`)، لكن نسبة غير
+  // صالحة محفوظة على مستند قديم تعود إلى النسبة المقترحة بدل أن تُفسد التوزيع.
+  const pctRate = Number.isFinite(po.expensePercentage)
+    ? (po.expensePercentage as number)
+    : suggestedPct;
   const totalCost = totalPurchase + totalExpenses;
 
   // CBM distribution needs a non-zero total CBM to divide by. When no row carries
@@ -696,8 +744,8 @@ export function computePR(pr: PurchaseRequest) {
   const base = costingBase(pr);
   const { totalCBM, totalPurchase } = base;
 
-  const cbmPrice = pr.cbmPrice || 0;
-  const pctRate = pr.expensePercentage || 0;
+  const cbmPrice = fin(pr.cbmPrice);
+  const pctRate = fin(pr.expensePercentage);
   // نفس حارس أمر الشراء: توزيع حسب CBM بلا أي CBM مُدخل لا يوزّع شيئاً، فنرجع
   // إلى الأساس النسبي بدل أن تختفي المصاريف من الأسطر.
   const cbmBasisUnusable = totalCBM <= 0 && cbmPrice > 0;
