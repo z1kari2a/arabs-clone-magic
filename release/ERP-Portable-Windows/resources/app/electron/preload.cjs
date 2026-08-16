@@ -35,13 +35,32 @@ contextBridge.exposeInMainWorld("erpNative", {
   print: () => ipcRenderer.invoke("app:print"),
   openExternal: (url) => ipcRenderer.invoke("app:openExternal", url),
   // Synchronous on purpose: the app's call sites are `if (!confirm(...))`, and
-  // these back real Windows message boxes (see entry.tsx) instead of
-  // Chromium's, which look like a web page's dialogs.
+  // these back real Windows message boxes instead of Chromium's, which look like
+  // a web page's dialogs. Wired over window.confirm/window.alert by
+  // src/lib/native-dialogs.ts — a preload cannot do it itself, because with
+  // contextIsolation the `window` here is the isolated world, not the page's.
   confirmSync: (message) => ipcRenderer.sendSync("app:confirm", String(message ?? "")),
   alertSync: (message) => ipcRenderer.sendSync("app:alert", String(message ?? "")),
-  minimize: () => ipcRenderer.invoke("app:minimize"),
-  toggleMaximize: () => ipcRenderer.invoke("app:toggleMaximize"),
-  quit: () => ipcRenderer.invoke("app:quit"),
+  // Automatic updates (electron/updater.cjs). `onState` is a subscription: the
+  // main process pushes every phase change — checking, download progress,
+  // ready — and returns the unsubscribe function React's effect needs.
+  updates: {
+    state: () => ipcRenderer.invoke("update:state"),
+    check: () => ipcRenderer.invoke("update:check"),
+    download: () => ipcRenderer.invoke("update:download"),
+    install: () => ipcRenderer.invoke("update:install"),
+    setAuto: (auto) => ipcRenderer.invoke("update:setAuto", auto),
+    onState: (callback) => {
+      // The event object carries a sender the renderer must never see.
+      const handler = (_event, state) => callback(state);
+      ipcRenderer.on("update:state", handler);
+      return () => ipcRenderer.removeListener("update:state", handler);
+    },
+  },
+
+  // لا minimize/toggleMaximize/quit هنا: كانت موجودة لخدمة أزرار شريط العنوان
+  // المرسوم في ErpLayout، وقد حُذفت تلك الأزرار — النافذة تُنشأ بإطار ويندوز
+  // الأصلي وأزراره هي الحقيقية. واجهة لا يستدعيها أحد سطحُ هجومٍ بلا مقابل.
 });
 
 // Dropping a file anywhere on a browser window makes it navigate to that file.

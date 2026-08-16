@@ -2,12 +2,12 @@
 
 |          |                                                                    |
 | -------- | ------------------------------------------------------------------ |
-| الملف    | `ERP-Setup-1.0.3.exe`                                              |
+| الملف    | `ERP-Setup-1.0.4.exe`                                              |
 | الحجم    | 96 ميغابايت                                                        |
 | النظام   | Windows 10/11 — 64 بت                                              |
-| الإصدار  | 1.0.3                                                              |
+| الإصدار  | 1.0.4                                                              |
 | الإنترنت | غير مطلوب للعمل — يُستعمل فقط لجلب التحديثات                       |
-| SHA-256  | `c2a7d0e3ad2ed69633ecc40778cc60de2e92069aa602acc29e8483a25006b7e7` |
+| SHA-256  | `746af27d1d37ee6c26f634698b878d0b6ae980d618a9d878fa70e8bc28aa8199` |
 
 > نسخة محمولة بلا تثبيت متاحة في `../ERP-Portable-Windows/`.
 
@@ -21,7 +21,7 @@
 
 ## التثبيت
 
-1. حمّل `ERP-Setup-1.0.3.exe` من هذا المجلد.
+1. حمّل `ERP-Setup-1.0.4.exe` من هذا المجلد.
 2. شغّله بالضغط المزدوج. إذا ظهرت نافذة SmartScreen اختر **More info** ثم **Run anyway** (المثبّت غير موقّع رقمياً).
 3. اتبع خطوات المثبّت — يُنشئ اختصاراً على سطح المكتب وفي قائمة ابدأ.
 
@@ -41,7 +41,7 @@
 في PowerShell:
 
 ```powershell
-Get-FileHash .\ERP-Setup-1.0.3.exe -Algorithm SHA256
+Get-FileHash .\ERP-Setup-1.0.4.exe -Algorithm SHA256
 ```
 
 يجب أن تطابق النتيجة قيمة SHA-256 أعلاه.
@@ -52,7 +52,7 @@ Get-FileHash .\ERP-Setup-1.0.3.exe -Algorithm SHA256
 npm install
 npm run build:electron     # يبني الواجهة إلى dist-electron
 node scripts/make-win.mjs  # يحزّم التطبيق إلى electron-release/ERP-win32-x64
-node scripts/make-installer.mjs  # ينتج المثبّت ERP-Setup-1.0.3.exe
+node scripts/make-installer.mjs  # ينتج المثبّت ERP-Setup-1.0.4.exe
 ```
 
 ناتج البناء يظهر في `electron-release/` وهو مجلد مستثنى من Git؛ هذا المجلد (`release/`) يحتفظ بالنسخة الجاهزة للتوزيع فقط.

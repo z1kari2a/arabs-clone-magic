@@ -173,6 +173,10 @@ const ignore = [
   /^\/docs($|\/)/,
   /^\/supabase($|\/)/,
   /^\/scripts($|\/)/,
+  // ملفات إعداد أدوات التطوير (vite/vitest/tsconfig/eslint/prettier). لا يقرأها
+  // البرنامج المثبَّت أبداً — إنما تصف كيف يُبنى ويُختبر، ومكانها المستودع لا
+  // جهاز العميل.
+  /^\/(vite|vitest|eslint|prettier|tsconfig|components)[^/]*\.(ts|js|mjs|cjs|json)$/,
   // build/ is packaging input, except the icon itself: main.cjs passes it to
   // BrowserWindow so the window and taskbar show the app's icon rather than
   // Electron's default.

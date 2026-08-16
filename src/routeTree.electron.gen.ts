@@ -8,135 +8,135 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from "./routes/__root";
-import { Route as IndexRouteImport } from "./routes/index";
-import { Route as AuditLogRouteImport } from "./routes/audit-log";
-import { Route as ExpensesRouteImport } from "./routes/expenses";
-import { Route as HomeRouteImport } from "./routes/home";
-import { Route as ItemsRouteImport } from "./routes/items";
-import { Route as PriceTiersRouteImport } from "./routes/price-tiers";
-import { Route as PurchaseOrderRouteImport } from "./routes/purchase-order";
-import { Route as PurchaseRequestRouteImport } from "./routes/purchase-request";
-import { Route as RatesRouteImport } from "./routes/rates";
-import { Route as ReportsRouteImport } from "./routes/reports";
-import { Route as SettingsRouteImport } from "./routes/settings";
-import { Route as SuppliersRouteImport } from "./routes/suppliers";
-import { Route as UsersRouteImport } from "./routes/users";
+import { Route as rootRouteImport } from "./routes/__root"
+import { Route as IndexRouteImport } from "./routes/index"
+import { Route as AuditLogRouteImport } from "./routes/audit-log"
+import { Route as ExpensesRouteImport } from "./routes/expenses"
+import { Route as HomeRouteImport } from "./routes/home"
+import { Route as ItemsRouteImport } from "./routes/items"
+import { Route as PriceTiersRouteImport } from "./routes/price-tiers"
+import { Route as PurchaseOrderRouteImport } from "./routes/purchase-order"
+import { Route as PurchaseRequestRouteImport } from "./routes/purchase-request"
+import { Route as RatesRouteImport } from "./routes/rates"
+import { Route as ReportsRouteImport } from "./routes/reports"
+import { Route as SettingsRouteImport } from "./routes/settings"
+import { Route as SuppliersRouteImport } from "./routes/suppliers"
+import { Route as UsersRouteImport } from "./routes/users"
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
   path: "/",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const AuditLogRoute = AuditLogRouteImport.update({
   id: "/audit-log",
   path: "/audit-log",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const ExpensesRoute = ExpensesRouteImport.update({
   id: "/expenses",
   path: "/expenses",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const HomeRoute = HomeRouteImport.update({
   id: "/home",
   path: "/home",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const ItemsRoute = ItemsRouteImport.update({
   id: "/items",
   path: "/items",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const PriceTiersRoute = PriceTiersRouteImport.update({
   id: "/price-tiers",
   path: "/price-tiers",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const PurchaseOrderRoute = PurchaseOrderRouteImport.update({
   id: "/purchase-order",
   path: "/purchase-order",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const PurchaseRequestRoute = PurchaseRequestRouteImport.update({
   id: "/purchase-request",
   path: "/purchase-request",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const RatesRoute = RatesRouteImport.update({
   id: "/rates",
   path: "/rates",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const ReportsRoute = ReportsRouteImport.update({
   id: "/reports",
   path: "/reports",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: "/settings",
   path: "/settings",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const SuppliersRoute = SuppliersRouteImport.update({
   id: "/suppliers",
   path: "/suppliers",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const UsersRoute = UsersRouteImport.update({
   id: "/users",
   path: "/users",
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 
 export interface FileRoutesByFullPath {
-  "/": typeof IndexRoute;
-  "/audit-log": typeof AuditLogRoute;
-  "/expenses": typeof ExpensesRoute;
-  "/home": typeof HomeRoute;
-  "/items": typeof ItemsRoute;
-  "/price-tiers": typeof PriceTiersRoute;
-  "/purchase-order": typeof PurchaseOrderRoute;
-  "/purchase-request": typeof PurchaseRequestRoute;
-  "/rates": typeof RatesRoute;
-  "/reports": typeof ReportsRoute;
-  "/settings": typeof SettingsRoute;
-  "/suppliers": typeof SuppliersRoute;
-  "/users": typeof UsersRoute;
+  "/": typeof IndexRoute
+  "/audit-log": typeof AuditLogRoute
+  "/expenses": typeof ExpensesRoute
+  "/home": typeof HomeRoute
+  "/items": typeof ItemsRoute
+  "/price-tiers": typeof PriceTiersRoute
+  "/purchase-order": typeof PurchaseOrderRoute
+  "/purchase-request": typeof PurchaseRequestRoute
+  "/rates": typeof RatesRoute
+  "/reports": typeof ReportsRoute
+  "/settings": typeof SettingsRoute
+  "/suppliers": typeof SuppliersRoute
+  "/users": typeof UsersRoute
 }
 export interface FileRoutesByTo {
-  "/": typeof IndexRoute;
-  "/audit-log": typeof AuditLogRoute;
-  "/expenses": typeof ExpensesRoute;
-  "/home": typeof HomeRoute;
-  "/items": typeof ItemsRoute;
-  "/price-tiers": typeof PriceTiersRoute;
-  "/purchase-order": typeof PurchaseOrderRoute;
-  "/purchase-request": typeof PurchaseRequestRoute;
-  "/rates": typeof RatesRoute;
-  "/reports": typeof ReportsRoute;
-  "/settings": typeof SettingsRoute;
-  "/suppliers": typeof SuppliersRoute;
-  "/users": typeof UsersRoute;
+  "/": typeof IndexRoute
+  "/audit-log": typeof AuditLogRoute
+  "/expenses": typeof ExpensesRoute
+  "/home": typeof HomeRoute
+  "/items": typeof ItemsRoute
+  "/price-tiers": typeof PriceTiersRoute
+  "/purchase-order": typeof PurchaseOrderRoute
+  "/purchase-request": typeof PurchaseRequestRoute
+  "/rates": typeof RatesRoute
+  "/reports": typeof ReportsRoute
+  "/settings": typeof SettingsRoute
+  "/suppliers": typeof SuppliersRoute
+  "/users": typeof UsersRoute
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport;
-  "/": typeof IndexRoute;
-  "/audit-log": typeof AuditLogRoute;
-  "/expenses": typeof ExpensesRoute;
-  "/home": typeof HomeRoute;
-  "/items": typeof ItemsRoute;
-  "/price-tiers": typeof PriceTiersRoute;
-  "/purchase-order": typeof PurchaseOrderRoute;
-  "/purchase-request": typeof PurchaseRequestRoute;
-  "/rates": typeof RatesRoute;
-  "/reports": typeof ReportsRoute;
-  "/settings": typeof SettingsRoute;
-  "/suppliers": typeof SuppliersRoute;
-  "/users": typeof UsersRoute;
+  __root__: typeof rootRouteImport
+  "/": typeof IndexRoute
+  "/audit-log": typeof AuditLogRoute
+  "/expenses": typeof ExpensesRoute
+  "/home": typeof HomeRoute
+  "/items": typeof ItemsRoute
+  "/price-tiers": typeof PriceTiersRoute
+  "/purchase-order": typeof PurchaseOrderRoute
+  "/purchase-request": typeof PurchaseRequestRoute
+  "/rates": typeof RatesRoute
+  "/reports": typeof ReportsRoute
+  "/settings": typeof SettingsRoute
+  "/suppliers": typeof SuppliersRoute
+  "/users": typeof UsersRoute
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath;
+  fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | "/"
     | "/audit-log"
@@ -150,8 +150,8 @@ export interface FileRouteTypes {
     | "/reports"
     | "/settings"
     | "/suppliers"
-    | "/users";
-  fileRoutesByTo: FileRoutesByTo;
+    | "/users"
+  fileRoutesByTo: FileRoutesByTo
   to:
     | "/"
     | "/audit-log"
@@ -165,7 +165,7 @@ export interface FileRouteTypes {
     | "/reports"
     | "/settings"
     | "/suppliers"
-    | "/users";
+    | "/users"
   id:
     | "__root__"
     | "/"
@@ -180,118 +180,118 @@ export interface FileRouteTypes {
     | "/reports"
     | "/settings"
     | "/suppliers"
-    | "/users";
-  fileRoutesById: FileRoutesById;
+    | "/users"
+  fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute;
-  AuditLogRoute: typeof AuditLogRoute;
-  ExpensesRoute: typeof ExpensesRoute;
-  HomeRoute: typeof HomeRoute;
-  ItemsRoute: typeof ItemsRoute;
-  PriceTiersRoute: typeof PriceTiersRoute;
-  PurchaseOrderRoute: typeof PurchaseOrderRoute;
-  PurchaseRequestRoute: typeof PurchaseRequestRoute;
-  RatesRoute: typeof RatesRoute;
-  ReportsRoute: typeof ReportsRoute;
-  SettingsRoute: typeof SettingsRoute;
-  SuppliersRoute: typeof SuppliersRoute;
-  UsersRoute: typeof UsersRoute;
+  IndexRoute: typeof IndexRoute
+  AuditLogRoute: typeof AuditLogRoute
+  ExpensesRoute: typeof ExpensesRoute
+  HomeRoute: typeof HomeRoute
+  ItemsRoute: typeof ItemsRoute
+  PriceTiersRoute: typeof PriceTiersRoute
+  PurchaseOrderRoute: typeof PurchaseOrderRoute
+  PurchaseRequestRoute: typeof PurchaseRequestRoute
+  RatesRoute: typeof RatesRoute
+  ReportsRoute: typeof ReportsRoute
+  SettingsRoute: typeof SettingsRoute
+  SuppliersRoute: typeof SuppliersRoute
+  UsersRoute: typeof UsersRoute
 }
 
 declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
     "/": {
-      id: "/";
-      path: "/";
-      fullPath: "/";
-      preLoaderRoute: typeof IndexRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/"
+      path: "/"
+      fullPath: "/"
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/audit-log": {
-      id: "/audit-log";
-      path: "/audit-log";
-      fullPath: "/audit-log";
-      preLoaderRoute: typeof AuditLogRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/audit-log"
+      path: "/audit-log"
+      fullPath: "/audit-log"
+      preLoaderRoute: typeof AuditLogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/expenses": {
-      id: "/expenses";
-      path: "/expenses";
-      fullPath: "/expenses";
-      preLoaderRoute: typeof ExpensesRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/expenses"
+      path: "/expenses"
+      fullPath: "/expenses"
+      preLoaderRoute: typeof ExpensesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/home": {
-      id: "/home";
-      path: "/home";
-      fullPath: "/home";
-      preLoaderRoute: typeof HomeRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/home"
+      path: "/home"
+      fullPath: "/home"
+      preLoaderRoute: typeof HomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/items": {
-      id: "/items";
-      path: "/items";
-      fullPath: "/items";
-      preLoaderRoute: typeof ItemsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/items"
+      path: "/items"
+      fullPath: "/items"
+      preLoaderRoute: typeof ItemsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/price-tiers": {
-      id: "/price-tiers";
-      path: "/price-tiers";
-      fullPath: "/price-tiers";
-      preLoaderRoute: typeof PriceTiersRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/price-tiers"
+      path: "/price-tiers"
+      fullPath: "/price-tiers"
+      preLoaderRoute: typeof PriceTiersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/purchase-order": {
-      id: "/purchase-order";
-      path: "/purchase-order";
-      fullPath: "/purchase-order";
-      preLoaderRoute: typeof PurchaseOrderRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/purchase-order"
+      path: "/purchase-order"
+      fullPath: "/purchase-order"
+      preLoaderRoute: typeof PurchaseOrderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/purchase-request": {
-      id: "/purchase-request";
-      path: "/purchase-request";
-      fullPath: "/purchase-request";
-      preLoaderRoute: typeof PurchaseRequestRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/purchase-request"
+      path: "/purchase-request"
+      fullPath: "/purchase-request"
+      preLoaderRoute: typeof PurchaseRequestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/rates": {
-      id: "/rates";
-      path: "/rates";
-      fullPath: "/rates";
-      preLoaderRoute: typeof RatesRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/rates"
+      path: "/rates"
+      fullPath: "/rates"
+      preLoaderRoute: typeof RatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/reports": {
-      id: "/reports";
-      path: "/reports";
-      fullPath: "/reports";
-      preLoaderRoute: typeof ReportsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/reports"
+      path: "/reports"
+      fullPath: "/reports"
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/settings": {
-      id: "/settings";
-      path: "/settings";
-      fullPath: "/settings";
-      preLoaderRoute: typeof SettingsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/settings"
+      path: "/settings"
+      fullPath: "/settings"
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/suppliers": {
-      id: "/suppliers";
-      path: "/suppliers";
-      fullPath: "/suppliers";
-      preLoaderRoute: typeof SuppliersRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/suppliers"
+      path: "/suppliers"
+      fullPath: "/suppliers"
+      preLoaderRoute: typeof SuppliersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/users": {
-      id: "/users";
-      path: "/users";
-      fullPath: "/users";
-      preLoaderRoute: typeof UsersRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: "/users"
+      path: "/users"
+      fullPath: "/users"
+      preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -309,7 +309,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SuppliersRoute: SuppliersRoute,
   UsersRoute: UsersRoute,
-};
+}
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>();
+  ._addFileTypes<FileRouteTypes>()
