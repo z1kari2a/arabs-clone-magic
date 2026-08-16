@@ -165,7 +165,12 @@ function Dashboard({ email }: { email: string | null }) {
   });
 
   const licenses = (licensesQ.data?.licenses ?? []) as any[];
-  const activations = (licensesQ.data?.activations ?? []) as any[];
+  // نفس علّة شاشة المصروفات: `?? []` يُنتج مصفوفة جديدة كل رسم، فتُبطِل ذاكرة
+  // `byLicense` أدناه ويُعاد بناء الخريطة في كل مرة.
+  const activations = useMemo(
+    () => (licensesQ.data?.activations ?? []) as any[],
+    [licensesQ.data?.activations],
+  );
   const byLicense = useMemo(() => {
     const m = new Map<string, any[]>();
     for (const a of activations) {

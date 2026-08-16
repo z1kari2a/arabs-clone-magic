@@ -62,7 +62,11 @@ function ExpensesPage() {
   const orders = useErpStore((s) => s.purchaseOrders);
   const suppliers = useErpStore((s) => s.suppliers);
   const settings = useErpStore((s) => s.settings);
-  const currencies = settings.currencies ?? [];
+  // مُذكَّرة عمداً: `settings.currencies ?? []` تُنتج مصفوفة جديدة في كل رسم حين
+  // تكون العملات غير معرّفة، وهذه المصفوفة ضمن اعتماديات `allExpenses` أدناه —
+  // فكانت الذاكرة لا تُصيب أبداً، وتُعاد قراءة كل مصروف في كل أمر شراء عند كل
+  // ضغطة مفتاح في حقل البحث.
+  const currencies = useMemo(() => settings.currencies ?? [], [settings.currencies]);
 
   const [expDlg, setExpDlg] = useState(false);
   const [targetPO, setTargetPO] = useState<string>("");

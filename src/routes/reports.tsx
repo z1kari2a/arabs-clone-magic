@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, BarChart3, Wallet } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
+import { useCloseGuard } from "@/components/erp/CloseGuard";
 import { ErpTable, fmt, fmtInt } from "@/components/erp/ErpUI";
 import { useErpStore, computePO } from "@/lib/erp-store";
 
@@ -44,6 +45,9 @@ function ReportsPage() {
   const suppliers = useErpStore((s) => s.suppliers);
   const items = useErpStore((s) => s.items);
   const currencies = useErpStore((s) => s.settings.currencies) ?? [];
+  // احتساب واحد لكل أمر، يخدم الجدول والتصدير معاً. كان `computePO` يُستدعى داخل
+  // الـ`map` عند كل إعادة رسم — أي عند كل تبديل تقرير — ومرة أخرى في كل تصدير.
+  const metrics = useMemo(() => orders.map((o) => computePO(o)), [orders]);
 
   // Base = USD, rate = units-per-USD → expenses always convert straight to USD.
   // Same formula as expenses.tsx / ExpensesDialog.tsx.
@@ -54,7 +58,7 @@ function ReportsPage() {
 
   const onExport = () => {
     let rows: any[] = [];
-    if (reportId === "purchases") rows = orders.map((o) => { const m = computePO(o); return { "رقم الفاتورة": o.number, "التاريخ": o.date, "المورد": suppliers.find((s) => s.code === o.supplierCode)?.name ?? "", "الأصناف": m.totalItems, "الكمية": m.totalQty, "الشراء (USD)": m.totalPurchase, "المصروفات (USD)": m.totalExpenses, "التكلفة (USD)": m.totalCost }; });
+    if (reportId === "purchases") rows = orders.map((o, i) => { const m = metrics[i]; return { "رقم الفاتورة": o.number, "التاريخ": o.date, "المورد": suppliers.find((s) => s.code === o.supplierCode)?.name ?? "", "الأصناف": m.totalItems, "الكمية": m.totalQty, "الشراء (USD)": m.totalPurchase, "المصروفات (USD)": m.totalExpenses, "التكلفة (USD)": m.totalCost }; });
     else if (reportId === "items") rows = items.map((i) => ({ "الموديل": i.code, "الصنف": i.name, "آخر سعر": i.units[0]?.lastPrice, "آخر تكلفة (USD)": i.lastCost }));
     else if (reportId === "suppliers") rows = suppliers.map((s) => ({ "الكود": s.code, "الاسم": s.name, "الدولة": s.country, "أوامر": orders.filter((o) => o.supplierCode === s.code).length }));
     else if (reportId === "expenses") rows = orders.flatMap((o) => o.expenses.map((e) => ({ "رقم الفاتورة": o.number, "النوع": e.type, "البيان": e.note, "المبلغ": e.amount, "بالدولار": invAmountOf(o, e) })));
@@ -62,6 +66,9 @@ function ReportsPage() {
     XLSX.writeFile(wb, `${reportId}.xlsx`); toast.success("تم التصدير");
   };
   const noop = () => {};
+
+  // شاشة عرض: لا بيانات معلّقة تُحفظ، فيكتفي الحارس بسؤال تأكيد قبل الإغلاق.
+  const closeGuard = useCloseGuard({ title: "التقارير" });
 
   const actions = [
     { icon: FilePlus2, label: "جديد", color: "text-emerald-600", onClick: noop },
@@ -77,7 +84,7 @@ function ReportsPage() {
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
     { icon: Wallet, label: "المصروفات", hint: "F4", color: "text-orange-600", onClick: () => { setReportId("expenses"); toast.success("تم عرض تقرير المصروفات"); } },
     { icon: CheckCircle2, label: "اعتماد", color: "text-emerald-700", onClick: noop },
-    { icon: X, label: "إغلاق", color: "text-rose-600", onClick: () => history.back() },
+    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
   ];
 
   return (
@@ -94,7 +101,7 @@ function ReportsPage() {
         <div className="p-2">
           {reportId === "purchases" && (
             <ErpTable headers={["م","رقم الفاتورة","التاريخ","المورد","الأصناف","الكمية","الشراء (USD)","المصروفات (USD)","التكلفة (USD)","الحالة"]}>
-              {orders.map((o, i) => { const m = computePO(o); return (
+              {orders.map((o, i) => { const m = metrics[i]; return (
                 <tr key={o.number} className="hover:bg-blue-50/40">
                   <td className="border border-slate-200 text-center">{i + 1}</td>
                   <td className="border border-slate-200 px-2">{o.number}</td>
@@ -156,6 +163,7 @@ function ReportsPage() {
           )}
         </div>
       </div>
+      {closeGuard.dialog}
     </ErpLayout>
   );
 }

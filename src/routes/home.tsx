@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo } from "react";
 import {
   ShoppingCart,
   ClipboardPen,
@@ -42,10 +43,15 @@ function HomePage() {
   const suppliers = useErpStore((s) => s.suppliers);
   const items = useErpStore((s) => s.items);
 
+  // كل أمر يُحتسب مرة واحدة. كان يُحتسب ثلاثاً: مرة في مجموع المشتريات، ومرة في
+  // مجموع المصاريف، ومرة ثالثة داخل جدول «آخر أوامر الشراء» — وكل احتساب يمرّ
+  // على كل أسطر الأمر ومصروفاته.
+  //
   // computePO() totals are always in USD (the system's single reference currency
   // for costing), so summing across orders needs no per-PO conversion here.
-  const totalValue = pos.reduce((s, p) => s + computePO(p).totalPurchase, 0);
-  const totalExp = pos.reduce((s, p) => s + computePO(p).totalExpenses, 0);
+  const metrics = useMemo(() => pos.map((p) => computePO(p)), [pos]);
+  const totalValue = metrics.reduce((s, m) => s + m.totalPurchase, 0);
+  const totalExp = metrics.reduce((s, m) => s + m.totalExpenses, 0);
 
   return (
     <ErpLayout title="الشاشة الرئيسية">
@@ -82,8 +88,8 @@ function HomePage() {
             </tr>
           </thead>
           <tbody>
-            {pos.slice(0, 5).map((p) => {
-              const m = computePO(p);
+            {pos.slice(0, 5).map((p, i) => {
+              const m = metrics[i];
               const sup = suppliers.find((s) => s.code === p.supplierCode);
               return (
                 <tr key={p.number} className="hover:bg-blue-50/40">
