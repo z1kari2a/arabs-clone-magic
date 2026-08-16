@@ -1,4 +1,11 @@
-import { useState, useRef, useEffect, type ReactNode, type FocusEvent, type KeyboardEvent } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  type ReactNode,
+  type FocusEvent,
+  type KeyboardEvent,
+} from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 export const fmt = (n: number, d = 2) =>
@@ -32,7 +39,7 @@ export const parseDecimal = (value: string | number): number => {
     .trim()
     .replace(/\s/g, "")
     .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
     // `٬` (U+066C) is the Arabic THOUSANDS separator by definition — never a
     // decimal point, so it always just goes away.
     .replace(/\u066C/g, "");
@@ -94,11 +101,15 @@ export function useNumericBuffer(value: string | number, isNumeric: boolean) {
   const [text, setText] = useState<string>(initial);
   const focused = useRef(false);
   useEffect(() => {
-    if (!isNumeric) { setText(String(value ?? "")); return; }
+    if (!isNumeric) {
+      setText(String(value ?? ""));
+      return;
+    }
     if (focused.current) return;
     const propNum = typeof value === "number" ? value : parseDecimal(String(value ?? ""));
     const curNum = parseDecimal(text);
-    if (propNum !== curNum) setText(value === "" || value == null ? "" : formatDecimalDisplay(propNum));
+    if (propNum !== curNum)
+      setText(value === "" || value == null ? "" : formatDecimalDisplay(propNum));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
   return {
@@ -149,7 +160,10 @@ export function Panel({
         {collapsible && (
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); setCollapsed((c) => !c); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCollapsed((c) => !c);
+            }}
             className="absolute inset-y-0 left-2 flex items-center text-slate-600 hover:text-slate-900"
             aria-label={collapsed ? "توسيع" : "طي"}
           >
@@ -252,7 +266,9 @@ export function ErpSelect({
       className="w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white outline-none focus:border-slate-400 disabled:bg-slate-50 text-right"
     >
       {options.map((o) => (
-        <option key={o.value} value={o.value}>{o.label}</option>
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
       ))}
     </select>
   );
@@ -272,7 +288,9 @@ export function ErpSelect({
 export function gridKeyNav(e: KeyboardEvent<HTMLElement>) {
   const el = e.target as HTMLElement | null;
   const editable =
-    el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement;
+    el instanceof HTMLInputElement ||
+    el instanceof HTMLSelectElement ||
+    el instanceof HTMLTextAreaElement;
   if (!editable) return;
 
   let dir = 0;
@@ -389,8 +407,15 @@ export function SaleCell({
         value={shown}
         inputMode="decimal"
         disabled={disabled}
-        title={overridden ? "سعر مكتوب يدوياً — امسح الخانة ليعود إلى الحساب التلقائي" : "محسوب تلقائياً — اكتب سعراً لتثبيته"}
-        onFocus={(e) => { setTyping(shown); e.target.select(); }}
+        title={
+          overridden
+            ? "سعر مكتوب يدوياً — امسح الخانة ليعود إلى الحساب التلقائي"
+            : "محسوب تلقائياً — اكتب سعراً لتثبيته"
+        }
+        onFocus={(e) => {
+          setTyping(shown);
+          e.target.select();
+        }}
         onBlur={() => setTyping(null)}
         onChange={(e) => {
           const v = e.target.value;
@@ -421,13 +446,31 @@ export function Cell({
   inputClass?: string;
 }) {
   if (!onChange) {
-    return <td className={`border border-slate-200 px-2 py-1 text-${align} bg-slate-50 ${inputClass}`}>{value}</td>;
+    return (
+      <td className={`border border-slate-200 px-2 py-1 text-${align} bg-slate-50 ${inputClass}`}>
+        {value}
+      </td>
+    );
   }
-  return <CellInput value={value} onChange={onChange} disabled={disabled} align={align} type={type} inputClass={inputClass} />;
+  return (
+    <CellInput
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      align={align}
+      type={type}
+      inputClass={inputClass}
+    />
+  );
 }
 
 function CellInput({
-  value, onChange, disabled, align, type, inputClass,
+  value,
+  onChange,
+  disabled,
+  align,
+  type,
+  inputClass,
 }: {
   value: string | number;
   onChange: (v: string) => void;

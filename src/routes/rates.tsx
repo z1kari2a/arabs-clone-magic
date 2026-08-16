@@ -26,7 +26,11 @@ function RatesPage() {
   const settings = useErpStore((s) => s.settings);
   const [rows, setRows] = useState<Currency[]>(settings.currencies ?? []);
   const [defCode, setDefCode] = useState<string>(settings.defaultCurrency || "");
-  const [nc, setNc] = useState<{ code: string; name: string; rate: number }>({ code: "", name: "", rate: 0 });
+  const [nc, setNc] = useState<{ code: string; name: string; rate: number }>({
+    code: "",
+    name: "",
+    rate: 0,
+  });
   // Exchange rates feed every cost calculation in the system — viewers may look,
   // not edit.
   const { role } = useAuth();
@@ -65,7 +69,8 @@ function RatesPage() {
 
   const remove = (code: string) => {
     if (!mayWrite) return toast.error("تعديل أسعار الصرف يتطلب صلاحية مستخدم أو مدير");
-    if (code === BASE_CODE) return toast.error(`لا يمكن حذف ${BASE_CODE} — هي العملة الأساسية للنظام`);
+    if (code === BASE_CODE)
+      return toast.error(`لا يمكن حذف ${BASE_CODE} — هي العملة الأساسية للنظام`);
     if (rows.length <= 1) return toast.error("يجب الإبقاء على عملة واحدة على الأقل");
     if (code === defCode) return toast.error("لا يمكن حذف العملة الافتراضية");
     setRows(rows.filter((r) => r.code !== code));
@@ -74,22 +79,40 @@ function RatesPage() {
   // يُعيد true/false ليعرف حارس الإغلاق هل نجح الحفظ فيُغلق الشاشة — تحقّق مرفوض
   // يعني أن الشاشة تبقى مفتوحة بدل أن تُغلق وتضيع التعديلات.
   const save = (): boolean => {
-    if (!mayWrite) { toast.error("تعديل أسعار الصرف يتطلب صلاحية مستخدم أو مدير"); return false; }
+    if (!mayWrite) {
+      toast.error("تعديل أسعار الصرف يتطلب صلاحية مستخدم أو مدير");
+      return false;
+    }
     const codes = new Set<string>();
     for (const r of rows) {
-      if (!r.code) { toast.error("يوجد عملة بدون رمز"); return false; }
-      if (codes.has(r.code)) { toast.error(`رمز مكرر: ${r.code}`); return false; }
+      if (!r.code) {
+        toast.error("يوجد عملة بدون رمز");
+        return false;
+      }
+      if (codes.has(r.code)) {
+        toast.error(`رمز مكرر: ${r.code}`);
+        return false;
+      }
       codes.add(r.code);
       // A zero/negative rate makes `amount / rate` return 0 everywhere instead
       // of erroring — the whole invoice silently prices at nothing. Reject it here.
-      if (!(r.rate > 0)) { toast.error(`سعر صرف غير صالح للعملة ${r.code} — يجب أن يكون أكبر من صفر`); return false; }
+      if (!(r.rate > 0)) {
+        toast.error(`سعر صرف غير صالح للعملة ${r.code} — يجب أن يكون أكبر من صفر`);
+        return false;
+      }
       if (r.code === BASE_CODE && r.rate !== 1) {
         toast.error(`سعر صرف ${BASE_CODE} يجب أن يبقى 1 — هي العملة الأساسية للنظام`);
         return false;
       }
     }
-    if (!codes.has(BASE_CODE)) { toast.error(`قائمة العملات يجب أن تحتوي ${BASE_CODE} — هي العملة الأساسية للنظام`); return false; }
-    if (!codes.has(defCode)) { toast.error("اختر عملة افتراضية موجودة في القائمة"); return false; }
+    if (!codes.has(BASE_CODE)) {
+      toast.error(`قائمة العملات يجب أن تحتوي ${BASE_CODE} — هي العملة الأساسية للنظام`);
+      return false;
+    }
+    if (!codes.has(defCode)) {
+      toast.error("اختر عملة افتراضية موجودة في القائمة");
+      return false;
+    }
     erpStore.set({ settings: { ...settings, currencies: rows, defaultCurrency: defCode } });
     // المستندات تحمل سعر صرفها مثبَّتاً عليها، فحفظ الجدول هنا لا يحرّك رقماً في
     // مستند قائم — وهذا مقصود. لكن مستنداً قيد التحرير يجب أن يستطيع اللحاق،
@@ -118,15 +141,36 @@ function RatesPage() {
   });
 
   const actions = [
-    { icon: Save, label: "حفظ", hint: "Ctrl+S", color: "text-blue-600", onClick: save, disabled: !mayWrite },
-    { icon: RefreshCw, label: "استرجاع", color: "text-slate-600", onClick: reset, disabled: !dirty },
-    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
+    {
+      icon: Save,
+      label: "حفظ",
+      hint: "Ctrl+S",
+      color: "text-blue-600",
+      onClick: save,
+      disabled: !mayWrite,
+    },
+    {
+      icon: RefreshCw,
+      label: "استرجاع",
+      color: "text-slate-600",
+      onClick: reset,
+      disabled: !dirty,
+    },
+    {
+      icon: X,
+      label: "إغلاق",
+      hint: "Esc",
+      color: "text-rose-600",
+      onClick: closeGuard.requestClose,
+    },
   ];
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key.toLowerCase() === "s") { e.preventDefault(); save(); }
-      else if (e.key === "Escape") {
+      if (e.ctrlKey && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        save();
+      } else if (e.key === "Escape") {
         if (closeGuard.pending) return; // نافذة السؤال نفسها تُغلق بـ Esc
         closeGuard.requestClose();
       }
@@ -139,14 +183,19 @@ function RatesPage() {
   return (
     <ErpLayout title="أسعار الصرف" ribbon={<Ribbon actions={actions} />}>
       <Panel
-        title={<span className="flex items-center gap-2"><DollarSign size={14} className="text-emerald-600" /> أسعار الصرف الحالية</span>}
+        title={
+          <span className="flex items-center gap-2">
+            <DollarSign size={14} className="text-emerald-600" /> أسعار الصرف الحالية
+          </span>
+        }
       >
         <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded flex items-start gap-2 text-[12px] text-amber-800">
           <Info size={14} className="mt-0.5 shrink-0" />
           <span>
-            العملة الأساسية للنظام: <b>USD</b>. كل قيمة تُدخل بأي عملة تُحوّل داخلياً إلى الدولار عبر المعادلة:
-            <b> المبلغ ÷ سعر الصرف = المبلغ بالدولار</b>. الأسعار هنا للمستندات الجديدة فقط —
-            كل فاتورة/أمر شراء/مصروف يخزّن سعر صرفه لحظة الحفظ فلا تتأثر حساباته لاحقاً.
+            العملة الأساسية للنظام: <b>USD</b>. كل قيمة تُدخل بأي عملة تُحوّل داخلياً إلى الدولار
+            عبر المعادلة:
+            <b> المبلغ ÷ سعر الصرف = المبلغ بالدولار</b>. الأسعار هنا للمستندات الجديدة فقط — كل
+            فاتورة/أمر شراء/مصروف يخزّن سعر صرفه لحظة الحفظ فلا تتأثر حساباته لاحقاً.
           </span>
         </div>
 
@@ -159,10 +208,16 @@ function RatesPage() {
                 <th className="border border-slate-200 py-1.5 w-28">الرمز</th>
                 <th className="border border-slate-200 py-1.5">اسم العملة</th>
                 <th className="border border-slate-200 py-1.5 w-44">
-                  سعر الصرف <span dir="ltr" className="inline-block">(1 USD =)</span>
+                  سعر الصرف{" "}
+                  <span dir="ltr" className="inline-block">
+                    (1 USD =)
+                  </span>
                 </th>
                 <th className="border border-slate-200 py-1.5 w-44">
-                  مثال: <span dir="ltr" className="inline-block">100 {'{'}العملة{'}'} → USD</span>
+                  مثال:{" "}
+                  <span dir="ltr" className="inline-block">
+                    100 {"{"}العملة{"}"} → USD
+                  </span>
                 </th>
                 <th className="border border-slate-200 py-1.5 w-16">حذف</th>
               </tr>
@@ -171,65 +226,78 @@ function RatesPage() {
               {rows.map((c, i) => {
                 const isBase = c.code === BASE_CODE;
                 return (
-                <tr key={c.code + i} className={isBase ? "bg-emerald-50/50" : "odd:bg-white even:bg-slate-50/50"}>
-                  <td className="border border-slate-200 text-center text-slate-500">{i + 1}</td>
-                  <td className="border border-slate-200 text-center">
-                    <button
-                      onClick={() => setDefCode(c.code)}
-                      title="تعيين كافتراضية"
-                      className={c.code === defCode ? "text-amber-500" : "text-slate-300 hover:text-amber-400"}
-                    >
-                      <Star size={16} className={c.code === defCode ? "fill-amber-400" : ""} />
-                    </button>
-                  </td>
-                  <td className="border border-slate-200 p-1">
-                    <input
-                      value={c.code}
-                      readOnly={isBase || !mayWrite}
-                      title={isBase ? `${BASE_CODE} هي العملة الأساسية للنظام ولا يمكن تغيير رمزها` : undefined}
-                      onChange={(e) => patch(c.code, { code: e.target.value.toUpperCase() })}
-                      className={`w-full px-2 py-1 text-center font-semibold bg-transparent rounded focus:outline-none ${isBase ? "text-emerald-800 cursor-not-allowed" : "/50"}`}
-                    />
-                  </td>
-                  <td className="border border-slate-200 p-1">
-                    <input
-                      value={c.name}
-                      onChange={(e) => patch(c.code, { name: e.target.value })}
-                      className="w-full px-2 py-1 text-right bg-transparent focus:outline-none/50 rounded"
-                    />
-                  </td>
-                  <td className="border border-slate-200 p-1">
-                    {isBase ? (
-                      <div
-                        title={`سعر ${BASE_CODE} ثابت عند 1 — كل العملات تُقاس مقابله`}
-                        className="w-full px-2 py-1 text-right tabular-nums text-emerald-800 font-semibold cursor-not-allowed"
+                  <tr
+                    key={c.code + i}
+                    className={isBase ? "bg-emerald-50/50" : "odd:bg-white even:bg-slate-50/50"}
+                  >
+                    <td className="border border-slate-200 text-center text-slate-500">{i + 1}</td>
+                    <td className="border border-slate-200 text-center">
+                      <button
+                        onClick={() => setDefCode(c.code)}
+                        title="تعيين كافتراضية"
+                        className={
+                          c.code === defCode
+                            ? "text-amber-500"
+                            : "text-slate-300 hover:text-amber-400"
+                        }
                       >
-                        1.0
-                      </div>
-                    ) : (
-                      <RateInput
-                        value={c.rate}
-                        onChange={(n) => patch(c.code, { rate: n })}
-                        className="w-full px-2 py-1 text-right tabular-nums bg-amber-50/40 focus:outline-none focus:bg-amber-50 rounded border border-transparent focus:border-amber-300"
+                        <Star size={16} className={c.code === defCode ? "fill-amber-400" : ""} />
+                      </button>
+                    </td>
+                    <td className="border border-slate-200 p-1">
+                      <input
+                        value={c.code}
+                        readOnly={isBase || !mayWrite}
+                        title={
+                          isBase
+                            ? `${BASE_CODE} هي العملة الأساسية للنظام ولا يمكن تغيير رمزها`
+                            : undefined
+                        }
+                        onChange={(e) => patch(c.code, { code: e.target.value.toUpperCase() })}
+                        className={`w-full px-2 py-1 text-center font-semibold bg-transparent rounded focus:outline-none ${isBase ? "text-emerald-800 cursor-not-allowed" : "/50"}`}
                       />
-                    )}
-                  </td>
-                  <td className="border border-slate-200 text-center text-slate-600 tabular-nums text-xs">
-                    <span dir="ltr" className="inline-block">
-                      {isBase ? `100 USD = 100.00 USD` : `100 ${c.code} = ${fmt(c.rate ? 100 / c.rate : 0)} USD`}
-                    </span>
-                  </td>
-                  <td className="border border-slate-200 text-center">
-                    <button
-                      onClick={() => remove(c.code)}
-                      disabled={isBase || !mayWrite}
-                      title={isBase ? `لا يمكن حذف ${BASE_CODE}` : "حذف"}
-                      className="text-rose-600 hover:bg-rose-50 px-2 py-1 rounded disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                </tr>
+                    </td>
+                    <td className="border border-slate-200 p-1">
+                      <input
+                        value={c.name}
+                        onChange={(e) => patch(c.code, { name: e.target.value })}
+                        className="w-full px-2 py-1 text-right bg-transparent focus:outline-none/50 rounded"
+                      />
+                    </td>
+                    <td className="border border-slate-200 p-1">
+                      {isBase ? (
+                        <div
+                          title={`سعر ${BASE_CODE} ثابت عند 1 — كل العملات تُقاس مقابله`}
+                          className="w-full px-2 py-1 text-right tabular-nums text-emerald-800 font-semibold cursor-not-allowed"
+                        >
+                          1.0
+                        </div>
+                      ) : (
+                        <RateInput
+                          value={c.rate}
+                          onChange={(n) => patch(c.code, { rate: n })}
+                          className="w-full px-2 py-1 text-right tabular-nums bg-amber-50/40 focus:outline-none focus:bg-amber-50 rounded border border-transparent focus:border-amber-300"
+                        />
+                      )}
+                    </td>
+                    <td className="border border-slate-200 text-center text-slate-600 tabular-nums text-xs">
+                      <span dir="ltr" className="inline-block">
+                        {isBase
+                          ? `100 USD = 100.00 USD`
+                          : `100 ${c.code} = ${fmt(c.rate ? 100 / c.rate : 0)} USD`}
+                      </span>
+                    </td>
+                    <td className="border border-slate-200 text-center">
+                      <button
+                        onClick={() => remove(c.code)}
+                        disabled={isBase || !mayWrite}
+                        title={isBase ? `لا يمكن حذف ${BASE_CODE}` : "حذف"}
+                        className="text-rose-600 hover:bg-rose-50 px-2 py-1 rounded disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
@@ -302,8 +370,16 @@ function RatesPage() {
 }
 
 function RateInput({
-  value, onChange, className, placeholder,
-}: { value: number; onChange: (n: number) => void; className?: string; placeholder?: string }) {
+  value,
+  onChange,
+  className,
+  placeholder,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  className?: string;
+  placeholder?: string;
+}) {
   const buf = useNumericBuffer(value || "", true);
   return (
     <input
@@ -314,7 +390,11 @@ function RateInput({
       onBlur={buf.onBlur}
       onChange={(e) => {
         const v = e.target.value;
-        if (v !== "" && !/^-?[\d\u0660-\u0669\u06F0-\u06F9]*[.,،\u066B]?[\d\u0660-\u0669\u06F0-\u06F9]*$/.test(v)) return;
+        if (
+          v !== "" &&
+          !/^-?[\d\u0660-\u0669\u06F0-\u06F9]*[.,،\u066B]?[\d\u0660-\u0669\u06F0-\u06F9]*$/.test(v)
+        )
+          return;
         buf.setText(v);
         onChange(parseDecimal(v));
       }}

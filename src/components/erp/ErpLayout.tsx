@@ -55,15 +55,28 @@ export default function ErpLayout({
     router.navigate({ to: "/" });
   };
 
-  const roleLabel = role === "admin" ? "مدير" : role === "user" ? "مستخدم" : role === "viewer" ? "مطالع" : "";
-  const roleBadgeCls = role === "admin" ? "bg-rose-500" : role === "user" ? "bg-blue-500" : "bg-slate-500";
+  const roleLabel =
+    role === "admin" ? "مدير" : role === "user" ? "مستخدم" : role === "viewer" ? "مطالع" : "";
+  const roleBadgeCls =
+    role === "admin" ? "bg-rose-500" : role === "user" ? "bg-blue-500" : "bg-slate-500";
 
   if (loading || !session) {
-    return <div dir="rtl" className="min-h-screen flex items-center justify-center bg-slate-100 text-slate-500 text-sm">جاري التحميل...</div>;
+    return (
+      <div
+        dir="rtl"
+        className="min-h-screen flex items-center justify-center bg-slate-100 text-slate-500 text-sm"
+      >
+        جاري التحميل...
+      </div>
+    );
   }
 
   return (
-    <div className="h-screen w-full font-sans text-[13px] text-slate-800 flex flex-col overflow-hidden" style={{ background: "var(--color-erp-bg)" }} dir="rtl">
+    <div
+      className="h-screen w-full font-sans text-[13px] text-slate-800 flex flex-col overflow-hidden"
+      style={{ background: "var(--color-erp-bg)" }}
+      dir="rtl"
+    >
       {/* شريط التطبيق — وليس شريط عنوان.
           كان يرسم أزرار تصغير/تكبير/إغلاق تقليداً لويندوز: الأولان بلا onClick
           إطلاقاً (ضغطهما لا يفعل شيئاً)، والثالث موصول بتسجيل الخروج. وفوق ذلك،
@@ -71,7 +84,10 @@ export default function ErpLayout({
           فكان يظهر شريطا عنوان فوق بعضهما. الأزرار الثلاثة حُذفت: النافذة لها
           أزرارها الحقيقية من ويندوز، وهذا الشريط يحمل ما لا يحمله ذاك — هوية
           البرنامج، واسم الشاشة، ومفتاح القائمة الجانبية، والخروج من الحساب. */}
-      <div className="relative flex items-center justify-between px-3 h-9 text-white shrink-0" style={{ background: "var(--color-erp-titlebar)" }}>
+      <div
+        className="relative flex items-center justify-between px-3 h-9 text-white shrink-0"
+        style={{ background: "var(--color-erp-titlebar)" }}
+      >
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSidebarOpen((v) => !v)}
@@ -107,7 +123,9 @@ export default function ErpLayout({
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Tabs */}
           <div className="flex items-end bg-gradient-to-b from-slate-100 to-slate-200 border-b border-slate-300 px-1 pt-1 shrink-0">
-            <button className="px-4 py-1.5 text-[13px] bg-slate-100 border border-transparent hover:bg-white/70 text-slate-700 rounded-t-md ml-1">ملف</button>
+            <button className="px-4 py-1.5 text-[13px] bg-slate-100 border border-transparent hover:bg-white/70 text-slate-700 rounded-t-md ml-1">
+              ملف
+            </button>
             {TABS.filter((t) => !(t as any).adminOnly || role === "admin").map((t) => {
               const active = pathname.startsWith(t.to);
               return (
@@ -124,7 +142,9 @@ export default function ErpLayout({
                 </Link>
               );
             })}
-            <button className="px-4 py-1.5 text-[13px] bg-slate-100 border border-transparent hover:bg-white/70 text-slate-700 rounded-t-md ml-1">المساعدة</button>
+            <button className="px-4 py-1.5 text-[13px] bg-slate-100 border border-transparent hover:bg-white/70 text-slate-700 rounded-t-md ml-1">
+              المساعدة
+            </button>
           </div>
 
           {/* Ribbon */}
@@ -140,12 +160,26 @@ export default function ErpLayout({
           </div>
 
           {/* Status bar */}
-          <div className="flex items-center justify-between px-3 py-1 text-white text-[11px] border-t border-black/10 shrink-0" style={{ background: "var(--color-erp-status)" }}>
+          <div
+            className="flex items-center justify-between px-3 py-1 text-white text-[11px] border-t border-black/10 shrink-0"
+            style={{ background: "var(--color-erp-status)" }}
+          >
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1">المستخدم: {fullName || user?.username}</span>
-              {role && <span className={`px-1.5 py-0.5 rounded text-white ${roleBadgeCls} flex items-center gap-1`}><ShieldCheck size={10} /> {roleLabel}</span>}
+              <span className="flex items-center gap-1">
+                المستخدم: {fullName || user?.username}
+              </span>
+              {role && (
+                <span
+                  className={`px-1.5 py-0.5 rounded text-white ${roleBadgeCls} flex items-center gap-1`}
+                >
+                  <ShieldCheck size={10} /> {roleLabel}
+                </span>
+              )}
               <span>الفترة المالية: {settings.fiscalYear}</span>
-              <span className="hidden md:flex items-center gap-1 opacity-90"><Keyboard size={12} /> Ctrl+N جديد • Ctrl+S حفظ • F2 تعديل • F3 بحث • F9 اعتماد • Esc إغلاق</span>
+              <span className="hidden md:flex items-center gap-1 opacity-90">
+                <Keyboard size={12} /> Ctrl+N جديد • Ctrl+S حفظ • F2 تعديل • F3 بحث • F9 اعتماد •
+                Esc إغلاق
+              </span>
             </div>
             <div className="flex items-center gap-4">
               {/* The old label said "متصل" unconditionally — a connection

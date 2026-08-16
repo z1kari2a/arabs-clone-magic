@@ -42,7 +42,10 @@ for (const full of walk(root)) {
   files[rel] = readFileSync(full).toString("base64");
 }
 
-const version = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 14);
+const version = new Date()
+  .toISOString()
+  .replace(/[-:T.Z]/g, "")
+  .slice(0, 14);
 const manifest = { version, files };
 const gz = gzipSync(Buffer.from(JSON.stringify(manifest), "utf8"));
 writeFileSync(outFile, gz);

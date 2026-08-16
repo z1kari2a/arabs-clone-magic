@@ -71,7 +71,12 @@ export const Route = createFileRoute("/api/public/license/backup")({
         }
 
         const { session_token, fingerprint, payload } = (body ?? {}) as Record<string, unknown>;
-        if (typeof session_token !== "string" || typeof fingerprint !== "string" || payload == null || typeof payload !== "object") {
+        if (
+          typeof session_token !== "string" ||
+          typeof fingerprint !== "string" ||
+          payload == null ||
+          typeof payload !== "object"
+        ) {
           return new Response(JSON.stringify({ ok: false, error: "invalid_input" }), {
             status: 400,
             headers: cors,
@@ -84,7 +89,10 @@ export const Route = createFileRoute("/api/public/license/backup")({
           });
         }
 
-        const { supabaseAdmin, activationId, error } = await resolveActivation(session_token, fingerprint);
+        const { supabaseAdmin, activationId, error } = await resolveActivation(
+          session_token,
+          fingerprint,
+        );
         if (error) {
           return new Response(JSON.stringify({ ok: false, error }), { status: 403, headers: cors });
         }
@@ -112,7 +120,10 @@ export const Route = createFileRoute("/api/public/license/backup")({
           await supabaseAdmin
             .from("erp_backups")
             .delete()
-            .in("id", old.map((r) => r.id));
+            .in(
+              "id",
+              old.map((r) => r.id),
+            );
         }
 
         return new Response(JSON.stringify({ ok: true, created_at: row?.created_at ?? null }), {
@@ -132,7 +143,10 @@ export const Route = createFileRoute("/api/public/license/backup")({
           });
         }
 
-        const { supabaseAdmin, activationId, error } = await resolveActivation(sessionToken, fingerprint);
+        const { supabaseAdmin, activationId, error } = await resolveActivation(
+          sessionToken,
+          fingerprint,
+        );
         if (error) {
           return new Response(JSON.stringify({ ok: false, error }), { status: 403, headers: cors });
         }
@@ -146,7 +160,11 @@ export const Route = createFileRoute("/api/public/license/backup")({
           .maybeSingle();
 
         return new Response(
-          JSON.stringify({ ok: true, payload: latest?.payload ?? null, created_at: latest?.created_at ?? null }),
+          JSON.stringify({
+            ok: true,
+            payload: latest?.payload ?? null,
+            created_at: latest?.created_at ?? null,
+          }),
           { status: 200, headers: cors },
         );
       },

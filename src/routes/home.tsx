@@ -28,13 +28,49 @@ export const Route = createFileRoute("/home")({
 });
 
 const CARDS = [
-  { to: "/purchase-request", label: "طلبات الشراء", icon: ClipboardPen, color: "text-sky-600", bg: "bg-sky-50" },
-  { to: "/purchase-order", label: "أوامر الشراء", icon: ShoppingCart, color: "text-blue-600", bg: "bg-blue-50" },
-  { to: "/suppliers", label: "الموردون", icon: Building2, color: "text-emerald-600", bg: "bg-emerald-50" },
-  { to: "/items", label: "دليل الأصناف", icon: Package, color: "text-amber-600", bg: "bg-amber-50" },
-  { to: "/reports", label: "التقارير", icon: BarChart3, color: "text-indigo-600", bg: "bg-indigo-50" },
+  {
+    to: "/purchase-request",
+    label: "طلبات الشراء",
+    icon: ClipboardPen,
+    color: "text-sky-600",
+    bg: "bg-sky-50",
+  },
+  {
+    to: "/purchase-order",
+    label: "أوامر الشراء",
+    icon: ShoppingCart,
+    color: "text-blue-600",
+    bg: "bg-blue-50",
+  },
+  {
+    to: "/suppliers",
+    label: "الموردون",
+    icon: Building2,
+    color: "text-emerald-600",
+    bg: "bg-emerald-50",
+  },
+  {
+    to: "/items",
+    label: "دليل الأصناف",
+    icon: Package,
+    color: "text-amber-600",
+    bg: "bg-amber-50",
+  },
+  {
+    to: "/reports",
+    label: "التقارير",
+    icon: BarChart3,
+    color: "text-indigo-600",
+    bg: "bg-indigo-50",
+  },
   { to: "/users", label: "المستخدمون", icon: Users, color: "text-rose-600", bg: "bg-rose-50" },
-  { to: "/settings", label: "الإعدادات", icon: SettingsIcon, color: "text-slate-600", bg: "bg-slate-100" },
+  {
+    to: "/settings",
+    label: "الإعدادات",
+    icon: SettingsIcon,
+    color: "text-slate-600",
+    bg: "bg-slate-100",
+  },
 ];
 
 function HomePage() {
@@ -56,17 +92,53 @@ function HomePage() {
   return (
     <ErpLayout title="الشاشة الرئيسية">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={ClipboardPen} color="text-sky-600" label="طلبات الشراء" value={fmtInt(reqs.length)} />
-        <StatCard icon={ShoppingCart} color="text-blue-600" label="أوامر الشراء" value={fmtInt(pos.length)} />
-        <StatCard icon={Building2} color="text-emerald-600" label="الموردون" value={fmtInt(suppliers.length)} />
-        <StatCard icon={Package} color="text-amber-600" label="الأصناف" value={fmtInt(items.length)} />
-        <StatCard icon={Wallet} color="text-rose-600" label="إجمالي المصروفات" value={fmt(totalExp)} unit="USD" />
-        <StatCard icon={TrendingUp} color="text-indigo-600" label="إجمالي المشتريات" value={fmt(totalValue)} unit="USD" />
+        <StatCard
+          icon={ClipboardPen}
+          color="text-sky-600"
+          label="طلبات الشراء"
+          value={fmtInt(reqs.length)}
+        />
+        <StatCard
+          icon={ShoppingCart}
+          color="text-blue-600"
+          label="أوامر الشراء"
+          value={fmtInt(pos.length)}
+        />
+        <StatCard
+          icon={Building2}
+          color="text-emerald-600"
+          label="الموردون"
+          value={fmtInt(suppliers.length)}
+        />
+        <StatCard
+          icon={Package}
+          color="text-amber-600"
+          label="الأصناف"
+          value={fmtInt(items.length)}
+        />
+        <StatCard
+          icon={Wallet}
+          color="text-rose-600"
+          label="إجمالي المصروفات"
+          value={fmt(totalExp)}
+          unit="USD"
+        />
+        <StatCard
+          icon={TrendingUp}
+          color="text-indigo-600"
+          label="إجمالي المشتريات"
+          value={fmt(totalValue)}
+          unit="USD"
+        />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mt-4">
         {CARDS.map((c) => (
-          <Link key={c.to} to={c.to} className={`${c.bg} border border-slate-200 rounded-lg p-4 flex flex-col items-center gap-2 hover:shadow-md transition-shadow`}>
+          <Link
+            key={c.to}
+            to={c.to}
+            className={`${c.bg} border border-slate-200 rounded-lg p-4 flex flex-col items-center gap-2 hover:shadow-md transition-shadow`}
+          >
             <c.icon size={40} className={c.color} strokeWidth={1.4} />
             <div className="text-sm font-semibold text-slate-700">{c.label}</div>
           </Link>
@@ -74,7 +146,10 @@ function HomePage() {
       </div>
 
       <div className="bg-white border border-slate-300 rounded mt-4">
-        <div className="px-3 py-2 border-b border-slate-300 font-semibold text-slate-700" style={{ background: "var(--color-erp-panel-header)" }}>
+        <div
+          className="px-3 py-2 border-b border-slate-300 font-semibold text-slate-700"
+          style={{ background: "var(--color-erp-panel-header)" }}
+        >
           آخر أوامر الشراء
         </div>
         <table className="w-full text-sm">
@@ -97,7 +172,13 @@ function HomePage() {
                   <td className="px-3 py-2 border-b">{p.date}</td>
                   <td className="px-3 py-2 border-b">{sup?.name ?? p.supplierCode}</td>
                   <td className="px-3 py-2 border-b">{fmt(m.totalCost)} USD</td>
-                  <td className="px-3 py-2 border-b">{p.approved ? <span className="text-emerald-600 font-semibold">معتمد</span> : <span className="text-amber-600">مسودة</span>}</td>
+                  <td className="px-3 py-2 border-b">
+                    {p.approved ? (
+                      <span className="text-emerald-600 font-semibold">معتمد</span>
+                    ) : (
+                      <span className="text-amber-600">مسودة</span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
@@ -115,7 +196,9 @@ function StatCard({ icon: Icon, color, label, value, unit }: any) {
         <Icon size={28} className={color} strokeWidth={1.5} />
         <div className="text-right">
           <div className="text-xs text-slate-500">{label}</div>
-          <div className="text-xl font-bold text-slate-800">{value} {unit && <span className="text-xs">{unit}</span>}</div>
+          <div className="text-xl font-bold text-slate-800">
+            {value} {unit && <span className="text-xs">{unit}</span>}
+          </div>
         </div>
       </div>
     </div>

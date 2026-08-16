@@ -1,5 +1,14 @@
 import { useSyncExternalStore, useEffect } from "react";
-import type { Expense, Item, PORow, PurchaseOrder, PurchaseRequest, Settings, Supplier, User } from "./erp-types";
+import type {
+  Expense,
+  Item,
+  PORow,
+  PurchaseOrder,
+  PurchaseRequest,
+  Settings,
+  Supplier,
+  User,
+} from "./erp-types";
 import { localDb, logAudit, getCurrentScope } from "./local-db";
 import { scheduleCloudBackup } from "./cloud-sync";
 
@@ -20,17 +29,17 @@ const defaultSettings: Settings = {
   fiscalYear: String(new Date().getFullYear()),
   language: "ar",
   priceTiers: [
-    { id: "base",  name: "التكلفة الأساسية", extraPct: 0,     profitPct: 30 },
-    { id: "aden",  name: "تكلفة عدن",        extraPct: 26.87, profitPct: 30 },
-    { id: "sanaa", name: "تكلفة صنعاء",      extraPct: 52.71, profitPct: 30 },
+    { id: "base", name: "التكلفة الأساسية", extraPct: 0, profitPct: 30 },
+    { id: "aden", name: "تكلفة عدن", extraPct: 26.87, profitPct: 30 },
+    { id: "sanaa", name: "تكلفة صنعاء", extraPct: 52.71, profitPct: 30 },
   ],
   currencies: [
     // Base currency is USD. `rate` = how many units of the currency equal 1 USD.
     // Example: 1 USD = 536 YER, 1 USD = 3.75 SAR, 1 USD = 7.18 CNY.
     { code: "USD", name: "دولار أمريكي", rate: 1 },
-    { code: "YER", name: "ريال يمني",    rate: 536 },
-    { code: "SAR", name: "ريال سعودي",   rate: 3.75 },
-    { code: "CNY", name: "يوان صيني",    rate: 7.18 },
+    { code: "YER", name: "ريال يمني", rate: 536 },
+    { code: "SAR", name: "ريال سعودي", rate: 3.75 },
+    { code: "CNY", name: "يوان صيني", rate: 7.18 },
   ],
   expenseTypes: [
     "شحن بحري",
@@ -79,7 +88,10 @@ const listeners = new Set<() => void>();
 // Single integration point for the optional cloud backup (src/lib/cloud-sync.ts):
 // every state change — supplier/item/PO/settings edits, and hydration itself —
 // schedules a debounced push. No-ops silently when there's no active license.
-const notify = () => { listeners.forEach((l) => l()); scheduleCloudBackup(); };
+const notify = () => {
+  listeners.forEach((l) => l());
+  scheduleCloudBackup();
+};
 
 function setState(patch: Partial<StoreState>) {
   state = { ...state, ...patch };
@@ -190,7 +202,9 @@ function currentUsername(): string | null {
     const raw = window.sessionStorage.getItem("erp:current-user");
     if (!raw) return null;
     return (JSON.parse(raw) as { username?: string }).username ?? null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export async function upsertSupplier(sup: Supplier) {
@@ -431,7 +445,13 @@ async function replaceCollection<T extends Record<string, any>>(
 }
 
 export async function replaceSuppliers(list: Supplier[]) {
-  await replaceCollection(list, "code", "suppliers", localDb.suppliers.list, localDb.suppliers.replaceAll);
+  await replaceCollection(
+    list,
+    "code",
+    "suppliers",
+    localDb.suppliers.list,
+    localDb.suppliers.replaceAll,
+  );
   setState({ suppliers: await localDb.suppliers.list() });
 }
 
@@ -488,7 +508,8 @@ export const erpStore = {
           if (!nextNumbers.has(old.number)) await deletePO(old.number);
         }
         for (const p of next) {
-          if (!prev.find((x) => JSON.stringify(x) === JSON.stringify(p))) await savePurchaseOrder(p);
+          if (!prev.find((x) => JSON.stringify(x) === JSON.stringify(p)))
+            await savePurchaseOrder(p);
         }
       })();
     }
@@ -503,7 +524,8 @@ export const erpStore = {
           if (!nextNumbers.has(old.number)) await deletePurchaseRequest(old.number);
         }
         for (const p of next) {
-          if (!prev.find((x) => JSON.stringify(x) === JSON.stringify(p))) await savePurchaseRequest(p);
+          if (!prev.find((x) => JSON.stringify(x) === JSON.stringify(p)))
+            await savePurchaseRequest(p);
         }
       })();
     }
@@ -520,7 +542,12 @@ export const erpStore = {
     await hydrateStore();
   },
   refresh: hydrateStore,
-  subscribe: (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; },
+  subscribe: (fn: () => void) => {
+    listeners.add(fn);
+    return () => {
+      listeners.delete(fn);
+    };
+  },
 };
 
 export function useErpStore<T>(selector: (s: StoreState) => T): T {
@@ -553,7 +580,11 @@ const handoffKey = () => `erp:po-handoff-v1:${getCurrentScope() ?? "anon"}`;
 
 /** يحفظ نسخة من أمر الشراء الحالي قبل الانتقال إلى شاشة التسعيرات. */
 export function stashPO(po: PurchaseOrder) {
-  try { localStorage.setItem(handoffKey(), JSON.stringify(po)); } catch { /* ignore */ }
+  try {
+    localStorage.setItem(handoffKey(), JSON.stringify(po));
+  } catch {
+    /* ignore */
+  }
 }
 
 /** يقرأ أمر الشراء المُمرَّر من شاشة أمر الشراء (إن وُجد). */
@@ -653,9 +684,11 @@ function allocateRows(
     const cbmCost = cbmBasisUnusable ? pctCost : fin(r.cbm) * cbmPrice + purchaseCost;
     const avgCost = (cbmCost + pctCost) / 2; // متوسط التكلفة (لكرتون)
     const selectedCost =
-      doc.distributionType === "cbm" ? cbmCost :
-      doc.distributionType === "percentage" ? pctCost :
-      avgCost; // "average" and any legacy value (value/qty/avg) fall back to the average
+      doc.distributionType === "cbm"
+        ? cbmCost
+        : doc.distributionType === "percentage"
+          ? pctCost
+          : avgCost; // "average" and any legacy value (value/qty/avg) fall back to the average
     const allocatedExpPerCarton = selectedCost - purchaseCost; // مبلغ المصروف للكرتون
     const linePurchase = cartons * purchaseCost;
     // "إجمالي أمر الشراء" — ما يدفعه التاجر للمورد على هذا السطر، بعملة السطر
@@ -665,9 +698,18 @@ function allocateRows(
     const allocatedExp = allocatedExpPerCarton * cartons;
     const lineTotalCost = selectedCost * cartons;
     return {
-      cartons, purchaseCost, lineCBM, linePurchase, lineInvoiceTotal,
-      cbmCost, pctCost, avgCost, selectedCost,
-      allocatedExpPerCarton, allocatedExp, lineTotalCost,
+      cartons,
+      purchaseCost,
+      lineCBM,
+      linePurchase,
+      lineInvoiceTotal,
+      cbmCost,
+      pctCost,
+      avgCost,
+      selectedCost,
+      allocatedExpPerCarton,
+      allocatedExp,
+      lineTotalCost,
     };
   });
 
@@ -715,8 +757,11 @@ export function computePO(po: PurchaseOrder) {
   // proportional (percentage) basis, which distributes the same expenses correctly.
   const cbmBasisUnusable = totalCBM <= 0 && totalExpenses > 0;
 
-  const { rowMetrics, allocatedExpenses, totalInvoiceAmount } =
-    allocateRows(po, base, { cbmPrice, pctRate, cbmBasisUnusable });
+  const { rowMetrics, allocatedExpenses, totalInvoiceAmount } = allocateRows(po, base, {
+    cbmPrice,
+    pctRate,
+    cbmBasisUnusable,
+  });
 
   // What the per-row distribution ACTUALLY allocated, versus the real cash total.
   // These agree on every automatic basis, but a manually-typed "نسبة المصروفات %"
@@ -727,10 +772,23 @@ export function computePO(po: PurchaseOrder) {
   const allocationBalanced = Math.abs(allocationDiff) < 0.005;
 
   return {
-    totalItems: base.totalItems, totalQty: base.totalQty, totalPurchase,
-    totalCBM, totalCartons: base.totalCartons, totalExpenses,
-    cbmPrice, suggestedPct, pctRate, totalCost, rowMetrics, totalInvoiceAmount,
-    cbmBasisUnusable, allocatedExpenses, allocatedTotal, allocationDiff, allocationBalanced,
+    totalItems: base.totalItems,
+    totalQty: base.totalQty,
+    totalPurchase,
+    totalCBM,
+    totalCartons: base.totalCartons,
+    totalExpenses,
+    cbmPrice,
+    suggestedPct,
+    pctRate,
+    totalCost,
+    rowMetrics,
+    totalInvoiceAmount,
+    cbmBasisUnusable,
+    allocatedExpenses,
+    allocatedTotal,
+    allocationDiff,
+    allocationBalanced,
   };
 }
 
@@ -750,17 +808,29 @@ export function computePR(pr: PurchaseRequest) {
   // إلى الأساس النسبي بدل أن تختفي المصاريف من الأسطر.
   const cbmBasisUnusable = totalCBM <= 0 && cbmPrice > 0;
 
-  const { rowMetrics, allocatedExpenses, totalInvoiceAmount } =
-    allocateRows(pr, base, { cbmPrice, pctRate, cbmBasisUnusable });
+  const { rowMetrics, allocatedExpenses, totalInvoiceAmount } = allocateRows(pr, base, {
+    cbmPrice,
+    pctRate,
+    cbmBasisUnusable,
+  });
 
   const totalExpenses = allocatedExpenses; // مصاريف تقديرية، لا فواتير فعلية
   const totalCost = totalPurchase + totalExpenses;
 
   return {
-    totalItems: base.totalItems, totalQty: base.totalQty, totalPurchase,
-    totalCBM, totalCartons: base.totalCartons, totalExpenses,
-    cbmPrice, pctRate, totalCost, rowMetrics, totalInvoiceAmount,
-    cbmBasisUnusable, allocatedExpenses,
+    totalItems: base.totalItems,
+    totalQty: base.totalQty,
+    totalPurchase,
+    totalCBM,
+    totalCartons: base.totalCartons,
+    totalExpenses,
+    cbmPrice,
+    pctRate,
+    totalCost,
+    rowMetrics,
+    totalInvoiceAmount,
+    cbmBasisUnusable,
+    allocatedExpenses,
   };
 }
 

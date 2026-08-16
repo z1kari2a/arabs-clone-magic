@@ -1,6 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
 import type { Role } from "./erp-types";
-import { localDb, hashPassword, verifyPassword, randomSalt, newId, logAudit, setCurrentScope, type LocalUser } from "./local-db";
+import {
+  localDb,
+  hashPassword,
+  verifyPassword,
+  randomSalt,
+  newId,
+  logAudit,
+  setCurrentScope,
+  type LocalUser,
+} from "./local-db";
 
 // -------- Local authentication (no cloud) --------
 // Session lives in sessionStorage so it survives reloads but not tab close.
@@ -86,7 +95,14 @@ export async function signIn(username: string, password: string): Promise<void> 
   const sess: SessionUser = { id: u.id, username: u.username, fullName: u.fullName, role: u.role };
   writeSession(sess);
   setCurrentScope(u.id);
-  state = { ...state, user: sess, role: sess.role, fullName: sess.fullName, loading: false, needsBootstrap: false };
+  state = {
+    ...state,
+    user: sess,
+    role: sess.role,
+    fullName: sess.fullName,
+    loading: false,
+    needsBootstrap: false,
+  };
   emit();
 }
 
@@ -113,7 +129,7 @@ export async function signUp(opts: {
   const salt = await randomSalt();
   const passwordHash = await hashPassword(opts.password, salt);
   // First user becomes admin automatically
-  const role: Role = isFirstUser ? "admin" : opts.role ?? "user";
+  const role: Role = isFirstUser ? "admin" : (opts.role ?? "user");
   // Self-signups start pending until an admin approves. First user and
   // admin-created users are approved immediately.
   const pending = !isFirstUser && !opts.createdByAdmin;
@@ -145,7 +161,14 @@ export async function signUp(opts: {
 export async function signOut(): Promise<void> {
   writeSession(null);
   setCurrentScope(null);
-  state = { user: null, role: null, fullName: null, loading: false, needsBootstrap: state.needsBootstrap, allowSignup: state.allowSignup };
+  state = {
+    user: null,
+    role: null,
+    fullName: null,
+    loading: false,
+    needsBootstrap: state.needsBootstrap,
+    allowSignup: state.allowSignup,
+  };
   emit();
 }
 

@@ -80,10 +80,7 @@ export const Route = createFileRoute("/api/public/license/heartbeat")({
         }
 
         const now = new Date().toISOString();
-        await supabaseAdmin
-          .from("activations")
-          .update({ last_seen_at: now })
-          .eq("id", act.id);
+        await supabaseAdmin.from("activations").update({ last_seen_at: now }).eq("id", act.id);
         await supabaseAdmin.from("heartbeats").insert({
           activation_id: act.id,
           user_agent: request.headers.get("user-agent")?.slice(0, 200) ?? null,

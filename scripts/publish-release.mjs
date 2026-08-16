@@ -121,7 +121,9 @@ async function refreshShipReadme() {
     .replace(/^(\| الإصدار \| ).*( \|)$/m, `$1${version}$2`)
     .replace(/^(\| SHA-256 \| `).*(` \|)$/m, `$1${sha256}$2`);
   await writeFile(file, text);
-  console.log(`• updated     release/ERP-Desktop-Windows/README.md (sha256 ${sha256.slice(0, 12)}…)`);
+  console.log(
+    `• updated     release/ERP-Desktop-Windows/README.md (sha256 ${sha256.slice(0, 12)}…)`,
+  );
 }
 
 if (DRY_RUN || NO_UPLOAD) {

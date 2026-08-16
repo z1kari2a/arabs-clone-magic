@@ -1,7 +1,13 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { AlertTriangle, Save, FileClock, LogOut, Undo2 } from "lucide-react";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -52,7 +58,10 @@ export function useCloseGuard(opts: CloseGuardOptions) {
     setBusy(true);
     try {
       const ok = await onSave();
-      if (ok === false) { setOpen(false); return; } // الحفظ رفض — تبقى الشاشة
+      if (ok === false) {
+        setOpen(false);
+        return;
+      } // الحفظ رفض — تبقى الشاشة
       leave();
     } finally {
       setBusy(false);
@@ -79,9 +88,14 @@ export function useCloseGuard(opts: CloseGuardOptions) {
           </DialogTitle>
         </DialogHeader>
         <p className="text-sm text-slate-600 leading-6">
-          {dirty
-            ? <>هناك بيانات لم تُحفظ في {title ? <b>{title}</b> : "هذه الشاشة"}. ماذا تريد أن نفعل بها قبل الإغلاق؟</>
-            : <>هل تريد إغلاق {title ? <b>{title}</b> : "هذه الشاشة"} والعودة إلى الشاشة السابقة؟</>}
+          {dirty ? (
+            <>
+              هناك بيانات لم تُحفظ في {title ? <b>{title}</b> : "هذه الشاشة"}. ماذا تريد أن نفعل بها
+              قبل الإغلاق؟
+            </>
+          ) : (
+            <>هل تريد إغلاق {title ? <b>{title}</b> : "هذه الشاشة"} والعودة إلى الشاشة السابقة؟</>
+          )}
         </p>
         <DialogFooter className="flex-col sm:flex-row gap-2">
           {dirty && onSave && (
@@ -94,10 +108,20 @@ export function useCloseGuard(opts: CloseGuardOptions) {
               <FileClock size={14} /> حفظ كمسودّة وإغلاق
             </Button>
           )}
-          <Button onClick={discardAndLeave} disabled={busy} variant={dirty ? "destructive" : "default"} className="gap-1">
+          <Button
+            onClick={discardAndLeave}
+            disabled={busy}
+            variant={dirty ? "destructive" : "default"}
+            className="gap-1"
+          >
             <LogOut size={14} /> {dirty ? "إغلاق بدون حفظ" : "إغلاق"}
           </Button>
-          <Button onClick={() => setOpen(false)} disabled={busy} variant="outline" className="gap-1">
+          <Button
+            onClick={() => setOpen(false)}
+            disabled={busy}
+            variant="outline"
+            className="gap-1"
+          >
             <Undo2 size={14} /> إلغاء
           </Button>
         </DialogFooter>

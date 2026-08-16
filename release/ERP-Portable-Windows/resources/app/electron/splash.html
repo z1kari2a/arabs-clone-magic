@@ -6,8 +6,15 @@
          network dependency and no script: it must paint on the first frame. -->
     <title>ERP</title>
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { height: 100%; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
       body {
         display: flex;
         flex-direction: column;
@@ -34,8 +41,14 @@
         letter-spacing: 1px;
         color: #fff;
       }
-      h1 { font-size: 19px; font-weight: 600; }
-      p { font-size: 12.5px; color: #94a3b8; }
+      h1 {
+        font-size: 19px;
+        font-weight: 600;
+      }
+      p {
+        font-size: 12.5px;
+        color: #94a3b8;
+      }
       .bar {
         width: 190px;
         height: 3px;
@@ -53,8 +66,12 @@
         animation: slide 1.1s ease-in-out infinite;
       }
       @keyframes slide {
-        0%   { transform: translateX(120%); }
-        100% { transform: translateX(-190%); }
+        0% {
+          transform: translateX(120%);
+        }
+        100% {
+          transform: translateX(-190%);
+        }
       }
     </style>
   </head>

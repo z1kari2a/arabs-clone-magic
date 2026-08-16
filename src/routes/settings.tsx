@@ -256,7 +256,10 @@ function SettingsPage() {
   // undoing rate edits made on "أسعار الصرف" (or anywhere else) in the meantime.
   // يُعيد true/false ليعرف حارس الإغلاق هل نجح الحفظ فيُغلق الشاشة.
   const onSave = (): boolean => {
-    if (!mayWrite) { toast.error("ليس لديك صلاحية لتعديل الإعدادات"); return false; }
+    if (!mayWrite) {
+      toast.error("ليس لديك صلاحية لتعديل الإعدادات");
+      return false;
+    }
     const liveCurrencies = settings.currencies ?? [];
     const defaultCurrency = liveCurrencies.some((c) => c.code === local.defaultCurrency)
       ? local.defaultCurrency
@@ -462,8 +465,26 @@ function SettingsPage() {
   // حارس الإغلاق: مقارنة النموذج المحلي بالمحفوظ فعلاً — الحقول التي تحفظها
   // هذه الشاشة وحدها، حتى لا يُحسب تغيّر سعر صرف من شاشة أخرى «تعديلاً معلّقاً».
   const settingsDirty =
-    JSON.stringify([local.companyName, local.fiscalYear, local.defaultCurrency, local.language, local.priceTiers, local.appName ?? "", local.appIcon ?? "", local.company ?? {}]) !==
-    JSON.stringify([settings.companyName, settings.fiscalYear, settings.defaultCurrency, settings.language, settings.priceTiers, settings.appName ?? "", settings.appIcon ?? "", settings.company ?? {}]);
+    JSON.stringify([
+      local.companyName,
+      local.fiscalYear,
+      local.defaultCurrency,
+      local.language,
+      local.priceTiers,
+      local.appName ?? "",
+      local.appIcon ?? "",
+      local.company ?? {},
+    ]) !==
+    JSON.stringify([
+      settings.companyName,
+      settings.fiscalYear,
+      settings.defaultCurrency,
+      settings.language,
+      settings.priceTiers,
+      settings.appName ?? "",
+      settings.appIcon ?? "",
+      settings.company ?? {},
+    ]);
   const closeGuard = useCloseGuard({
     dirty: settingsDirty && mayWrite,
     title: "الإعدادات",
@@ -481,7 +502,13 @@ function SettingsPage() {
     { icon: Printer, label: "طباعة", color: "text-slate-600", onClick: onPrint },
     // معطّل عمداً: لا شيء في الإعدادات يُستورد من Excel — الزر يبقى في مكانه حفاظاً على ترتيب الشريط
     // الموحّد (Ribbon.STANDARD_ORDER)، لكنه لا يوهم بأنه يعمل.
-    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: noop, disabled: true },
+    {
+      icon: FileSpreadsheet,
+      label: "استيراد Excel",
+      color: "text-green-600",
+      onClick: noop,
+      disabled: true,
+    },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: noop },
     {
       icon: CheckCircle2,
@@ -490,7 +517,13 @@ function SettingsPage() {
       onClick: onSave,
       disabled: !mayWrite,
     },
-    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
+    {
+      icon: X,
+      label: "إغلاق",
+      hint: "Esc",
+      color: "text-rose-600",
+      onClick: closeGuard.requestClose,
+    },
   ];
 
   return (

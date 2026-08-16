@@ -21,7 +21,9 @@ export default function Ribbon({ actions }: { actions: RibbonAction[] }) {
           className="group flex flex-col items-center justify-center px-2.5 py-1 min-w-[68px] rounded border border-transparent hover:bg-blue-50 hover:border-blue-200 active:bg-blue-100 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:border-transparent"
         >
           <a.icon size={26} className={a.color} strokeWidth={1.6} />
-          <span className="text-[11px] mt-0.5 text-slate-700 whitespace-nowrap font-medium">{a.label}</span>
+          <span className="text-[11px] mt-0.5 text-slate-700 whitespace-nowrap font-medium">
+            {a.label}
+          </span>
           {a.hint && <span className="text-[9px] text-slate-400 leading-none">{a.hint}</span>}
         </button>
       ))}

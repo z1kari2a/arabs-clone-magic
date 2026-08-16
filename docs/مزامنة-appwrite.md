@@ -14,14 +14,14 @@ cp .env.appwrite.example .env.appwrite
 
 ثم افتح `.env.appwrite` وضع القيم:
 
-| المتغير | الوصف |
-|---|---|
-| `APPWRITE_ENDPOINT` | `https://nyc.cloud.appwrite.io/v1` |
-| `APPWRITE_PROJECT_ID` | معرّف المشروع |
-| `APPWRITE_DATABASE_ID` | معرّف قاعدة البيانات |
-| `APPWRITE_API_KEY` | مفتاح API — **مطلوب** |
-| `APPWRITE_SQLITE_PATH` | اختياري: مسار `erp.db` (يُكتشف تلقائياً) |
-| `APPWRITE_SYNC_SCOPE` | اختياري: اسم الجهاز/العميل (الافتراضي `default`) |
+| المتغير                | الوصف                                            |
+| ---------------------- | ------------------------------------------------ |
+| `APPWRITE_ENDPOINT`    | `https://nyc.cloud.appwrite.io/v1`               |
+| `APPWRITE_PROJECT_ID`  | معرّف المشروع                                    |
+| `APPWRITE_DATABASE_ID` | معرّف قاعدة البيانات                             |
+| `APPWRITE_API_KEY`     | مفتاح API — **مطلوب**                            |
+| `APPWRITE_SQLITE_PATH` | اختياري: مسار `erp.db` (يُكتشف تلقائياً)         |
+| `APPWRITE_SYNC_SCOPE`  | اختياري: اسم الجهاز/العميل (الافتراضي `default`) |
 
 المفتاح يحتاج الصلاحيات: `databases.*`, `collections.*`, `attributes.*`, `indexes.*`, `documents.*`.
 
@@ -42,19 +42,19 @@ npm run appwrite:schema         # الإنشاء الفعلي
 
 ### الجداول المُنشأة (15 مجموعة)
 
-| المجموعة | المصدر | تُزامَن؟ |
-|---|---|---|
-| `suppliers` | `supabase/migrations` | ✅ |
-| `items` | `supabase/migrations` | ✅ |
-| `purchase_orders` | `supabase/migrations` | ✅ |
-| `po_rows` | `supabase/migrations` | ✅ (تابعة لأمر الشراء) |
-| `po_expenses` | `supabase/migrations` | ✅ (تابعة لأمر الشراء) |
-| `purchase_requests` | التطبيق فقط | ✅ |
-| `purchase_request_rows` | التطبيق فقط | ✅ (تابعة للطلب) |
-| `audit_log` | `supabase/migrations` | ✅ |
-| `profiles`, `user_roles` | `supabase/migrations` | ❌ |
-| `licenses`, `activations`, `app_bundles`, `heartbeats` | `supabase/migrations` | ❌ |
-| `erp_backups` | `supabase/migrations` | ❌ |
+| المجموعة                                               | المصدر                | تُزامَن؟               |
+| ------------------------------------------------------ | --------------------- | ---------------------- |
+| `suppliers`                                            | `supabase/migrations` | ✅                     |
+| `items`                                                | `supabase/migrations` | ✅                     |
+| `purchase_orders`                                      | `supabase/migrations` | ✅                     |
+| `po_rows`                                              | `supabase/migrations` | ✅ (تابعة لأمر الشراء) |
+| `po_expenses`                                          | `supabase/migrations` | ✅ (تابعة لأمر الشراء) |
+| `purchase_requests`                                    | التطبيق فقط           | ✅                     |
+| `purchase_request_rows`                                | التطبيق فقط           | ✅ (تابعة للطلب)       |
+| `audit_log`                                            | `supabase/migrations` | ✅                     |
+| `profiles`, `user_roles`                               | `supabase/migrations` | ❌                     |
+| `licenses`, `activations`, `app_bundles`, `heartbeats` | `supabase/migrations` | ❌                     |
+| `erp_backups`                                          | `supabase/migrations` | ❌                     |
 
 ---
 

@@ -121,7 +121,9 @@ function openDatabase() {
       detail:
         (result.backend === "json"
           ? "تعذّر تشغيل محرّك SQLite على هذا الجهاز، فتم تخزين البيانات في ملف عادي. البرنامج يعمل بشكل كامل، لكن يُنصح بإعادة التثبيت.\n\n"
-          : "") + (result.error ?? "") + `\n\nملف البيانات: ${db.dbPath()}`,
+          : "") +
+        (result.error ?? "") +
+        `\n\nملف البيانات: ${db.dbPath()}`,
     };
   }
 }
@@ -243,7 +245,8 @@ function loadBranding() {
     const saved = JSON.parse(fs.readFileSync(brandingPath(), "utf8"));
     return {
       name: typeof saved?.name === "string" && saved.name.trim() ? saved.name.trim() : null,
-      icon: typeof saved?.icon === "string" && saved.icon.startsWith("data:image/") ? saved.icon : null,
+      icon:
+        typeof saved?.icon === "string" && saved.icon.startsWith("data:image/") ? saved.icon : null,
     };
   } catch {
     return { name: null, icon: null };

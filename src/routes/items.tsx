@@ -2,7 +2,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, Package } from "lucide-react";
+import {
+  FilePlus2,
+  FolderOpen,
+  Save,
+  Pencil,
+  Trash2,
+  Search,
+  Printer,
+  FileSpreadsheet,
+  Download,
+  CheckCircle2,
+  X,
+  Package,
+} from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { useCloseGuard } from "@/components/erp/CloseGuard";
@@ -50,8 +63,15 @@ function ItemsPage() {
     if (!editing) setList(items);
   }, [items, editing]);
 
-  const filtered = list.filter((it) => !search || it.name.includes(search) || it.code.includes(search) || it.barcode.includes(search));
-  const patch = (i: number, p: Partial<Item>) => setList(list.map((it, idx) => (idx === i ? { ...it, ...p } : it)));
+  const filtered = list.filter(
+    (it) =>
+      !search ||
+      it.name.includes(search) ||
+      it.code.includes(search) ||
+      it.barcode.includes(search),
+  );
+  const patch = (i: number, p: Partial<Item>) =>
+    setList(list.map((it, idx) => (idx === i ? { ...it, ...p } : it)));
 
   const onNew = () => {
     if (!mayWrite) return toast.error("ليس لديك صلاحية لهذا الإجراء");
@@ -63,17 +83,40 @@ function ItemsPage() {
       const m = /^MOD-(\d+)$/.exec(it.code);
       if (m) max = Math.max(max, Number(m[1]));
     }
-    setList([...list, { code: `MOD-${max + 1}`, name: "", barcode: "", units: [{ name: "حبة", pack: 1, lastPrice: 0 }], cbmPerCarton: 0, lastCost: 0, currency: defaultCurrency }]);
+    setList([
+      ...list,
+      {
+        code: `MOD-${max + 1}`,
+        name: "",
+        barcode: "",
+        units: [{ name: "حبة", pack: 1, lastPrice: 0 }],
+        cbmPerCarton: 0,
+        lastCost: 0,
+        currency: defaultCurrency,
+      },
+    ]);
     setEditing(true);
   };
   // يُعيد true/false ليعرف حارس الإغلاق هل نجح الحفظ فيُغلق الشاشة.
   const onSave = (): boolean => {
-    if (!mayWrite) { toast.error("ليس لديك صلاحية لهذا الإجراء"); return false; }
-    if (!hydrated) { toast.error("لم يكتمل تحميل البيانات بعد — انتظر لحظة ثم احفظ"); return false; }
+    if (!mayWrite) {
+      toast.error("ليس لديك صلاحية لهذا الإجراء");
+      return false;
+    }
+    if (!hydrated) {
+      toast.error("لم يكتمل تحميل البيانات بعد — انتظر لحظة ثم احفظ");
+      return false;
+    }
     const codes = new Set<string>();
     for (const it of list) {
-      if (!it.code.trim()) { toast.error("يوجد صنف بدون موديل"); return false; }
-      if (codes.has(it.code)) { toast.error(`موديل مكرر: ${it.code}`); return false; }
+      if (!it.code.trim()) {
+        toast.error("يوجد صنف بدون موديل");
+        return false;
+      }
+      if (codes.has(it.code)) {
+        toast.error(`موديل مكرر: ${it.code}`);
+        return false;
+      }
       codes.add(it.code);
     }
     erpStore.set({ items: list });
@@ -89,8 +132,21 @@ function ItemsPage() {
     toast.info("تم الحذف من القائمة — اضغط «حفظ» لتثبيته");
   };
   const onExport = () => {
-    const ws = XLSX.utils.json_to_sheet(list.map((i) => ({ "الموديل": i.code, "اسم الصنف": i.name, "الباركود": i.barcode, "الوحدة": i.units[0]?.name, "العبوة": i.units[0]?.pack, "آخر سعر": i.units[0]?.lastPrice, "العملة": i.currency ?? defaultCurrency, "CBM": i.cbmPerCarton, "آخر تكلفة (USD)": i.lastCost })));
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Items");
+    const ws = XLSX.utils.json_to_sheet(
+      list.map((i) => ({
+        الموديل: i.code,
+        "اسم الصنف": i.name,
+        الباركود: i.barcode,
+        الوحدة: i.units[0]?.name,
+        العبوة: i.units[0]?.pack,
+        "آخر سعر": i.units[0]?.lastPrice,
+        العملة: i.currency ?? defaultCurrency,
+        CBM: i.cbmPerCarton,
+        "آخر تكلفة (USD)": i.lastCost,
+      })),
+    );
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Items");
     XLSX.writeFile(wb, "items.xlsx");
   };
 
@@ -118,10 +174,15 @@ function ItemsPage() {
     if (!data.length) return toast.error("الملف فارغ — لا توجد أسطر لاستيرادها");
 
     const next = [...list];
-    let added = 0, updated = 0, skipped = 0;
+    let added = 0,
+      updated = 0,
+      skipped = 0;
     for (const row of data) {
       const code = String(cell(row, "الموديل", "model", "code") ?? "").trim();
-      if (!code) { skipped++; continue; }
+      if (!code) {
+        skipped++;
+        continue;
+      }
       const name = cell(row, "اسم الصنف", "name");
       const barcode = cell(row, "الباركود", "barcode");
       const unit = cell(row, "الوحدة", "unit");
@@ -131,7 +192,9 @@ function ItemsPage() {
       const cost = cell(row, "آخر تكلفة (USD)", "lastCost");
       // عملة غير موجودة في جدول العملات تُتجاهل: تخزينها يجعل كل حساب يقع على
       // سعر صرف 0 (انظر costingBase) فتخرج التكاليف أصفاراً.
-      const cur = String(cell(row, "العملة", "currency") ?? "").trim().toUpperCase();
+      const cur = String(cell(row, "العملة", "currency") ?? "")
+        .trim()
+        .toUpperCase();
       const currency = currencies.some((c) => c.code === cur) ? cur : undefined;
 
       const at = next.findIndex((it) => it.code === code);
@@ -154,7 +217,11 @@ function ItemsPage() {
           name: name === undefined ? prev.name : String(name),
           barcode: barcode === undefined ? prev.barcode : String(barcode),
           units: [
-            { name: unit === undefined ? u0.name : String(unit), pack: num(pack, u0.pack), lastPrice: num(price, u0.lastPrice) },
+            {
+              name: unit === undefined ? u0.name : String(unit),
+              pack: num(pack, u0.pack),
+              lastPrice: num(price, u0.lastPrice),
+            },
             ...prev.units.slice(1),
           ],
           cbmPerCarton: num(cbm, prev.cbmPerCarton),
@@ -184,28 +251,99 @@ function ItemsPage() {
   });
 
   const actions = [
-    { icon: FilePlus2, label: "جديد", color: "text-emerald-600", onClick: onNew, disabled: !mayWrite },
+    {
+      icon: FilePlus2,
+      label: "جديد",
+      color: "text-emerald-600",
+      onClick: onNew,
+      disabled: !mayWrite,
+    },
     { icon: FolderOpen, label: "فتح", color: "text-amber-500", onClick: noop },
     { icon: Save, label: "حفظ", color: "text-blue-600", onClick: onSave, disabled: !mayWrite },
-    { icon: Pencil, label: "تعديل", color: "text-cyan-600", onClick: () => (mayWrite ? setEditing(true) : toast.error("ليس لديك صلاحية لهذا الإجراء")), disabled: !mayWrite },
-    { icon: Trash2, label: "حذف", color: "text-rose-600", onClick: () => toast.info("استخدم زر الحذف في نهاية سطر الصنف") },
-    { icon: Search, label: "بحث", color: "text-indigo-500", onClick: () => document.getElementById("it-search")?.focus() },
+    {
+      icon: Pencil,
+      label: "تعديل",
+      color: "text-cyan-600",
+      onClick: () => (mayWrite ? setEditing(true) : toast.error("ليس لديك صلاحية لهذا الإجراء")),
+      disabled: !mayWrite,
+    },
+    {
+      icon: Trash2,
+      label: "حذف",
+      color: "text-rose-600",
+      onClick: () => toast.info("استخدم زر الحذف في نهاية سطر الصنف"),
+    },
+    {
+      icon: Search,
+      label: "بحث",
+      color: "text-indigo-500",
+      onClick: () => document.getElementById("it-search")?.focus(),
+    },
     { icon: Printer, label: "طباعة", color: "text-slate-600", onClick: () => window.print() },
-    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled: !mayWrite },
+    {
+      icon: FileSpreadsheet,
+      label: "استيراد Excel",
+      color: "text-green-600",
+      onClick: onImport,
+      disabled: !mayWrite,
+    },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
-    { icon: CheckCircle2, label: "اعتماد", color: "text-emerald-700", onClick: onSave, disabled: !mayWrite },
-    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
+    {
+      icon: CheckCircle2,
+      label: "اعتماد",
+      color: "text-emerald-700",
+      onClick: onSave,
+      disabled: !mayWrite,
+    },
+    {
+      icon: X,
+      label: "إغلاق",
+      hint: "Esc",
+      color: "text-rose-600",
+      onClick: closeGuard.requestClose,
+    },
   ];
 
   return (
     <ErpLayout title="دليل الأصناف" ribbon={<Ribbon actions={actions} />}>
-      <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={onFile} className="hidden" />
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        onChange={onFile}
+        className="hidden"
+      />
       <div className="bg-white border border-slate-300 rounded">
-        <div className="flex items-center justify-between px-3 py-2 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
-          <div className="flex items-center gap-2 font-semibold text-slate-700"><Package size={16} /> الأصناف ({filtered.length})</div>
-          <input id="it-search" placeholder="بحث بالموديل أو الباركود أو الاسم..." value={search} onChange={(e) => setSearch(e.target.value)} className="px-2 py-1 text-xs border border-slate-300 rounded w-72 text-right" />
+        <div
+          className="flex items-center justify-between px-3 py-2 border-b border-slate-300"
+          style={{ background: "var(--color-erp-panel-header)" }}
+        >
+          <div className="flex items-center gap-2 font-semibold text-slate-700">
+            <Package size={16} /> الأصناف ({filtered.length})
+          </div>
+          <input
+            id="it-search"
+            placeholder="بحث بالموديل أو الباركود أو الاسم..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="px-2 py-1 text-xs border border-slate-300 rounded w-72 text-right"
+          />
         </div>
-        <ErpTable headers={["م","الموديل","اسم الصنف","الباركود","الوحدة","العبوة","آخر سعر","العملة","CBM الكرتون","آخر تكلفة (USD)","حذف"]}>
+        <ErpTable
+          headers={[
+            "م",
+            "الموديل",
+            "اسم الصنف",
+            "الباركود",
+            "الوحدة",
+            "العبوة",
+            "آخر سعر",
+            "العملة",
+            "CBM الكرتون",
+            "آخر تكلفة (USD)",
+            "حذف",
+          ]}
+        >
           {filtered.map((it, i) => {
             const idx = list.indexOf(it);
             const u0 = it.units[0] ?? { name: "حبة", pack: 1, lastPrice: 0 };
@@ -213,12 +351,36 @@ function ItemsPage() {
             return (
               <tr key={it.code + i} className="hover:bg-blue-50/40">
                 <td className="border border-slate-200 text-center">{i + 1}</td>
-                <Cell value={it.code} onChange={(v) => patch(idx, { code: v })} disabled={!canEditRow} />
-                <Cell value={it.name} onChange={(v) => patch(idx, { name: v })} disabled={!canEditRow} align="right" />
-                <Cell value={it.barcode} onChange={(v) => patch(idx, { barcode: v })} disabled={!canEditRow} />
-                <Cell value={u0.name} onChange={(v) => patch(idx, { units: [{ ...u0, name: v }] })} disabled={!canEditRow} />
-                <Cell value={u0.pack} onChange={(v) => patch(idx, { units: [{ ...u0, pack: parseDecimal(v) }] })} disabled={!canEditRow} align="right" />
-                <td className="border border-slate-200 text-right px-2 bg-slate-50">{fmt(u0.lastPrice)}</td>
+                <Cell
+                  value={it.code}
+                  onChange={(v) => patch(idx, { code: v })}
+                  disabled={!canEditRow}
+                />
+                <Cell
+                  value={it.name}
+                  onChange={(v) => patch(idx, { name: v })}
+                  disabled={!canEditRow}
+                  align="right"
+                />
+                <Cell
+                  value={it.barcode}
+                  onChange={(v) => patch(idx, { barcode: v })}
+                  disabled={!canEditRow}
+                />
+                <Cell
+                  value={u0.name}
+                  onChange={(v) => patch(idx, { units: [{ ...u0, name: v }] })}
+                  disabled={!canEditRow}
+                />
+                <Cell
+                  value={u0.pack}
+                  onChange={(v) => patch(idx, { units: [{ ...u0, pack: parseDecimal(v) }] })}
+                  disabled={!canEditRow}
+                  align="right"
+                />
+                <td className="border border-slate-200 text-right px-2 bg-slate-50">
+                  {fmt(u0.lastPrice)}
+                </td>
                 <td className="border border-slate-200 p-0">
                   <select
                     value={cur}
@@ -227,14 +389,28 @@ function ItemsPage() {
                     className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none text-center"
                   >
                     {currencies.map((c) => (
-                      <option key={c.code} value={c.code}>{c.code}</option>
+                      <option key={c.code} value={c.code}>
+                        {c.code}
+                      </option>
                     ))}
                   </select>
                 </td>
-                <Cell value={it.cbmPerCarton} onChange={(v) => patch(idx, { cbmPerCarton: parseDecimal(v) })} disabled={!canEditRow} align="right" />
-                <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold">{fmt(it.lastCost, 4)}</td>
+                <Cell
+                  value={it.cbmPerCarton}
+                  onChange={(v) => patch(idx, { cbmPerCarton: parseDecimal(v) })}
+                  disabled={!canEditRow}
+                  align="right"
+                />
+                <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold">
+                  {fmt(it.lastCost, 4)}
+                </td>
                 <td className="border border-slate-200 text-center">
-                  <button onClick={() => onDelete(idx)} disabled={!mayDelete} title={mayDelete ? "حذف الصنف" : "الحذف يتطلب صلاحية مدير"} className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-30">
+                  <button
+                    onClick={() => onDelete(idx)}
+                    disabled={!mayDelete}
+                    title={mayDelete ? "حذف الصنف" : "الحذف يتطلب صلاحية مدير"}
+                    className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-30"
+                  >
                     <Trash2 size={12} />
                   </button>
                 </td>

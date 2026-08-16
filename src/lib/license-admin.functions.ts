@@ -19,11 +19,15 @@ export const listLicenses = createServerFn({ method: "GET" })
     const [{ data: licenses }, { data: activations }] = await Promise.all([
       supabaseAdmin
         .from("licenses")
-        .select("id, code, license_type, expires_at, max_devices, active, notes, customer_name, created_at")
+        .select(
+          "id, code, license_type, expires_at, max_devices, active, notes, customer_name, created_at",
+        )
         .order("created_at", { ascending: false }),
       supabaseAdmin
         .from("activations")
-        .select("id, license_id, machine_fingerprint, device_name, last_seen_at, revoked, activated_at")
+        .select(
+          "id, license_id, machine_fingerprint, device_name, last_seen_at, revoked, activated_at",
+        )
         .order("activated_at", { ascending: false }),
     ]);
     return { licenses: licenses ?? [], activations: activations ?? [] };

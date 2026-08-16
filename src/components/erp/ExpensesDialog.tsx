@@ -38,7 +38,12 @@ export default function ExpensesDialog({
   const [showTypes, setShowTypes] = useState(false);
 
   // Reset when reopened
-  useMemo(() => { if (open) { setRows(expenses); setTypes(expenseTypes); } }, [open]); // eslint-disable-line
+  useMemo(() => {
+    if (open) {
+      setRows(expenses);
+      setTypes(expenseTypes);
+    }
+  }, [open]); // eslint-disable-line
 
   const rateOf = (code: string) => currencies.find((c) => c.code === code)?.rate ?? 0;
   // Base currency = USD, same convention as the "أسعار الصرف" screen: `rate` =
@@ -62,10 +67,17 @@ export default function ExpensesDialog({
   const nextId = () => (rows.at(-1)?.id ?? 0) + 1;
 
   const addRow = () =>
-    setRows([...rows, {
-      id: nextId(), type: "", note: "", currency: invoiceCurrency,
-      amount: 0, rate: rateOf(invoiceCurrency),
-    }]);
+    setRows([
+      ...rows,
+      {
+        id: nextId(),
+        type: "",
+        note: "",
+        currency: invoiceCurrency,
+        amount: 0,
+        rate: rateOf(invoiceCurrency),
+      },
+    ]);
 
   const patch = (id: number, p: Partial<Expense>) =>
     setRows(rows.map((r) => (r.id === id ? { ...r, ...p } : r)));
@@ -111,7 +123,10 @@ export default function ExpensesDialog({
       <DialogContent dir="rtl" className="max-w-5xl p-0 gap-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-white">
-          <button onClick={() => onOpenChange(false)} className="text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded p-1">
+          <button
+            onClick={() => onOpenChange(false)}
+            className="text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded p-1"
+          >
             <X size={20} />
           </button>
           <div className="flex items-center gap-2">
@@ -145,7 +160,10 @@ export default function ExpensesDialog({
                 <th className="text-right py-2 px-2 font-medium">العملة</th>
                 <th className="text-right py-2 px-2 font-medium">المبلغ</th>
                 <th className="text-right py-2 px-2 font-medium">
-                  سعر الصرف <span dir="ltr" className="inline-block">(1 USD =)</span>
+                  سعر الصرف{" "}
+                  <span dir="ltr" className="inline-block">
+                    (1 USD =)
+                  </span>
                 </th>
                 <th className="text-right py-2 px-2 font-medium">بالدولار (USD)</th>
                 <th className="w-12"></th>
@@ -162,18 +180,28 @@ export default function ExpensesDialog({
                       className="w-40 px-2 py-1.5 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:border-slate-400 text-right"
                     >
                       <option value="">اختر البيان</option>
-                      {types.map((t) => <option key={t} value={t}>{t}</option>)}
+                      {types.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
                     </select>
                   </td>
                   <td className="py-2 px-2">
                     <select
                       value={e.currency}
                       disabled={disabled}
-                      onChange={(ev) => patch(e.id, { currency: ev.target.value, rate: rateOf(ev.target.value) })}
+                      onChange={(ev) =>
+                        patch(e.id, { currency: ev.target.value, rate: rateOf(ev.target.value) })
+                      }
                       className="w-28 px-2 py-1.5 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:border-slate-400"
                     >
                       <option value="">اختر عملة</option>
-                      {currencies.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                      {currencies.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.code}
+                        </option>
+                      ))}
                     </select>
                   </td>
                   <td className="py-2 px-2">
@@ -197,8 +225,12 @@ export default function ExpensesDialog({
                     </div>
                   </td>
                   <td className="py-2 px-2 text-center">
-                    <button onClick={() => remove(e.id)} disabled={disabled}
-                      className="text-rose-500 hover:bg-rose-50 p-1.5 rounded disabled:opacity-40" title="حذف">
+                    <button
+                      onClick={() => remove(e.id)}
+                      disabled={disabled}
+                      className="text-rose-500 hover:bg-rose-50 p-1.5 rounded disabled:opacity-40"
+                      title="حذف"
+                    >
                       <Trash2 size={16} />
                     </button>
                   </td>
@@ -207,8 +239,11 @@ export default function ExpensesDialog({
               {/* Add row */}
               <tr>
                 <td colSpan={6} className="py-2 px-2">
-                  <button onClick={addRow} disabled={disabled}
-                    className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-slate-300 rounded-md text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/40 disabled:opacity-40">
+                  <button
+                    onClick={addRow}
+                    disabled={disabled}
+                    className="w-full flex items-center justify-center gap-2 py-2 border-2 border-dashed border-slate-300 rounded-md text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/40 disabled:opacity-40"
+                  >
                     <Plus size={16} /> إضافة بند مصروف
                   </button>
                 </td>
@@ -218,8 +253,10 @@ export default function ExpensesDialog({
 
           {/* Expense types manager */}
           <div className="mt-3 border border-slate-200 rounded-md">
-            <button onClick={() => setShowTypes((v) => !v)}
-              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+            <button
+              onClick={() => setShowTypes((v) => !v)}
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            >
               <span>{showTypes ? "▲" : "▼"}</span>
               <span>إدارة أنواع المصروفات ({types.length})</span>
             </button>
@@ -227,18 +264,37 @@ export default function ExpensesDialog({
               <div className="p-3 border-t border-slate-200 space-y-2">
                 <div className="flex flex-wrap gap-1.5">
                   {types.map((t) => (
-                    <span key={t} className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 border border-slate-200 rounded-full text-xs">
+                    <span
+                      key={t}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 border border-slate-200 rounded-full text-xs"
+                    >
                       {t}
-                      <button onClick={() => removeType(t)} className="text-rose-500 hover:text-rose-700"><X size={12} /></button>
+                      <button
+                        onClick={() => removeType(t)}
+                        className="text-rose-500 hover:text-rose-700"
+                      >
+                        <X size={12} />
+                      </button>
                     </span>
                   ))}
                 </div>
                 <div className="flex gap-1">
-                  <input value={newType} onChange={(e) => setNewType(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addType(); } }}
+                  <input
+                    value={newType}
+                    onChange={(e) => setNewType(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addType();
+                      }
+                    }}
                     placeholder="نوع مصروف جديد (مثل: ضرائب، رسوم)..."
-                    className="flex-1 px-3 py-1.5 border border-slate-300 rounded-md text-sm focus:outline-none focus:border-slate-400 text-right" />
-                  <button onClick={addType} className="px-3 py-1.5 bg-emerald-600 text-white rounded-md text-sm hover:bg-emerald-700 flex items-center gap-1">
+                    className="flex-1 px-3 py-1.5 border border-slate-300 rounded-md text-sm focus:outline-none focus:border-slate-400 text-right"
+                  />
+                  <button
+                    onClick={addType}
+                    className="px-3 py-1.5 bg-emerald-600 text-white rounded-md text-sm hover:bg-emerald-700 flex items-center gap-1"
+                  >
                     <Plus size={14} /> إضافة
                   </button>
                 </div>
@@ -249,17 +305,25 @@ export default function ExpensesDialog({
 
         {/* Footer */}
         <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200 bg-white">
-          <button onClick={refreshRates} disabled={disabled}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-40">
+          <button
+            onClick={refreshRates}
+            disabled={disabled}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-40"
+          >
             <RefreshCw size={14} /> تحديث أسعار الصرف
           </button>
           <div className="flex gap-2">
-            <button onClick={() => onOpenChange(false)}
-              className="px-5 py-2 text-sm text-slate-700 border border-slate-300 rounded-md hover:bg-slate-50">
+            <button
+              onClick={() => onOpenChange(false)}
+              className="px-5 py-2 text-sm text-slate-700 border border-slate-300 rounded-md hover:bg-slate-50"
+            >
               إلغاء
             </button>
-            <button onClick={save} disabled={disabled}
-              className="px-6 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-40 flex items-center gap-1.5 font-semibold">
+            <button
+              onClick={save}
+              disabled={disabled}
+              className="px-6 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-40 flex items-center gap-1.5 font-semibold"
+            >
               <Check size={15} /> حفظ
             </button>
           </div>
@@ -270,8 +334,14 @@ export default function ExpensesDialog({
 }
 
 function AmountInput({
-  value, onChange, disabled,
-}: { value: number; onChange: (n: number) => void; disabled?: boolean }) {
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  disabled?: boolean;
+}) {
   const buf = useNumericBuffer(value || "", true);
   return (
     <input
@@ -283,7 +353,11 @@ function AmountInput({
       onBlur={buf.onBlur}
       onChange={(e) => {
         const v = e.target.value;
-        if (v !== "" && !/^-?[\d\u0660-\u0669\u06F0-\u06F9]*[.,،\u066B]?[\d\u0660-\u0669\u06F0-\u06F9]*$/.test(v)) return;
+        if (
+          v !== "" &&
+          !/^-?[\d\u0660-\u0669\u06F0-\u06F9]*[.,،\u066B]?[\d\u0660-\u0669\u06F0-\u06F9]*$/.test(v)
+        )
+          return;
         buf.setText(v);
         onChange(parseDecimal(v));
       }}
@@ -294,8 +368,16 @@ function AmountInput({
 }
 
 function RateInput({
-  value, onChange, disabled, title,
-}: { value: number; onChange: (n: number) => void; disabled?: boolean; title?: string }) {
+  value,
+  onChange,
+  disabled,
+  title,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  disabled?: boolean;
+  title?: string;
+}) {
   const buf = useNumericBuffer(value || "", true);
   return (
     <input
@@ -308,7 +390,11 @@ function RateInput({
       onBlur={buf.onBlur}
       onChange={(e) => {
         const v = e.target.value;
-        if (v !== "" && !/^-?[\d\u0660-\u0669\u06F0-\u06F9]*[.,،\u066B]?[\d\u0660-\u0669\u06F0-\u06F9]*$/.test(v)) return;
+        if (
+          v !== "" &&
+          !/^-?[\d\u0660-\u0669\u06F0-\u06F9]*[.,،\u066B]?[\d\u0660-\u0669\u06F0-\u06F9]*$/.test(v)
+        )
+          return;
         buf.setText(v);
         onChange(parseDecimal(v));
       }}

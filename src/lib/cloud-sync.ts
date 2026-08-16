@@ -53,14 +53,16 @@ async function credentials(): Promise<{ session_token: string; fingerprint: stri
 }
 
 async function collectPayload(): Promise<BackupPayload> {
-  const [suppliers, items, purchase_orders, purchase_requests, users, settings] = await Promise.all([
-    localDb.suppliers.list(),
-    localDb.items.list(),
-    localDb.purchaseOrders.list(),
-    localDb.purchaseRequests.list(),
-    localDb.users.list(),
-    localDb.settings.get(),
-  ]);
+  const [suppliers, items, purchase_orders, purchase_requests, users, settings] = await Promise.all(
+    [
+      localDb.suppliers.list(),
+      localDb.items.list(),
+      localDb.purchaseOrders.list(),
+      localDb.purchaseRequests.list(),
+      localDb.users.list(),
+      localDb.settings.get(),
+    ],
+  );
   return { suppliers, items, purchase_orders, purchase_requests, users, settings };
 }
 
@@ -106,9 +108,13 @@ export function scheduleCloudBackup(): void {
   // network at all — and a blocked or hanging request is a stall the user sees.
   if (!window.erpLicense) return;
   if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => { void pushCloudBackup(); }, DEBOUNCE_MS);
+  debounceTimer = setTimeout(() => {
+    void pushCloudBackup();
+  }, DEBOUNCE_MS);
   if (!fallbackTimer) {
-    fallbackTimer = setInterval(() => { void pushCloudBackup(); }, FALLBACK_INTERVAL_MS);
+    fallbackTimer = setInterval(() => {
+      void pushCloudBackup();
+    }, FALLBACK_INTERVAL_MS);
   }
 }
 
@@ -133,10 +139,18 @@ export async function restoreFromCloudBackup(payload: BackupPayload): Promise<vo
   // restored with exactly ONE record. Writing the array in a single call makes
   // the restore both correct and atomic.
   await Promise.all([
-    localDb.suppliers.replaceAll((payload.suppliers ?? []) as Parameters<typeof localDb.suppliers.replaceAll>[0]),
-    localDb.items.replaceAll((payload.items ?? []) as Parameters<typeof localDb.items.replaceAll>[0]),
-    localDb.purchaseOrders.replaceAll((payload.purchase_orders ?? []) as Parameters<typeof localDb.purchaseOrders.replaceAll>[0]),
-    localDb.users.replaceAll((payload.users ?? []) as Parameters<typeof localDb.users.replaceAll>[0]),
+    localDb.suppliers.replaceAll(
+      (payload.suppliers ?? []) as Parameters<typeof localDb.suppliers.replaceAll>[0],
+    ),
+    localDb.items.replaceAll(
+      (payload.items ?? []) as Parameters<typeof localDb.items.replaceAll>[0],
+    ),
+    localDb.purchaseOrders.replaceAll(
+      (payload.purchase_orders ?? []) as Parameters<typeof localDb.purchaseOrders.replaceAll>[0],
+    ),
+    localDb.users.replaceAll(
+      (payload.users ?? []) as Parameters<typeof localDb.users.replaceAll>[0],
+    ),
   ]);
   // نسخة سحابية أُخذت قبل إضافة «طلبات الشراء» لا تحوي المفتاح أصلاً — نتركه كما
   // هو محلياً بدل أن نمسح طلبات موجودة باستعادة لقطة أقدم من الميزة نفسها.
@@ -145,5 +159,6 @@ export async function restoreFromCloudBackup(payload: BackupPayload): Promise<vo
       payload.purchase_requests as Parameters<typeof localDb.purchaseRequests.replaceAll>[0],
     );
   }
-  if (payload.settings) await localDb.settings.set(payload.settings as Parameters<typeof localDb.settings.set>[0]);
+  if (payload.settings)
+    await localDb.settings.set(payload.settings as Parameters<typeof localDb.settings.set>[0]);
 }

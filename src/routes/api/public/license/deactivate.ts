@@ -19,11 +19,17 @@ export const Route = createFileRoute("/api/public/license/deactivate")({
         try {
           body = await request.json();
         } catch {
-          return new Response(JSON.stringify({ ok: false, error: "invalid_json" }), { status: 400, headers: cors });
+          return new Response(JSON.stringify({ ok: false, error: "invalid_json" }), {
+            status: 400,
+            headers: cors,
+          });
         }
         const { session_token, fingerprint } = (body ?? {}) as Record<string, unknown>;
         if (typeof session_token !== "string" || typeof fingerprint !== "string") {
-          return new Response(JSON.stringify({ ok: false, error: "invalid_input" }), { status: 400, headers: cors });
+          return new Response(JSON.stringify({ ok: false, error: "invalid_input" }), {
+            status: 400,
+            headers: cors,
+          });
         }
         const [{ supabaseAdmin }, crypto] = await Promise.all([
           import("@/integrations/supabase/client.server"),
@@ -36,7 +42,10 @@ export const Route = createFileRoute("/api/public/license/deactivate")({
           .eq("session_token_hash", tokenHash)
           .maybeSingle();
         if (!act || act.machine_fingerprint !== fingerprint) {
-          return new Response(JSON.stringify({ ok: false, error: "invalid_session" }), { status: 403, headers: cors });
+          return new Response(JSON.stringify({ ok: false, error: "invalid_session" }), {
+            status: 403,
+            headers: cors,
+          });
         }
         await supabaseAdmin
           .from("activations")

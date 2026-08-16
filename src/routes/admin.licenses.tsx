@@ -23,25 +23,33 @@ export const Route = createFileRoute("/admin/licenses")({
     ],
   }),
   component: AdminLicensesPage,
-  errorComponent: ({ error, reset }) => {
-    const router = useRouter();
-    return (
-      <div className="p-8 text-center">
-        <p className="text-red-600">حدث خطأ: {String((error as Error).message ?? error)}</p>
-        <button
-          className="mt-4 rounded bg-blue-600 px-4 py-2 text-white"
-          onClick={() => {
-            router.invalidate();
-            reset();
-          }}
-        >
-          إعادة المحاولة
-        </button>
-      </div>
-    );
-  },
+  errorComponent: LicensesErrorPanel,
   notFoundComponent: () => <div className="p-8">الصفحة غير موجودة</div>,
 });
+
+/**
+ * مكوّن مستقلّ باسم يبدأ بحرف كبير، لا دالة مجهولة داخل خيارات المسار.
+ * الراوتر يرسمه مكوّناً في الحالتين، لكن `useRouter` داخل دالة لا يعرفها
+ * المُلَقِّط مكوّناً كان يكسر قاعدة الخطّافات — وهو الخطأ الحقيقي الوحيد الذي
+ * كان يختبئ تحت ركام أخطاء التنسيق.
+ */
+function LicensesErrorPanel({ error, reset }: { error: Error; reset: () => void }) {
+  const router = useRouter();
+  return (
+    <div className="p-8 text-center">
+      <p className="text-red-600">حدث خطأ: {String(error.message ?? error)}</p>
+      <button
+        className="mt-4 rounded bg-blue-600 px-4 py-2 text-white"
+        onClick={() => {
+          router.invalidate();
+          reset();
+        }}
+      >
+        إعادة المحاولة
+      </button>
+    </div>
+  );
+}
 
 type Session = { email: string | null; userId: string } | null;
 
@@ -87,24 +95,34 @@ function LoginBox() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4" dir="rtl">
-      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-lg bg-white p-6 shadow-md">
+      <form
+        onSubmit={submit}
+        className="w-full max-w-sm space-y-4 rounded-lg bg-white p-6 shadow-md"
+      >
         <h1 className="text-xl font-bold">دخول لوحة التراخيص</h1>
         <p className="text-xs text-slate-500">
           مخصصة لك (المطوّر). سجّل دخول بحساب Supabase الذي له دور <b>admin</b>.
         </p>
         <input
-          type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-          placeholder="البريد الإلكتروني" required
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="البريد الإلكتروني"
+          required
           className="w-full rounded border px-3 py-2 text-sm"
         />
         <input
-          type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-          placeholder="كلمة السر" required
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="كلمة السر"
+          required
           className="w-full rounded border px-3 py-2 text-sm"
         />
         {err && <p className="text-xs text-red-600">{err}</p>}
         <button
-          type="submit" disabled={busy}
+          type="submit"
+          disabled={busy}
           className="w-full rounded bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
         >
           {busy ? "..." : "دخول"}
@@ -155,8 +173,12 @@ function Dashboard({ email }: { email: string | null }) {
     onSuccess: () => licensesQ.refetch(),
   });
   const uploadMut = useMutation({
-    mutationFn: (d: { version: string; plaintext_b64: string; notes?: string; make_current: boolean }) =>
-      fnUpload({ data: d }),
+    mutationFn: (d: {
+      version: string;
+      plaintext_b64: string;
+      notes?: string;
+      make_current: boolean;
+    }) => fnUpload({ data: d }),
     onSuccess: () => bundlesQ.refetch(),
   });
   const setCurrentMut = useMutation({
@@ -212,7 +234,9 @@ function Dashboard({ email }: { email: string | null }) {
               <option value="permanent">اشتراك دائم</option>
             </select>
             <input
-              type="number" min={1} max={50}
+              type="number"
+              min={1}
+              max={50}
               value={form.max_devices}
               onChange={(e) => setForm({ ...form, max_devices: +e.target.value })}
               placeholder="أجهزة"
@@ -220,7 +244,9 @@ function Dashboard({ email }: { email: string | null }) {
             />
             {form.license_type === "monthly" ? (
               <input
-                type="number" min={1} max={120}
+                type="number"
+                min={1}
+                max={120}
                 value={form.months}
                 onChange={(e) => setForm({ ...form, months: +e.target.value })}
                 placeholder="أشهر"
@@ -254,12 +280,16 @@ function Dashboard({ email }: { email: string | null }) {
           {createMut.data && (
             <div className="mt-4 rounded bg-emerald-50 p-3 text-sm">
               <b>رمز التفعيل: </b>
-              <span className="rounded bg-white px-2 py-1 font-mono">{(createMut.data as any).code}</span>
+              <span className="rounded bg-white px-2 py-1 font-mono">
+                {(createMut.data as any).code}
+              </span>
               <span className="mr-3 text-emerald-700">أرسله للعميل.</span>
             </div>
           )}
           {createMut.error && (
-            <p className="mt-2 text-xs text-red-600">{String((createMut.error as Error).message)}</p>
+            <p className="mt-2 text-xs text-red-600">
+              {String((createMut.error as Error).message)}
+            </p>
           )}
         </section>
 
@@ -283,7 +313,8 @@ function Dashboard({ email }: { email: string | null }) {
                       <div>
                         <div className="font-mono text-sm">{l.code}</div>
                         <div className="mt-1 text-xs text-slate-500">
-                          {l.license_type === "permanent" ? "دائم" : "شهري"} · أجهزة {activeCount}/{l.max_devices}
+                          {l.license_type === "permanent" ? "دائم" : "شهري"} · أجهزة {activeCount}/
+                          {l.max_devices}
                           {l.expires_at ? ` · ينتهي ${fmt(l.expires_at)}` : " · بلا انتهاء"}
                           {expired && <span className="text-red-600"> (منتهي)</span>}
                           {l.customer_name && <span> · {l.customer_name}</span>}
@@ -313,7 +344,8 @@ function Dashboard({ email }: { email: string | null }) {
                         {acts.map((a) => (
                           <div key={a.id} className="flex items-center justify-between">
                             <span className={a.revoked ? "text-slate-400 line-through" : ""}>
-                              {a.device_name || "بدون اسم"} · {a.machine_fingerprint.slice(0, 12)}… · آخر ظهور {fmt(a.last_seen_at)}
+                              {a.device_name || "بدون اسم"} · {a.machine_fingerprint.slice(0, 12)}…
+                              · آخر ظهور {fmt(a.last_seen_at)}
                             </span>
                             {!a.revoked && (
                               <button
@@ -341,11 +373,16 @@ function Dashboard({ email }: { email: string | null }) {
           <h2 className="mb-4 text-lg font-semibold">حزم البرنامج (Bundles)</h2>
           <BundleUploader onUpload={(p) => uploadMut.mutate(p)} busy={uploadMut.isPending} />
           {uploadMut.error && (
-            <p className="mt-2 text-xs text-red-600">{String((uploadMut.error as Error).message)}</p>
+            <p className="mt-2 text-xs text-red-600">
+              {String((uploadMut.error as Error).message)}
+            </p>
           )}
           <div className="mt-4 space-y-2 text-sm">
             {((bundlesQ.data ?? []) as any[]).map((b) => (
-              <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2">
+              <div
+                key={b.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded border p-2"
+              >
                 <div>
                   <b>v{b.version}</b>{" "}
                   <span className="text-xs text-slate-500">
@@ -378,9 +415,15 @@ function Dashboard({ email }: { email: string | null }) {
 }
 
 function BundleUploader({
-  onUpload, busy,
+  onUpload,
+  busy,
 }: {
-  onUpload: (p: { version: string; plaintext_b64: string; notes?: string; make_current: boolean }) => void;
+  onUpload: (p: {
+    version: string;
+    plaintext_b64: string;
+    notes?: string;
+    make_current: boolean;
+  }) => void;
   busy: boolean;
 }) {
   const [version, setVersion] = useState("");
@@ -400,7 +443,8 @@ function BundleUploader({
   return (
     <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
       <input
-        value={version} onChange={(e) => setVersion(e.target.value)}
+        value={version}
+        onChange={(e) => setVersion(e.target.value)}
         placeholder="الإصدار (1.0.0)"
         className="rounded border px-2 py-2 text-sm"
       />
@@ -410,7 +454,11 @@ function BundleUploader({
         className="rounded border px-2 py-2 text-sm md:col-span-2"
       />
       <label className="flex items-center gap-2 text-xs">
-        <input type="checkbox" checked={makeCurrent} onChange={(e) => setMakeCurrent(e.target.checked)} />
+        <input
+          type="checkbox"
+          checked={makeCurrent}
+          onChange={(e) => setMakeCurrent(e.target.checked)}
+        />
         اجعلها النسخة الحالية
       </label>
       <button
@@ -421,7 +469,8 @@ function BundleUploader({
         {busy ? "..." : "رفع + تشفير"}
       </button>
       <input
-        value={notes} onChange={(e) => setNotes(e.target.value)}
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
         placeholder="ملاحظات (اختياري)"
         className="rounded border px-2 py-2 text-sm md:col-span-5"
       />

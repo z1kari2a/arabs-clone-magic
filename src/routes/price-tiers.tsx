@@ -9,8 +9,16 @@ import { z } from "zod";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import {
-  FolderOpen, Printer, Download, X, Tags, Settings as SettingsIcon,
-  ClipboardList, Info, Coins, Search,
+  FolderOpen,
+  Printer,
+  Download,
+  X,
+  Tags,
+  Settings as SettingsIcon,
+  ClipboardList,
+  Info,
+  Coins,
+  Search,
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
@@ -55,7 +63,9 @@ function PriceTiersPage() {
   const [openDlg, setOpenDlg] = useState(false);
   const [filter, setFilter] = useState("");
 
-  useEffect(() => { if (poNumber) setSelected(poNumber); }, [poNumber]);
+  useEffect(() => {
+    if (poNumber) setSelected(poNumber);
+  }, [poNumber]);
 
   // أول فاتورة محفوظة تُعرض تلقائياً عند الدخول بلا رقم — لكن فقط بعد أن
   // ينتهي تحميل المخزن، وإلا ظهرت الشاشة فارغة على أنه «لا توجد فواتير».
@@ -77,7 +87,7 @@ function PriceTiersPage() {
   const metrics = useMemo(() => (po ? computePO(po) : null), [po]);
   const supplier = suppliers.find((s) => s.code === po?.supplierCode);
   const isDraft = Boolean(po && !orders.some((o) => o.number === po.number));
-  const conv = displayCurrency === "USD" ? 1 : (rateOfCode(displayCurrency) || 1);
+  const conv = displayCurrency === "USD" ? 1 : rateOfCode(displayCurrency) || 1;
 
   // التكلفة المعتمدة لكل صنف بعملة العرض. rowMetrics مفهرس على po.rows الأصلي،
   // فنحتفظ بالفهرس الأصلي قبل استبعاد الأسطر الفارغة.
@@ -88,7 +98,10 @@ function PriceTiersPage() {
       .map((r, srcIndex) => ({ r, srcIndex }))
       .filter(({ r }) => r.model || r.name)
       .filter(({ r }) => !term || r.model.includes(term) || r.name.includes(term))
-      .map(({ r, srcIndex }) => ({ r, cost: (metrics.rowMetrics[srcIndex]?.selectedCost ?? 0) * conv }));
+      .map(({ r, srcIndex }) => ({
+        r,
+        cost: (metrics.rowMetrics[srcIndex]?.selectedCost ?? 0) * conv,
+      }));
   }, [po, metrics, filter, conv]);
 
   const onPrint = () => {
@@ -109,8 +122,8 @@ function PriceTiersPage() {
     if (!rows.length) return toast.error("لا توجد أصناف للتصدير");
     const data = rows.map(({ r, cost }, i) => {
       const line: Record<string, string | number> = {
-        "م": i + 1,
-        "الموديل": r.model,
+        م: i + 1,
+        الموديل: r.model,
         "اسم الصنف": r.name,
         [`التكلفة المعتمدة (${displayCurrency})`]: cost,
       };
@@ -133,20 +146,54 @@ function PriceTiersPage() {
   const closeGuard = useCloseGuard({ title: "التسعيرات" });
 
   const actions = [
-    { icon: FolderOpen, label: "فتح فاتورة", hint: "Ctrl+O", color: "text-amber-500", onClick: () => setOpenDlg(true) },
-    { icon: Printer, label: "طباعة", hint: "Ctrl+P", color: "text-slate-600", onClick: onPrint, disabled: !po },
-    { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport, disabled: !po },
-    { icon: SettingsIcon, label: "تعريف التسعيرات", color: "text-indigo-600", onClick: () => router.navigate({ to: "/settings" }) },
+    {
+      icon: FolderOpen,
+      label: "فتح فاتورة",
+      hint: "Ctrl+O",
+      color: "text-amber-500",
+      onClick: () => setOpenDlg(true),
+    },
+    {
+      icon: Printer,
+      label: "طباعة",
+      hint: "Ctrl+P",
+      color: "text-slate-600",
+      onClick: onPrint,
+      disabled: !po,
+    },
+    {
+      icon: Download,
+      label: "تصدير Excel",
+      color: "text-teal-600",
+      onClick: onExport,
+      disabled: !po,
+    },
+    {
+      icon: SettingsIcon,
+      label: "تعريف التسعيرات",
+      color: "text-indigo-600",
+      onClick: () => router.navigate({ to: "/settings" }),
+    },
     { icon: ClipboardList, label: "أمر الشراء", color: "text-blue-600", onClick: backToPO },
-    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
+    {
+      icon: X,
+      label: "إغلاق",
+      hint: "Esc",
+      color: "text-rose-600",
+      onClick: closeGuard.requestClose,
+    },
   ];
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      if (e.ctrlKey && k === "o") { e.preventDefault(); setOpenDlg(true); }
-      else if (e.ctrlKey && k === "p") { e.preventDefault(); onPrint(); }
-      else if (e.key === "Escape") {
+      if (e.ctrlKey && k === "o") {
+        e.preventDefault();
+        setOpenDlg(true);
+      } else if (e.ctrlKey && k === "p") {
+        e.preventDefault();
+        onPrint();
+      } else if (e.key === "Escape") {
         if (closeGuard.pending) return;
         if (openDlg) setOpenDlg(false);
         else closeGuard.requestClose();
@@ -161,7 +208,10 @@ function PriceTiersPage() {
     <ErpLayout title="التسعيرات حسب الوجهات" ribbon={<Ribbon actions={actions} />}>
       {/* شريط الفاتورة المعروضة + عملة العرض */}
       <div className="bg-white border border-slate-300 rounded">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-slate-300"
+          style={{ background: "var(--color-erp-panel-header)" }}
+        >
           <div className="flex items-center gap-2 text-[11px]">
             <Coins size={12} className="text-amber-600" />
             <span className="text-slate-600">عرض التسعيرات بعملة:</span>
@@ -170,9 +220,15 @@ function PriceTiersPage() {
               onChange={(e) => setDisplayCurrency(e.target.value)}
               className="px-2 py-0.5 text-[11px] border border-slate-300 rounded bg-white font-bold"
             >
-              {currencyOptions.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+              {currencyOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
-            <span className="text-slate-500">1 USD = {fmt(conv, 4)} {displayCurrency}</span>
+            <span className="text-slate-500">
+              1 USD = {fmt(conv, 4)} {displayCurrency}
+            </span>
           </div>
           <div className="flex items-center gap-2 font-semibold text-slate-700">
             <Tags size={14} className="text-fuchsia-600" />
@@ -197,7 +253,8 @@ function PriceTiersPage() {
         {isDraft && po && (
           <div className="border-t border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800 flex items-center gap-1.5">
             <Info size={13} className="shrink-0" />
-            هذه فاتورة قيد التحرير ولم تُحفظ بعد — التسعيرات محسوبة على بياناتها الحالية، واحفظها من شاشة أمر الشراء لتثبيتها.
+            هذه فاتورة قيد التحرير ولم تُحفظ بعد — التسعيرات محسوبة على بياناتها الحالية، واحفظها من
+            شاشة أمر الشراء لتثبيتها.
           </div>
         )}
       </div>
@@ -206,7 +263,10 @@ function PriceTiersPage() {
       {priceTiers.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {priceTiers.map((t) => (
-            <div key={t.id} className="bg-white border border-slate-300 rounded px-3 py-1.5 text-[11px]">
+            <div
+              key={t.id}
+              className="bg-white border border-slate-300 rounded px-3 py-1.5 text-[11px]"
+            >
               <div className="font-semibold text-slate-800">{t.name}</div>
               <div className="text-slate-500">
                 إضافة على التكلفة <b className="text-slate-700">{fmt(t.extraPct || 0, 2)}%</b>
@@ -243,19 +303,38 @@ function PriceTiersPage() {
             <span className="text-[11px] text-slate-500 shrink-0">{rows.length} صنف</span>
           </div>
           <div className="overflow-auto">
-            <ErpTable headers={["م", "الموديل", "اسم الصنف", `التكلفة المعتمدة (${displayCurrency})`, ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`])]}>
+            <ErpTable
+              headers={[
+                "م",
+                "الموديل",
+                "اسم الصنف",
+                `التكلفة المعتمدة (${displayCurrency})`,
+                ...priceTiers.flatMap((t) => [`تكلفة ${t.name}`, `بيع ${t.name}`]),
+              ]}
+            >
               {rows.map(({ r, cost }, i) => (
                 <tr key={r.id} className="odd:bg-white even:bg-slate-50/50">
-                  <td className="border border-slate-200 text-center text-slate-500 w-10">{i + 1}</td>
+                  <td className="border border-slate-200 text-center text-slate-500 w-10">
+                    {i + 1}
+                  </td>
                   <td className="border border-slate-200 text-center px-2">{r.model}</td>
                   <td className="border border-slate-200 text-right px-2">{r.name}</td>
-                  <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold">{fmt(cost, 4)}</td>
+                  <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold">
+                    {fmt(cost, 4)}
+                  </td>
                   {priceTiers.flatMap((t) => {
                     const tierCost = cost * (1 + (t.extraPct || 0) / 100);
                     const salePrice = tierCost * (1 + (t.profitPct || 0) / 100);
                     return [
-                      <td key={t.id + "c"} className="border border-slate-200 text-right px-2">{fmt(tierCost, 4)}</td>,
-                      <td key={t.id + "s"} className="border border-slate-200 text-right px-2 bg-slate-100 font-semibold text-slate-800">{fmt(salePrice, 4)}</td>,
+                      <td key={t.id + "c"} className="border border-slate-200 text-right px-2">
+                        {fmt(tierCost, 4)}
+                      </td>,
+                      <td
+                        key={t.id + "s"}
+                        className="border border-slate-200 text-right px-2 bg-slate-100 font-semibold text-slate-800"
+                      >
+                        {fmt(salePrice, 4)}
+                      </td>,
                     ];
                   })}
                 </tr>
@@ -270,10 +349,14 @@ function PriceTiersPage() {
 
       <Dialog open={openDlg} onOpenChange={setOpenDlg}>
         <DialogContent dir="rtl">
-          <DialogHeader><DialogTitle>اختيار أمر الشراء</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>اختيار أمر الشراء</DialogTitle>
+          </DialogHeader>
           <div className="max-h-80 overflow-auto space-y-1">
             {orders.length === 0 && (
-              <div className="text-xs text-slate-500 text-center py-4">لا توجد أوامر شراء محفوظة</div>
+              <div className="text-xs text-slate-500 text-center py-4">
+                لا توجد أوامر شراء محفوظة
+              </div>
             )}
             {orders.map((o) => (
               <button
@@ -301,18 +384,31 @@ function InfoBox({ label, value }: { label: string; value: string }) {
   return (
     <div className="border border-slate-200 rounded p-2 bg-white shadow-sm">
       <div className="text-[10px] text-slate-500">{label}</div>
-      <div className="font-bold text-slate-800 text-sm truncate" title={value}>{value}</div>
+      <div className="font-bold text-slate-800 text-sm truncate" title={value}>
+        {value}
+      </div>
     </div>
   );
 }
 
-function EmptyState({ text, actionLabel, onAction }: { text: string; actionLabel: string; onAction: () => void }) {
+function EmptyState({
+  text,
+  actionLabel,
+  onAction,
+}: {
+  text: string;
+  actionLabel: string;
+  onAction: () => void;
+}) {
   return (
     <div className="bg-white border border-slate-300 rounded px-4 py-8 text-center space-y-3">
       <div className="text-xs text-slate-600 flex items-center justify-center gap-1.5">
         <Info size={14} className="text-slate-400" /> {text}
       </div>
-      <button onClick={onAction} className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">
+      <button
+        onClick={onAction}
+        className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+      >
         {actionLabel}
       </button>
     </div>

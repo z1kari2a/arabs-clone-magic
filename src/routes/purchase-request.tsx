@@ -8,18 +8,52 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import {
-  FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer,
-  FileSpreadsheet, Download, CheckCircle2, X, Plus, Building2, Copy,
-  Coins, Package, Info, Check, RefreshCcw,
+  FilePlus2,
+  FolderOpen,
+  Save,
+  Pencil,
+  Trash2,
+  Search,
+  Printer,
+  FileSpreadsheet,
+  Download,
+  CheckCircle2,
+  X,
+  Plus,
+  Building2,
+  Copy,
+  Coins,
+  Package,
+  Info,
+  Check,
+  RefreshCcw,
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { useCloseGuard } from "@/components/erp/CloseGuard";
-import { Panel, FieldRow, ErpInput, ErpSelect, ErpTable, Cell, SaleCell, fmt, fmtInt, parseDecimal } from "@/components/erp/ErpUI";
+import {
+  Panel,
+  FieldRow,
+  ErpInput,
+  ErpSelect,
+  ErpTable,
+  Cell,
+  SaleCell,
+  fmt,
+  fmtInt,
+  parseDecimal,
+} from "@/components/erp/ErpUI";
 import { printPurchaseRequest } from "@/lib/print-po";
 import {
-  erpStore, useErpStore, computePR, savePurchaseRequest, deletePurchaseRequest,
-  isRealRow, cartonsOf, lineCBMOf, repinRates,
+  erpStore,
+  useErpStore,
+  computePR,
+  savePurchaseRequest,
+  deletePurchaseRequest,
+  isRealRow,
+  cartonsOf,
+  lineCBMOf,
+  repinRates,
 } from "@/lib/erp-store";
 import { cell, numCell } from "@/lib/sheet";
 import { getCurrentScope, localDb } from "@/lib/local-db";
@@ -145,14 +179,28 @@ function PRPage() {
     setPr((cur) => ({
       ...cur,
       rate: n,
-      rows: cur.rows.map((r) => ((r.currency ?? cur.currency) === cur.currency ? { ...r, rate: n } : r)),
+      rows: cur.rows.map((r) =>
+        (r.currency ?? cur.currency) === cur.currency ? { ...r, rate: n } : r,
+      ),
     }));
   const patchRow = (id: number, p: Partial<PORow>) =>
     setPr({ ...pr, rows: pr.rows.map((r) => (r.id === id ? { ...r, ...p } : r)) });
   const addRow = () =>
     setPr({
       ...pr,
-      rows: [...pr.rows, { id: (pr.rows.at(-1)?.id ?? 0) + 1, model: "", name: "", unit: "حبة", pack: 1, qty: 0, price: 0, cbm: 0 }],
+      rows: [
+        ...pr.rows,
+        {
+          id: (pr.rows.at(-1)?.id ?? 0) + 1,
+          model: "",
+          name: "",
+          unit: "حبة",
+          pack: 1,
+          qty: 0,
+          price: 0,
+          cbm: 0,
+        },
+      ],
     });
   const removeRow = (id: number) => setPr({ ...pr, rows: pr.rows.filter((r) => r.id !== id) });
 
@@ -171,10 +219,19 @@ function PRPage() {
   // يُبقيها مفتوحة لأن الحفظ رُفض. ونفس علّة شاشة أمر الشراء: «تم الحفظ» لا
   // تُقال قبل أن تكتمل الكتابة فعلاً، والفشل يُقال بدل أن يضيع بصمت.
   const onSave = async (): Promise<boolean> => {
-    if (!mayWrite) { denied(); return false; }
-    if (!pr.supplierCode) { toast.error("يجب اختيار المورد"); return false; }
+    if (!mayWrite) {
+      denied();
+      return false;
+    }
+    if (!pr.supplierCode) {
+      toast.error("يجب اختيار المورد");
+      return false;
+    }
     const filled = pr.rows.filter(isRealRow);
-    if (!filled.length) { toast.error("يجب إضافة صنف واحد على الأقل"); return false; }
+    if (!filled.length) {
+      toast.error("يجب إضافة صنف واحد على الأقل");
+      return false;
+    }
     try {
       await savePurchaseRequest({ ...pr, rows: filled });
     } catch (err) {
@@ -183,7 +240,11 @@ function PRPage() {
       return false;
     }
     setEditing(false);
-    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
     toast.success("تم حفظ طلب الشراء");
     return true;
   };
@@ -233,7 +294,8 @@ function PRPage() {
   const onImport = () => {
     if (!mayWrite) return denied();
     if (pr.approved) return toast.error("الطلب معتمد — انسخه (Ctrl+D) ثم استورد في النسخة الجديدة");
-    if (pr.rows.some(isRealRow) && !confirm("سيستبدل الاستيراد كل أسطر الطلب الحالية. متابعة؟")) return;
+    if (pr.rows.some(isRealRow) && !confirm("سيستبدل الاستيراد كل أسطر الطلب الحالية. متابعة؟"))
+      return;
     if (!editing) setEditing(true);
     fileRef.current?.click();
   };
@@ -296,26 +358,29 @@ function PRPage() {
     }
   };
   const onExport = () => {
-    const data = pr.rows.map((r, i) => ({ r, i })).filter(({ r }) => isRealRow(r)).map(({ r, i }, n) => ({
-      "م": n + 1,
-      "الموديل": r.model,
-      "اسم الصنف": r.name,
-      "الوحدة": r.unit,
-      "العبوة": r.pack,
-      "الكمية": r.qty,
-      "سعر الشراء": r.price,
-      "اجمالي الطلب": metrics.rowMetrics[i]?.lineInvoiceTotal ?? 0,
-      "تكلفة الشراء$": metrics.rowMetrics[i]?.purchaseCost ?? 0,
-      "CBM الكرتون": r.cbm,
-      "إجمالي CBM": lineCBMOf(r),
-      "تكلفة CBM $": metrics.rowMetrics[i]?.cbmCost ?? 0,
-      "التكلفة المئوية $": metrics.rowMetrics[i]?.pctCost ?? 0,
-      "متوسط التكلفة $": metrics.rowMetrics[i]?.avgCost ?? 0,
-      "خرج للكرتون$": metrics.rowMetrics[i]?.allocatedExpPerCarton ?? 0,
-      // السعر الفعلي: المكتوب يدوياً إن وُجد، وإلا المحسوب بنسبة الربح.
-      [`سعر البيع (+${markupPct}%)`]:
-        r.salePrice ?? (metrics.rowMetrics[i]?.selectedCost ?? 0) * (1 + markupPct / 100),
-    }));
+    const data = pr.rows
+      .map((r, i) => ({ r, i }))
+      .filter(({ r }) => isRealRow(r))
+      .map(({ r, i }, n) => ({
+        م: n + 1,
+        الموديل: r.model,
+        "اسم الصنف": r.name,
+        الوحدة: r.unit,
+        العبوة: r.pack,
+        الكمية: r.qty,
+        "سعر الشراء": r.price,
+        "اجمالي الطلب": metrics.rowMetrics[i]?.lineInvoiceTotal ?? 0,
+        "تكلفة الشراء$": metrics.rowMetrics[i]?.purchaseCost ?? 0,
+        "CBM الكرتون": r.cbm,
+        "إجمالي CBM": lineCBMOf(r),
+        "تكلفة CBM $": metrics.rowMetrics[i]?.cbmCost ?? 0,
+        "التكلفة المئوية $": metrics.rowMetrics[i]?.pctCost ?? 0,
+        "متوسط التكلفة $": metrics.rowMetrics[i]?.avgCost ?? 0,
+        "خرج للكرتون$": metrics.rowMetrics[i]?.allocatedExpPerCarton ?? 0,
+        // السعر الفعلي: المكتوب يدوياً إن وُجد، وإلا المحسوب بنسبة الربح.
+        [`سعر البيع (+${markupPct}%)`]:
+          r.salePrice ?? (metrics.rowMetrics[i]?.selectedCost ?? 0) * (1 + markupPct / 100),
+      }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "طلب الشراء");
@@ -324,7 +389,8 @@ function PRPage() {
   };
 
   // ── حارس الإغلاق (نفس منطق شاشة أمر الشراء) ──
-  const hasUnsaved = editing && !pr.approved && (Boolean(pr.supplierCode) || pr.rows.some(isRealRow));
+  const hasUnsaved =
+    editing && !pr.approved && (Boolean(pr.supplierCode) || pr.rows.some(isRealRow));
   const saveDraft = () => {
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(pr));
@@ -334,7 +400,11 @@ function PRPage() {
     }
   };
   const dropDraft = () => {
-    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
   };
   const closeGuard = useCloseGuard({
     dirty: hasUnsaved,
@@ -345,35 +415,124 @@ function PRPage() {
   });
 
   const actions = [
-    { icon: FilePlus2, label: "جديد", hint: "Ctrl+N", color: "text-emerald-600", onClick: onNew, disabled: !mayWrite },
-    { icon: Copy, label: "نسخ", hint: "Ctrl+D", color: "text-purple-600", onClick: onCopy, disabled: !mayWrite },
-    { icon: FolderOpen, label: "فتح", hint: "Ctrl+O", color: "text-amber-500", onClick: () => setOpenDlg(true) },
-    { icon: Save, label: "حفظ", hint: "Ctrl+S", color: "text-blue-600", onClick: onSave, disabled: !editing || !mayWrite },
-    { icon: Pencil, label: "تعديل", hint: "F2", color: "text-cyan-600", onClick: onEdit, disabled: pr.approved || !mayWrite },
-    { icon: Trash2, label: "حذف", hint: "Del", color: "text-rose-600", onClick: onDelete, disabled: !mayDelete },
-    { icon: Search, label: "بحث", hint: "F3", color: "text-indigo-500", onClick: () => { setItemsDlg(true); setSearchDlg(true); } },
+    {
+      icon: FilePlus2,
+      label: "جديد",
+      hint: "Ctrl+N",
+      color: "text-emerald-600",
+      onClick: onNew,
+      disabled: !mayWrite,
+    },
+    {
+      icon: Copy,
+      label: "نسخ",
+      hint: "Ctrl+D",
+      color: "text-purple-600",
+      onClick: onCopy,
+      disabled: !mayWrite,
+    },
+    {
+      icon: FolderOpen,
+      label: "فتح",
+      hint: "Ctrl+O",
+      color: "text-amber-500",
+      onClick: () => setOpenDlg(true),
+    },
+    {
+      icon: Save,
+      label: "حفظ",
+      hint: "Ctrl+S",
+      color: "text-blue-600",
+      onClick: onSave,
+      disabled: !editing || !mayWrite,
+    },
+    {
+      icon: Pencil,
+      label: "تعديل",
+      hint: "F2",
+      color: "text-cyan-600",
+      onClick: onEdit,
+      disabled: pr.approved || !mayWrite,
+    },
+    {
+      icon: Trash2,
+      label: "حذف",
+      hint: "Del",
+      color: "text-rose-600",
+      onClick: onDelete,
+      disabled: !mayDelete,
+    },
+    {
+      icon: Search,
+      label: "بحث",
+      hint: "F3",
+      color: "text-indigo-500",
+      onClick: () => {
+        setItemsDlg(true);
+        setSearchDlg(true);
+      },
+    },
     { icon: Printer, label: "طباعة", hint: "Ctrl+P", color: "text-slate-600", onClick: onPrint },
-    { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled: pr.approved || !mayWrite },
+    {
+      icon: FileSpreadsheet,
+      label: "استيراد Excel",
+      color: "text-green-600",
+      onClick: onImport,
+      disabled: pr.approved || !mayWrite,
+    },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
-    { icon: CheckCircle2, label: "اعتماد", hint: "F9", color: "text-emerald-700", onClick: onApprove, disabled: pr.approved || !mayApprove },
-    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
+    {
+      icon: CheckCircle2,
+      label: "اعتماد",
+      hint: "F9",
+      color: "text-emerald-700",
+      onClick: onApprove,
+      disabled: pr.approved || !mayApprove,
+    },
+    {
+      icon: X,
+      label: "إغلاق",
+      hint: "Esc",
+      color: "text-rose-600",
+      onClick: closeGuard.requestClose,
+    },
   ];
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      if (e.ctrlKey && k === "s") { e.preventDefault(); if (editing) void onSave(); }
-      else if (e.ctrlKey && k === "n") { e.preventDefault(); onNew(); }
-      else if (e.ctrlKey && k === "o") { e.preventDefault(); setOpenDlg(true); }
-      else if (e.ctrlKey && k === "p") { e.preventDefault(); onPrint(); }
-      else if (e.key === "F2") { e.preventDefault(); if (!pr.approved) onEdit(); }
-      else if (e.key === "F3") { e.preventDefault(); setItemsDlg(true); setSearchDlg(true); }
-      else if (e.key === "F9") { e.preventDefault(); if (!pr.approved) void onApprove(); }
-      else if (e.ctrlKey && k === "d") { e.preventDefault(); onCopy(); }
-      else if (e.key === "Escape") {
+      if (e.ctrlKey && k === "s") {
+        e.preventDefault();
+        if (editing) void onSave();
+      } else if (e.ctrlKey && k === "n") {
+        e.preventDefault();
+        onNew();
+      } else if (e.ctrlKey && k === "o") {
+        e.preventDefault();
+        setOpenDlg(true);
+      } else if (e.ctrlKey && k === "p") {
+        e.preventDefault();
+        onPrint();
+      } else if (e.key === "F2") {
+        e.preventDefault();
+        if (!pr.approved) onEdit();
+      } else if (e.key === "F3") {
+        e.preventDefault();
+        setItemsDlg(true);
+        setSearchDlg(true);
+      } else if (e.key === "F9") {
+        e.preventDefault();
+        if (!pr.approved) void onApprove();
+      } else if (e.ctrlKey && k === "d") {
+        e.preventDefault();
+        onCopy();
+      } else if (e.key === "Escape") {
         if (closeGuard.pending) return;
         if (openDlg || supDlg || searchDlg || itemsDlg) {
-          setOpenDlg(false); setSupDlg(false); setSearchDlg(false); setItemsDlg(false);
+          setOpenDlg(false);
+          setSupDlg(false);
+          setSearchDlg(false);
+          setItemsDlg(false);
         } else closeGuard.requestClose();
       }
     };
@@ -395,7 +554,9 @@ function PRPage() {
           toast.info("تم استرجاع مسودة الطلب");
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setDraftRestored(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -411,7 +572,11 @@ function PRPage() {
   useEffect(() => {
     if (!draftRestored || !editing || pr.approved) return;
     const t = setTimeout(() => {
-      try { localStorage.setItem(DRAFT_KEY, JSON.stringify(pr)); } catch { /* ignore */ }
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(pr));
+      } catch {
+        /* ignore */
+      }
     }, 400);
     return () => clearTimeout(t);
   }, [pr, editing, draftRestored]);
@@ -420,8 +585,46 @@ function PRPage() {
   // المنبثقة — بنفس التصميم ونفس مصدر البيانات (pr.rows).
   const itemsGrid = (
     <ErpTable
-      headers={["م","الموديل","اسم الصنف","الوحدة","العبوة","الكمية","العملة","سعر الشراء","اجمالي الطلب","تكلفة الشراء$","CBM الكرتون","إجمالي CBM","تكلفة CBM $","التكلفة المئوية $","متوسط التكلفة $","خرج للكرتون$",`سعر البيع (+${markupPct}%)`,""]}
-      widths={["2.2rem","6.4rem","250px","3.6rem","3.4rem","3.4rem","3.6rem","3.6rem","5rem","3.8rem","3.4rem","4rem","3.8rem","3.8rem","4.6rem","4.6rem","5rem","2rem"]}
+      headers={[
+        "م",
+        "الموديل",
+        "اسم الصنف",
+        "الوحدة",
+        "العبوة",
+        "الكمية",
+        "العملة",
+        "سعر الشراء",
+        "اجمالي الطلب",
+        "تكلفة الشراء$",
+        "CBM الكرتون",
+        "إجمالي CBM",
+        "تكلفة CBM $",
+        "التكلفة المئوية $",
+        "متوسط التكلفة $",
+        "خرج للكرتون$",
+        `سعر البيع (+${markupPct}%)`,
+        "",
+      ]}
+      widths={[
+        "2.2rem",
+        "6.4rem",
+        "250px",
+        "3.6rem",
+        "3.4rem",
+        "3.4rem",
+        "3.6rem",
+        "3.6rem",
+        "5rem",
+        "3.8rem",
+        "3.4rem",
+        "4rem",
+        "3.8rem",
+        "3.8rem",
+        "4.6rem",
+        "4.6rem",
+        "5rem",
+        "2rem",
+      ]}
     >
       {pr.rows.map((r, i) => {
         const m = metrics.rowMetrics[i];
@@ -437,47 +640,128 @@ function PRPage() {
           <tr key={r.id} className="hover:bg-slate-50">
             <td className="border border-slate-200 text-center text-slate-500 w-8">{i + 1}</td>
             <td className="border border-slate-200 p-0">
-              <input value={r.model} disabled={disabled} onChange={(e) => {
-                const v = e.target.value;
-                const it = items.find((x) => x.code === v || x.barcode === v);
-                // نأخذ عملة الصنف لكن بسعر صرف اليوم — لا السعر المثبَّت على
-                // الصنف منذ آخر شراء.
-                if (it) {
-                  const rowCurrency = it.currency ?? r.currency ?? pr.currency;
-                  patchRow(r.id, { model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? r.unit, pack: it.units[0]?.pack ?? r.pack, price: it.units[0]?.lastPrice ?? r.price, currency: rowCurrency, rate: rateOf(rowCurrency) });
-                }
-                else patchRow(r.id, { model: v });
-              }} className="w-full px-1 py-1 text-[13px] font-semibold tabular-nums text-slate-800 bg-white disabled:bg-slate-50 border-0 focus:outline-none text-center" />
+              <input
+                value={r.model}
+                disabled={disabled}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const it = items.find((x) => x.code === v || x.barcode === v);
+                  // نأخذ عملة الصنف لكن بسعر صرف اليوم — لا السعر المثبَّت على
+                  // الصنف منذ آخر شراء.
+                  if (it) {
+                    const rowCurrency = it.currency ?? r.currency ?? pr.currency;
+                    patchRow(r.id, {
+                      model: it.code,
+                      name: it.name,
+                      cbm: it.cbmPerCarton,
+                      unit: it.units[0]?.name ?? r.unit,
+                      pack: it.units[0]?.pack ?? r.pack,
+                      price: it.units[0]?.lastPrice ?? r.price,
+                      currency: rowCurrency,
+                      rate: rateOf(rowCurrency),
+                    });
+                  } else patchRow(r.id, { model: v });
+                }}
+                className="w-full px-1 py-1 text-[13px] font-semibold tabular-nums text-slate-800 bg-white disabled:bg-slate-50 border-0 focus:outline-none text-center"
+              />
             </td>
-            <Cell value={r.name} onChange={(v) => patchRow(r.id, { name: v })} disabled={disabled} align="right" inputClass="text-[13px] font-semibold text-slate-800" />
-            <Cell value={r.unit} onChange={(v) => patchRow(r.id, { unit: v })} disabled={disabled} />
-            <Cell value={r.pack} onChange={(v) => patchRow(r.id, { pack: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
-            <Cell value={r.qty} onChange={(v) => patchRow(r.id, { qty: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
+            <Cell
+              value={r.name}
+              onChange={(v) => patchRow(r.id, { name: v })}
+              disabled={disabled}
+              align="right"
+              inputClass="text-[13px] font-semibold text-slate-800"
+            />
+            <Cell
+              value={r.unit}
+              onChange={(v) => patchRow(r.id, { unit: v })}
+              disabled={disabled}
+            />
+            <Cell
+              value={r.pack}
+              onChange={(v) => patchRow(r.id, { pack: parseDecimal(v) })}
+              disabled={disabled}
+              align="right"
+              type="number"
+            />
+            <Cell
+              value={r.qty}
+              onChange={(v) => patchRow(r.id, { qty: parseDecimal(v) })}
+              disabled={disabled}
+              align="right"
+              type="number"
+            />
             <td className="border border-slate-200 p-0">
-              <select value={rowCur} disabled={disabled}
-                onChange={(ev) => patchRow(r.id, { currency: ev.target.value, rate: rateOf(ev.target.value) })}
-                className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none">
-                {currencyOptions.map((o) => (<option key={o.value} value={o.value}>{o.value}</option>))}
+              <select
+                value={rowCur}
+                disabled={disabled}
+                onChange={(ev) =>
+                  patchRow(r.id, { currency: ev.target.value, rate: rateOf(ev.target.value) })
+                }
+                className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none"
+              >
+                {currencyOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.value}
+                  </option>
+                ))}
               </select>
             </td>
-            <Cell value={r.price} onChange={(v) => patchRow(r.id, { price: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
+            <Cell
+              value={r.price}
+              onChange={(v) => patchRow(r.id, { price: parseDecimal(v) })}
+              disabled={disabled}
+              align="right"
+              type="number"
+            />
             {/* إجمالي الطلب = الكمية × العبوة × سعر الحبة، بعملة السطر */}
-            <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold text-slate-800">{fmt(m?.lineInvoiceTotal ?? 0, 1)}</td>
+            <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold text-slate-800">
+              {fmt(m?.lineInvoiceTotal ?? 0, 1)}
+            </td>
             <Cell value={fmt(m?.purchaseCost ?? 0, 1)} align="right" />
-            <Cell value={r.cbm} onChange={(v) => patchRow(r.id, { cbm: parseDecimal(v) })} disabled={disabled} align="right" type="number" />
+            <Cell
+              value={r.cbm}
+              onChange={(v) => patchRow(r.id, { cbm: parseDecimal(v) })}
+              disabled={disabled}
+              align="right"
+              type="number"
+            />
             <Cell value={fmt(cartons * r.cbm, 1)} align="right" />
-            <td className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "cbm" ? "!bg-slate-200 font-bold" : ""}`}>{fmt(m?.cbmCost ?? 0, 1)}</td>
-            <td className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "percentage" ? "!bg-slate-200 font-bold" : ""}`}>{fmt(m?.pctCost ?? 0, 1)}</td>
-            <td className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "average" ? "!bg-slate-200 font-bold" : ""}`}>{fmt(m?.avgCost ?? 0, 1)}</td>
-            <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold text-slate-800">{fmt(m?.allocatedExpPerCarton ?? 0, 1)}</td>
+            <td
+              className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "cbm" ? "!bg-slate-200 font-bold" : ""}`}
+            >
+              {fmt(m?.cbmCost ?? 0, 1)}
+            </td>
+            <td
+              className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "percentage" ? "!bg-slate-200 font-bold" : ""}`}
+            >
+              {fmt(m?.pctCost ?? 0, 1)}
+            </td>
+            <td
+              className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "average" ? "!bg-slate-200 font-bold" : ""}`}
+            >
+              {fmt(m?.avgCost ?? 0, 1)}
+            </td>
+            <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold text-slate-800">
+              {fmt(m?.allocatedExpPerCarton ?? 0, 1)}
+            </td>
             <SaleCell
               value={salePrice}
               overridden={saleOverridden}
               disabled={disabled}
-              onChange={(v) => patchRow(r.id, { salePrice: v.trim() === "" ? undefined : parseDecimal(v) })}
+              onChange={(v) =>
+                patchRow(r.id, { salePrice: v.trim() === "" ? undefined : parseDecimal(v) })
+              }
             />
             <td className="border border-slate-200 text-center">
-              <button disabled={disabled} onClick={() => removeRow(r.id)} className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-40" title="حذف"><Trash2 size={12} /></button>
+              <button
+                disabled={disabled}
+                onClick={() => removeRow(r.id)}
+                className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-40"
+                title="حذف"
+              >
+                <Trash2 size={12} />
+              </button>
             </td>
           </tr>
         );
@@ -487,41 +771,61 @@ function PRPage() {
 
   return (
     <ErpLayout title="طلب شراء" ribbon={<Ribbon actions={actions} />}>
-      <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={onFile} className="hidden" />
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        onChange={onFile}
+        className="hidden"
+      />
 
       {!mayWrite && (
         <div className="flex items-center gap-1.5 px-3 py-2 rounded border text-xs font-medium bg-slate-100 border-slate-300 text-slate-700">
           <Info size={14} className="shrink-0" />
-          صلاحيتك <b>مطالع</b> — يمكنك عرض وطباعة وتصدير طلبات الشراء فقط، دون إنشاء أو تعديل أو اعتماد.
+          صلاحيتك <b>مطالع</b> — يمكنك عرض وطباعة وتصدير طلبات الشراء فقط، دون إنشاء أو تعديل أو
+          اعتماد.
         </div>
       )}
       {!editing && mayWrite && (
         <div
           className={`flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded border text-xs font-medium ${
-            pr.approved ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-amber-50 border-amber-300 text-amber-800"
+            pr.approved
+              ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+              : "bg-amber-50 border-amber-300 text-amber-800"
           }`}
         >
           {pr.approved ? (
             <span className="flex items-center gap-1.5">
               <CheckCircle2 size={14} className="shrink-0" />
-              هذا طلب شراء <b>معتمد</b> ولا يمكن تعديله. لإنشاء طلب جديد اضغط «جديد»، أو «نسخ» لإنشاء نسخة قابلة للتعديل منه.
+              هذا طلب شراء <b>معتمد</b> ولا يمكن تعديله. لإنشاء طلب جديد اضغط «جديد»، أو «نسخ»
+              لإنشاء نسخة قابلة للتعديل منه.
             </span>
           ) : (
             <span className="flex items-center gap-1.5">
               <Info size={14} className="shrink-0" />
-              الشاشة حالياً في <b>وضع العرض فقط</b> ولا يمكن الكتابة في الحقول — اضغط «جديد» لإنشاء طلب شراء جديد، أو «تعديل» لتعديل هذا الطلب.
+              الشاشة حالياً في <b>وضع العرض فقط</b> ولا يمكن الكتابة في الحقول — اضغط «جديد» لإنشاء
+              طلب شراء جديد، أو «تعديل» لتعديل هذا الطلب.
             </span>
           )}
           <div className="flex items-center gap-1.5 shrink-0">
-            <button onClick={onNew} className="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700">
+            <button
+              onClick={onNew}
+              className="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700"
+            >
               <FilePlus2 size={12} /> جديد
             </button>
             {pr.approved ? (
-              <button onClick={onCopy} className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700">
+              <button
+                onClick={onCopy}
+                className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+              >
                 <Copy size={12} /> نسخ
               </button>
             ) : (
-              <button onClick={onEdit} className="flex items-center gap-1 px-2 py-1 bg-cyan-600 text-white rounded hover:bg-cyan-700">
+              <button
+                onClick={onEdit}
+                className="flex items-center gap-1 px-2 py-1 bg-cyan-600 text-white rounded hover:bg-cyan-700"
+              >
                 <Pencil size={12} /> تعديل
               </button>
             )}
@@ -540,24 +844,58 @@ function PRPage() {
               <FieldRow label="المورد">
                 <div className="flex gap-1">
                   <ErpInput value={supplier?.name ?? ""} onChange={() => {}} disabled />
-                  <button disabled={disabled} onClick={() => setSupDlg(true)} className="px-2 border border-slate-300 bg-slate-50 rounded disabled:opacity-40"><Search size={13} /></button>
+                  <button
+                    disabled={disabled}
+                    onClick={() => setSupDlg(true)}
+                    className="px-2 border border-slate-300 bg-slate-50 rounded disabled:opacity-40"
+                  >
+                    <Search size={13} />
+                  </button>
                 </div>
               </FieldRow>
-              <FieldRow label="كود المورد"><ErpInput value={pr.supplierCode} onChange={() => {}} disabled /></FieldRow>
-              <FieldRow label="الدولة"><ErpInput value={supplier?.country ?? ""} onChange={() => {}} disabled /></FieldRow>
-              <FieldRow label="المدينة"><ErpInput value={supplier?.city ?? ""} onChange={() => {}} disabled /></FieldRow>
-              <FieldRow label="الهاتف"><ErpInput value={supplier?.phone ?? ""} onChange={() => {}} disabled /></FieldRow>
-              <FieldRow label="البريد"><ErpInput value={supplier?.email ?? ""} onChange={() => {}} disabled /></FieldRow>
+              <FieldRow label="كود المورد">
+                <ErpInput value={pr.supplierCode} onChange={() => {}} disabled />
+              </FieldRow>
+              <FieldRow label="الدولة">
+                <ErpInput value={supplier?.country ?? ""} onChange={() => {}} disabled />
+              </FieldRow>
+              <FieldRow label="المدينة">
+                <ErpInput value={supplier?.city ?? ""} onChange={() => {}} disabled />
+              </FieldRow>
+              <FieldRow label="الهاتف">
+                <ErpInput value={supplier?.phone ?? ""} onChange={() => {}} disabled />
+              </FieldRow>
+              <FieldRow label="البريد">
+                <ErpInput value={supplier?.email ?? ""} onChange={() => {}} disabled />
+              </FieldRow>
             </div>
           </div>
         </Panel>
 
-        <Panel title={<StepTitle n={2} label="بيانات طلب الشراء" hint="سعر CBM ونسبة المصاريف يدويّان" />}>
+        <Panel
+          title={
+            <StepTitle n={2} label="بيانات طلب الشراء" hint="سعر CBM ونسبة المصاريف يدويّان" />
+          }
+        >
           <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-            <FieldRow label="رقم الطلب"><ErpInput value={pr.number} onChange={(v) => patch({ number: v, invoiceNo: v })} disabled={pr.approved} highlight /></FieldRow>
-            <FieldRow label="التاريخ"><ErpInput value={pr.date} onChange={(v) => patch({ date: v })} disabled={disabled} /></FieldRow>
+            <FieldRow label="رقم الطلب">
+              <ErpInput
+                value={pr.number}
+                onChange={(v) => patch({ number: v, invoiceNo: v })}
+                disabled={pr.approved}
+                highlight
+              />
+            </FieldRow>
+            <FieldRow label="التاريخ">
+              <ErpInput value={pr.date} onChange={(v) => patch({ date: v })} disabled={disabled} />
+            </FieldRow>
             <FieldRow label="العملة">
-              <ErpSelect value={pr.currency} onChange={setDocCurrency} disabled={disabled} options={currencyOptions} />
+              <ErpSelect
+                value={pr.currency}
+                onChange={setDocCurrency}
+                disabled={disabled}
+                options={currencyOptions}
+              />
             </FieldRow>
             <FieldRow label={`سعر صرف ⁦1 USD = ? ${pr.currency}⁩`}>
               <div className="flex items-center gap-1">
@@ -580,14 +918,31 @@ function PRPage() {
                 </button>
               </div>
             </FieldRow>
-            <FieldRow label="رقم الحاوية"><ErpInput value={pr.containerNo} onChange={(v) => patch({ containerNo: v })} disabled={disabled} /></FieldRow>
-            <FieldRow label="حجم الحاوية"><ErpInput value={pr.containerSize} onChange={(v) => patch({ containerSize: v })} disabled={disabled} /></FieldRow>
+            <FieldRow label="رقم الحاوية">
+              <ErpInput
+                value={pr.containerNo}
+                onChange={(v) => patch({ containerNo: v })}
+                disabled={disabled}
+              />
+            </FieldRow>
+            <FieldRow label="حجم الحاوية">
+              <ErpInput
+                value={pr.containerSize}
+                onChange={(v) => patch({ containerSize: v })}
+                disabled={disabled}
+              />
+            </FieldRow>
             <FieldRow label="توزيع المصاريف">
-              <ErpSelect value={pr.distributionType} onChange={(v) => patch({ distributionType: v as any })} disabled={disabled} options={[
-                { value: "cbm", label: "حسب تكلفة CBM" },
-                { value: "percentage", label: "حسب التكلفة المئوية" },
-                { value: "average", label: "حسب متوسط التكلفة" },
-              ]} />
+              <ErpSelect
+                value={pr.distributionType}
+                onChange={(v) => patch({ distributionType: v as any })}
+                disabled={disabled}
+                options={[
+                  { value: "cbm", label: "حسب تكلفة CBM" },
+                  { value: "percentage", label: "حسب التكلفة المئوية" },
+                  { value: "average", label: "حسب متوسط التكلفة" },
+                ]}
+              />
             </FieldRow>
             {/* الفرق الجوهري عن أمر الشراء: الحقلان التاليان مُدخلان يدوياً ولا
                 يُشتقّان من أي مصروفات، فلا شاشة مصروفات في طلب الشراء. */}
@@ -610,11 +965,21 @@ function PRPage() {
               />
             </FieldRow>
             <FieldRow label="نسبة الربح %">
-              <ErpInput value={markupPct} onChange={(v) => setMarkupPct(parseDecimal(v))} disabled={disabled} type="number" />
+              <ErpInput
+                value={markupPct}
+                onChange={(v) => setMarkupPct(parseDecimal(v))}
+                disabled={disabled}
+                type="number"
+              />
             </FieldRow>
             <div className="col-span-2">
               <FieldRow label="الملاحظات">
-                <textarea value={pr.notes} onChange={(e) => patch({ notes: e.target.value })} disabled={disabled} className="w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white disabled:bg-slate-50 min-h-[50px]" />
+                <textarea
+                  value={pr.notes}
+                  onChange={(e) => patch({ notes: e.target.value })}
+                  disabled={disabled}
+                  className="w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white disabled:bg-slate-50 min-h-[50px]"
+                />
               </FieldRow>
             </div>
           </div>
@@ -641,7 +1006,10 @@ function PRPage() {
         </div>
         <div className="text-xs text-slate-600 flex items-center gap-2">
           {pr.approved && <span className="text-emerald-600 font-semibold">✓ معتمد</span>}
-          <span>إجمالي الطلب: <span className="font-bold">{fmt(metrics.totalInvoiceAmount, 1)}</span> {pr.currency}</span>
+          <span>
+            إجمالي الطلب: <span className="font-bold">{fmt(metrics.totalInvoiceAmount, 1)}</span>{" "}
+            {pr.currency}
+          </span>
         </div>
       </button>
 
@@ -654,10 +1022,21 @@ function PRPage() {
         <DialogContent dir="rtl" className="max-w-[97vw] p-0 gap-0 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-white">
             <div className="flex items-center gap-1">
-              <button onClick={() => { if (!editing) setEditing(true); addRow(); }} disabled={pr.approved || !mayWrite} className="flex items-center gap-1 px-2 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-40">
+              <button
+                onClick={() => {
+                  if (!editing) setEditing(true);
+                  addRow();
+                }}
+                disabled={pr.approved || !mayWrite}
+                className="flex items-center gap-1 px-2 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-40"
+              >
                 <Plus size={12} /> إضافة صنف
               </button>
-              <button onClick={() => setSearchDlg(true)} disabled={pr.approved || !mayWrite} className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-slate-300 rounded hover:bg-blue-50 disabled:opacity-40">
+              <button
+                onClick={() => setSearchDlg(true)}
+                disabled={pr.approved || !mayWrite}
+                className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-slate-300 rounded hover:bg-blue-50 disabled:opacity-40"
+              >
                 <Search size={12} className="text-blue-600" /> بحث من الكتالوج
               </button>
             </div>
@@ -670,23 +1049,31 @@ function PRPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 py-3 bg-slate-50/60 border-b border-slate-200">
             <SummaryStat label="عدد الأصناف" value={fmtInt(metrics.totalItems)} unit="صنف" />
             <SummaryStat label="إجمالي الكمية" value={fmtInt(metrics.totalQty)} />
-            <SummaryStat label="إجمالي الطلب" value={fmt(metrics.totalInvoiceAmount, 1)} unit={pr.currency} />
+            <SummaryStat
+              label="إجمالي الطلب"
+              value={fmt(metrics.totalInvoiceAmount, 1)}
+              unit={pr.currency}
+            />
             <SummaryStat label="إجمالي CBM" value={fmt(metrics.totalCBM, 1)} unit="CBM" />
           </div>
 
-          <div className="overflow-auto max-h-[60vh]">
-            {itemsGrid}
-          </div>
+          <div className="overflow-auto max-h-[60vh]">{itemsGrid}</div>
 
           <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-white">
             <button
-              onClick={() => { void onSave(); setItemsDlg(false); }}
+              onClick={() => {
+                void onSave();
+                setItemsDlg(false);
+              }}
               disabled={!mayWrite || pr.approved}
               className="flex items-center gap-1 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40"
             >
               <Check size={16} /> حفظ
             </button>
-            <button onClick={() => setItemsDlg(false)} className="px-4 py-2 text-sm border border-slate-300 rounded hover:bg-slate-50">
+            <button
+              onClick={() => setItemsDlg(false)}
+              className="px-4 py-2 text-sm border border-slate-300 rounded hover:bg-slate-50"
+            >
               إغلاق
             </button>
           </div>
@@ -695,33 +1082,59 @@ function PRPage() {
 
       {/* تقدير التكلفة */}
       <div className="bg-white border border-slate-300 rounded">
-        <div className="flex items-center justify-between px-3 py-1 font-semibold text-slate-700 border-b border-slate-300" style={{ background: "var(--color-erp-panel-header)" }}>
+        <div
+          className="flex items-center justify-between px-3 py-1 font-semibold text-slate-700 border-b border-slate-300"
+          style={{ background: "var(--color-erp-panel-header)" }}
+        >
           <div className="text-[11px] flex items-center gap-1">
             <Coins size={12} className="text-amber-600" />
             <span className="text-slate-600">العملة الرئيسية للإجمالي:</span>
-            <select value={masterCurrency} onChange={(e) => setMasterCurrency(e.target.value)} className="px-2 py-0.5 text-[11px] border border-slate-300 rounded bg-white font-bold">
-              {currencyOptions.map((o) => (<option key={o.value} value={o.value}>{o.value}</option>))}
+            <select
+              value={masterCurrency}
+              onChange={(e) => setMasterCurrency(e.target.value)}
+              className="px-2 py-0.5 text-[11px] border border-slate-300 rounded bg-white font-bold"
+            >
+              {currencyOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.value}
+                </option>
+              ))}
             </select>
           </div>
-          <div className="flex items-center gap-1"><StepBadge n={4} /> تقدير التكلفة</div>
-          <div className="text-[10px] text-slate-500">1 USD = {fmt(masterCurrency === "USD" ? 1 : (rateOfCode(masterCurrency) || 1), 4)} {masterCurrency}</div>
+          <div className="flex items-center gap-1">
+            <StepBadge n={4} /> تقدير التكلفة
+          </div>
+          <div className="text-[10px] text-slate-500">
+            1 USD = {fmt(masterCurrency === "USD" ? 1 : rateOfCode(masterCurrency) || 1, 4)}{" "}
+            {masterCurrency}
+          </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 p-2">
           <SummaryStat label="عدد الأصناف" value={fmtInt(metrics.totalItems)} unit="صنف" />
           <SummaryStat label="إجمالي الكمية" value={fmtInt(metrics.totalQty)} />
-          <SummaryStat label="إجمالي الطلب" value={fmt(metrics.totalInvoiceAmount, 1)} unit={pr.currency} />
+          <SummaryStat
+            label="إجمالي الطلب"
+            value={fmt(metrics.totalInvoiceAmount, 1)}
+            unit={pr.currency}
+          />
           <SummaryStat label="إجمالي الشراء" value={fmt(metrics.totalPurchase, 1)} unit="USD" />
           <SummaryStat label="إجمالي CBM" value={fmt(metrics.totalCBM, 1)} unit="CBM" />
           <SummaryStat label="سعر CBM (يدوي)" value={fmt(metrics.cbmPrice, 1)} unit="USD" />
           {/* مصاريف تقديرية = ما وزّعته الأسطر فعلاً على الأساس المختار، لا فواتير مسجّلة */}
           <SummaryStat label="مصاريف تقديرية" value={fmt(metrics.totalExpenses, 1)} unit="USD" />
-          <SummaryStat label="إجمالي التكلفة" value={fmt(metrics.totalCost, 1)} unit="USD" highlight />
+          <SummaryStat
+            label="إجمالي التكلفة"
+            value={fmt(metrics.totalCost, 1)}
+            unit="USD"
+            highlight
+          />
         </div>
 
         {metrics.cbmBasisUnusable && (
           <div className="border-t border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800 flex items-center gap-1.5">
             <Info size={13} className="shrink-0" />
-            أدخلت سعر CBM لكن لا يوجد CBM على أي صنف، لذلك تعذّر التوزيع حسب CBM — وُزّعت المصاريف حسب «نسبة المصاريف %» بدلاً من ذلك. أدخل CBM الكرتون لكل صنف لاعتماد التوزيع الحجمي.
+            أدخلت سعر CBM لكن لا يوجد CBM على أي صنف، لذلك تعذّر التوزيع حسب CBM — وُزّعت المصاريف
+            حسب «نسبة المصاريف %» بدلاً من ذلك. أدخل CBM الكرتون لكل صنف لاعتماد التوزيع الحجمي.
           </div>
         )}
         {noBasisEntered(pr) && (
@@ -733,10 +1146,14 @@ function PRPage() {
 
         <div className="border-t border-slate-200 bg-slate-50 px-3 py-2 flex items-center justify-between">
           <div className="text-[11px] text-slate-600">
-            الإجمالي التقديري (بالدولار) محوّل تلقائيًا إلى <b className="text-slate-800">{masterCurrency}</b>
+            الإجمالي التقديري (بالدولار) محوّل تلقائيًا إلى{" "}
+            <b className="text-slate-800">{masterCurrency}</b>
           </div>
           <div className="text-lg font-black text-slate-800">
-            {fmt(metrics.totalCost * (masterCurrency === "USD" ? 1 : (rateOfCode(masterCurrency) || 1)), 1)}
+            {fmt(
+              metrics.totalCost * (masterCurrency === "USD" ? 1 : rateOfCode(masterCurrency) || 1),
+              1,
+            )}
             <span className="text-xs text-slate-500 mr-2">{masterCurrency}</span>
           </div>
         </div>
@@ -745,13 +1162,26 @@ function PRPage() {
       {/* النوافذ */}
       <Dialog open={openDlg} onOpenChange={setOpenDlg}>
         <DialogContent dir="rtl">
-          <DialogHeader><DialogTitle>فتح طلب شراء</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>فتح طلب شراء</DialogTitle>
+          </DialogHeader>
           <div className="max-h-80 overflow-auto space-y-1">
             {requests.length === 0 && (
-              <div className="text-xs text-slate-500 text-center py-4">لا توجد طلبات شراء محفوظة</div>
+              <div className="text-xs text-slate-500 text-center py-4">
+                لا توجد طلبات شراء محفوظة
+              </div>
             )}
             {requests.map((r) => (
-              <button key={r.number} onClick={() => { autoLoadedRef.current = true; setPr(r); setOpenDlg(false); setEditing(false); }} className="w-full text-right px-3 py-2 border border-slate-200 rounded hover:bg-slate-100 flex justify-between">
+              <button
+                key={r.number}
+                onClick={() => {
+                  autoLoadedRef.current = true;
+                  setPr(r);
+                  setOpenDlg(false);
+                  setEditing(false);
+                }}
+                className="w-full text-right px-3 py-2 border border-slate-200 rounded hover:bg-slate-100 flex justify-between"
+              >
                 <span className="text-xs text-slate-500">{r.date}</span>
                 <span className="font-semibold">{r.number}</span>
               </button>
@@ -762,37 +1192,92 @@ function PRPage() {
 
       <Dialog open={supDlg} onOpenChange={setSupDlg}>
         <DialogContent dir="rtl">
-          <DialogHeader><DialogTitle>اختيار المورد</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>اختيار المورد</DialogTitle>
+          </DialogHeader>
           <div className="max-h-80 overflow-auto space-y-1">
-            {suppliers.filter((s) => s.active).map((s) => (
-              <button key={s.code} onClick={() => { patch({ supplierCode: s.code, currency: s.currency }); setSupDlg(false); }} className="w-full text-right px-3 py-2 border border-slate-200 rounded hover:bg-slate-100">
-                <div className="font-semibold">{s.name}</div>
-                <div className="text-xs text-slate-500">{s.code} • {s.country}</div>
-              </button>
-            ))}
+            {suppliers
+              .filter((s) => s.active)
+              .map((s) => (
+                <button
+                  key={s.code}
+                  onClick={() => {
+                    patch({ supplierCode: s.code, currency: s.currency });
+                    setSupDlg(false);
+                  }}
+                  className="w-full text-right px-3 py-2 border border-slate-200 rounded hover:bg-slate-100"
+                >
+                  <div className="font-semibold">{s.name}</div>
+                  <div className="text-xs text-slate-500">
+                    {s.code} • {s.country}
+                  </div>
+                </button>
+              ))}
           </div>
         </DialogContent>
       </Dialog>
 
       <Dialog open={searchDlg} onOpenChange={setSearchDlg}>
         <DialogContent dir="rtl">
-          <DialogHeader><DialogTitle>البحث في الأصناف</DialogTitle></DialogHeader>
-          <input placeholder="موديل، باركود، أو اسم..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded text-right" />
+          <DialogHeader>
+            <DialogTitle>البحث في الأصناف</DialogTitle>
+          </DialogHeader>
+          <input
+            placeholder="موديل، باركود، أو اسم..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded text-right"
+          />
           <div className="max-h-64 overflow-auto space-y-1">
-            {items.filter((it) => !searchTerm || it.name.includes(searchTerm) || it.code.includes(searchTerm) || it.barcode.includes(searchTerm)).map((it) => (
-              <button key={it.code} onClick={() => {
-                addRow();
-                setTimeout(() => setPr((cur) => {
-                  const last = cur.rows[cur.rows.length - 1];
-                  const rowCurrency = it.currency ?? cur.currency;
-                  return { ...cur, rows: cur.rows.map((r) => r.id === last.id ? { ...r, model: it.code, name: it.name, cbm: it.cbmPerCarton, unit: it.units[0]?.name ?? "حبة", pack: it.units[0]?.pack ?? 1, price: it.units[0]?.lastPrice ?? 0, currency: rowCurrency, rate: rateOf(rowCurrency) } : r) };
-                }), 0);
-                setSearchDlg(false);
-              }} className="w-full text-right p-2 border border-slate-200 rounded hover:bg-slate-100">
-                <div className="font-semibold">{it.name}</div>
-                <div className="text-xs text-slate-500">{it.code} • {it.barcode}</div>
-              </button>
-            ))}
+            {items
+              .filter(
+                (it) =>
+                  !searchTerm ||
+                  it.name.includes(searchTerm) ||
+                  it.code.includes(searchTerm) ||
+                  it.barcode.includes(searchTerm),
+              )
+              .map((it) => (
+                <button
+                  key={it.code}
+                  onClick={() => {
+                    addRow();
+                    setTimeout(
+                      () =>
+                        setPr((cur) => {
+                          const last = cur.rows[cur.rows.length - 1];
+                          const rowCurrency = it.currency ?? cur.currency;
+                          return {
+                            ...cur,
+                            rows: cur.rows.map((r) =>
+                              r.id === last.id
+                                ? {
+                                    ...r,
+                                    model: it.code,
+                                    name: it.name,
+                                    cbm: it.cbmPerCarton,
+                                    unit: it.units[0]?.name ?? "حبة",
+                                    pack: it.units[0]?.pack ?? 1,
+                                    price: it.units[0]?.lastPrice ?? 0,
+                                    currency: rowCurrency,
+                                    rate: rateOf(rowCurrency),
+                                  }
+                                : r,
+                            ),
+                          };
+                        }),
+                      0,
+                    );
+                    setSearchDlg(false);
+                  }}
+                  className="w-full text-right p-2 border border-slate-200 rounded hover:bg-slate-100"
+                >
+                  <div className="font-semibold">{it.name}</div>
+                  <div className="text-xs text-slate-500">
+                    {it.code} • {it.barcode}
+                  </div>
+                </button>
+              ))}
           </div>
         </DialogContent>
       </Dialog>
@@ -813,16 +1298,32 @@ function noBasisEntered(pr: PurchaseRequest): boolean {
 }
 
 function basisHint(pr: PurchaseRequest): string {
-  if (pr.distributionType === "cbm") return "أدخل «سعر CBM» ليُحتسب نصيب كل صنف من المصاريف — التكلفة الآن = سعر الشراء فقط.";
-  if (pr.distributionType === "percentage") return "أدخل «نسبة المصاريف %» ليُحتسب نصيب كل صنف من المصاريف — التكلفة الآن = سعر الشراء فقط.";
+  if (pr.distributionType === "cbm")
+    return "أدخل «سعر CBM» ليُحتسب نصيب كل صنف من المصاريف — التكلفة الآن = سعر الشراء فقط.";
+  if (pr.distributionType === "percentage")
+    return "أدخل «نسبة المصاريف %» ليُحتسب نصيب كل صنف من المصاريف — التكلفة الآن = سعر الشراء فقط.";
   return "أدخل «سعر CBM» و«نسبة المصاريف %» ليُحتسب متوسط التكلفة — التكلفة الآن = سعر الشراء فقط.";
 }
 
-function SummaryStat({ label, value, unit, highlight }: { label: string; value: string; unit?: string; highlight?: boolean }) {
+function SummaryStat({
+  label,
+  value,
+  unit,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  highlight?: boolean;
+}) {
   return (
-    <div className={`border rounded p-2 text-center shadow-sm ${highlight ? "bg-slate-100 border-slate-300" : "bg-white border-slate-200"}`}>
+    <div
+      className={`border rounded p-2 text-center shadow-sm ${highlight ? "bg-slate-100 border-slate-300" : "bg-white border-slate-200"}`}
+    >
       <div className="text-[10px] text-slate-500">{label}</div>
-      <div className="font-bold text-slate-800 text-sm tabular-nums">{value} {unit && <span className="text-[10px] text-slate-500 font-normal">{unit}</span>}</div>
+      <div className="font-bold text-slate-800 text-sm tabular-nums">
+        {value} {unit && <span className="text-[10px] text-slate-500 font-normal">{unit}</span>}
+      </div>
     </div>
   );
 }

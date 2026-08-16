@@ -28,10 +28,14 @@ function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   // If no users exist, force signup mode to create the first admin.
-  useEffect(() => { if (needsBootstrap) setMode("signup"); }, [needsBootstrap]);
+  useEffect(() => {
+    if (needsBootstrap) setMode("signup");
+  }, [needsBootstrap]);
   // Signup can be closed by an admin from /users — don't strand the form on
   // a tab that's no longer reachable.
-  useEffect(() => { if (!canSignup && mode === "signup") setMode("login"); }, [canSignup, mode]);
+  useEffect(() => {
+    if (!canSignup && mode === "signup") setMode("login");
+  }, [canSignup, mode]);
 
   useEffect(() => {
     if (!session) return;
@@ -73,11 +77,19 @@ function LoginPage() {
   };
 
   return (
-    <div dir="rtl" className="min-h-screen font-sans flex items-center justify-center p-4"
-      style={{ background: "linear-gradient(135deg, #1e5a8e 0%, #2d7fc4 100%)" }}>
+    <div
+      dir="rtl"
+      className="min-h-screen font-sans flex items-center justify-center p-4"
+      style={{ background: "linear-gradient(135deg, #1e5a8e 0%, #2d7fc4 100%)" }}
+    >
       <div className="w-full max-w-sm bg-white rounded-lg shadow-2xl overflow-hidden">
-        <div className="p-6 text-white text-center" style={{ background: "var(--color-erp-titlebar)" }}>
-          <div className="w-14 h-14 mx-auto rounded-lg bg-white/20 flex items-center justify-center font-bold text-xl mb-2">ERP</div>
+        <div
+          className="p-6 text-white text-center"
+          style={{ background: "var(--color-erp-titlebar)" }}
+        >
+          <div className="w-14 h-14 mx-auto rounded-lg bg-white/20 flex items-center justify-center font-bold text-xl mb-2">
+            ERP
+          </div>
           <h1 className="text-lg font-bold">نظام تخطيط موارد المؤسسات</h1>
           <p className="text-xs opacity-80 mt-1">إصدار محلي — البيانات على جهازك</p>
         </div>
@@ -87,8 +99,18 @@ function LoginPage() {
           </div>
         ) : canSignup ? (
           <div className="flex border-b border-slate-200">
-            <button onClick={() => setMode("login")} className={`flex-1 py-2 text-sm font-medium ${mode === "login" ? "bg-white text-blue-700 border-b-2 border-blue-600" : "bg-slate-50 text-slate-500"}`}>تسجيل الدخول</button>
-            <button onClick={() => setMode("signup")} className={`flex-1 py-2 text-sm font-medium ${mode === "signup" ? "bg-white text-blue-700 border-b-2 border-blue-600" : "bg-slate-50 text-slate-500"}`}>إنشاء حساب</button>
+            <button
+              onClick={() => setMode("login")}
+              className={`flex-1 py-2 text-sm font-medium ${mode === "login" ? "bg-white text-blue-700 border-b-2 border-blue-600" : "bg-slate-50 text-slate-500"}`}
+            >
+              تسجيل الدخول
+            </button>
+            <button
+              onClick={() => setMode("signup")}
+              className={`flex-1 py-2 text-sm font-medium ${mode === "signup" ? "bg-white text-blue-700 border-b-2 border-blue-600" : "bg-slate-50 text-slate-500"}`}
+            >
+              إنشاء حساب
+            </button>
           </div>
         ) : (
           <div className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs p-2 flex items-center gap-2 justify-center">
@@ -100,27 +122,67 @@ function LoginPage() {
             <div className="space-y-1">
               <label className="text-xs text-slate-600">الاسم الكامل</label>
               <div className="flex border border-slate-300 rounded overflow-hidden focus-within:ring-1 focus-within:ring-blue-400">
-                <div className="px-3 flex items-center bg-slate-50 border-l border-slate-300"><UserIcon size={14} className="text-slate-500" /></div>
-                <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="flex-1 px-2 py-2 text-sm outline-none text-right" placeholder="اسمك" />
+                <div className="px-3 flex items-center bg-slate-50 border-l border-slate-300">
+                  <UserIcon size={14} className="text-slate-500" />
+                </div>
+                <input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="flex-1 px-2 py-2 text-sm outline-none text-right"
+                  placeholder="اسمك"
+                />
               </div>
             </div>
           )}
           <div className="space-y-1">
             <label className="text-xs text-slate-600">اسم المستخدم</label>
             <div className="flex border border-slate-300 rounded overflow-hidden focus-within:ring-1 focus-within:ring-blue-400">
-              <div className="px-3 flex items-center bg-slate-50 border-l border-slate-300"><UserIcon size={14} className="text-slate-500" /></div>
-              <input type="text" required value={username} onChange={(e) => setUsername(e.target.value)} className="flex-1 px-2 py-2 text-sm outline-none" placeholder="admin" autoComplete="username" />
+              <div className="px-3 flex items-center bg-slate-50 border-l border-slate-300">
+                <UserIcon size={14} className="text-slate-500" />
+              </div>
+              <input
+                type="text"
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="flex-1 px-2 py-2 text-sm outline-none"
+                placeholder="admin"
+                autoComplete="username"
+              />
             </div>
           </div>
           <div className="space-y-1">
             <label className="text-xs text-slate-600">كلمة المرور</label>
             <div className="flex border border-slate-300 rounded overflow-hidden focus-within:ring-1 focus-within:ring-blue-400">
-              <div className="px-3 flex items-center bg-slate-50 border-l border-slate-300"><Lock size={14} className="text-slate-500" /></div>
-              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="flex-1 px-2 py-2 text-sm outline-none" placeholder="••••••" autoComplete={mode === "login" ? "current-password" : "new-password"} />
+              <div className="px-3 flex items-center bg-slate-50 border-l border-slate-300">
+                <Lock size={14} className="text-slate-500" />
+              </div>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="flex-1 px-2 py-2 text-sm outline-none"
+                placeholder="••••••"
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+              />
             </div>
           </div>
-          <button type="submit" disabled={busy || loading} className="w-full py-2 rounded text-white font-semibold flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50" style={{ background: "var(--color-erp-titlebar)" }}>
-            {mode === "login" ? <><LogIn size={16} /> دخول</> : <><UserPlus size={16} /> إنشاء الحساب</>}
+          <button
+            type="submit"
+            disabled={busy || loading}
+            className="w-full py-2 rounded text-white font-semibold flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50"
+            style={{ background: "var(--color-erp-titlebar)" }}
+          >
+            {mode === "login" ? (
+              <>
+                <LogIn size={16} /> دخول
+              </>
+            ) : (
+              <>
+                <UserPlus size={16} /> إنشاء الحساب
+              </>
+            )}
           </button>
           <p className="text-[11px] text-center text-slate-500">
             {needsBootstrap

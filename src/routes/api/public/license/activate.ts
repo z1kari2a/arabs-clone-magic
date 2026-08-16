@@ -41,7 +41,12 @@ export const Route = createFileRoute("/api/public/license/activate")({
         }
 
         const { code, fingerprint, device_name } = (body ?? {}) as Record<string, unknown>;
-        if (typeof code !== "string" || typeof fingerprint !== "string" || code.length < 4 || fingerprint.length < 8) {
+        if (
+          typeof code !== "string" ||
+          typeof fingerprint !== "string" ||
+          code.length < 4 ||
+          fingerprint.length < 8
+        ) {
           return new Response(JSON.stringify({ ok: false, error: "invalid_input" }), {
             status: 400,
             headers: cors,

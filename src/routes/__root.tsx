@@ -93,8 +93,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "تسجيل الدخول - نظام ERP" },
       { name: "twitter:description", content: "تسجيل الدخول إلى نظام إدارة أوامر الشراء" },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/78a08e22-e638-485c-8bca-d71f860a133d/id-preview-3988a8a0--fcee6d02-066c-4ec5-8918-f7362ac0e4e4.lovable.app-1784654489404.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/78a08e22-e638-485c-8bca-d71f860a133d/id-preview-3988a8a0--fcee6d02-066c-4ec5-8918-f7362ac0e4e4.lovable.app-1784654489404.png" },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/78a08e22-e638-485c-8bca-d71f860a133d/id-preview-3988a8a0--fcee6d02-066c-4ec5-8918-f7362ac0e4e4.lovable.app-1784654489404.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/78a08e22-e638-485c-8bca-d71f860a133d/id-preview-3988a8a0--fcee6d02-066c-4ec5-8918-f7362ac0e4e4.lovable.app-1784654489404.png",
+      },
     ],
     links: [
       {
@@ -113,7 +121,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             // `as const` مقصود: بدونه يتوسّع النوع إلى `string`، بينما
             // `LinkHTMLAttributes.crossOrigin` اتحادٌ ضيّق — وهو خطأ الأنواع
             // الوحيد الذي كان قائماً في المشروع.
-            { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" as const },
+            {
+              rel: "preconnect",
+              href: "https://fonts.gstatic.com",
+              crossOrigin: "anonymous" as const,
+            },
             {
               rel: "stylesheet",
               href: "https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap",

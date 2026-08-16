@@ -97,9 +97,9 @@ function openSqlite(filePath) {
           JSON.stringify(entry.before_data ?? null),
           JSON.stringify(entry.after_data ?? null),
         );
-      db.prepare(
-        "DELETE FROM erp_audit WHERE id <= (SELECT max(id) FROM erp_audit) - ?",
-      ).run(AUDIT_KEEP);
+      db.prepare("DELETE FROM erp_audit WHERE id <= (SELECT max(id) FROM erp_audit) - ?").run(
+        AUDIT_KEEP,
+      );
       return Number(info.lastInsertRowid);
     },
     getAudit(limit) {
@@ -254,7 +254,9 @@ function init(filePath) {
         if (fs.existsSync(filePath + suffix)) fs.rmSync(filePath + suffix, { force: true });
       }
       backend = openSqlite(filePath);
-      initError = new Error(`تعذّر قراءة قاعدة البيانات، وتم إنشاء واحدة جديدة. النسخة القديمة: ${aside}`);
+      initError = new Error(
+        `تعذّر قراءة قاعدة البيانات، وتم إنشاء واحدة جديدة. النسخة القديمة: ${aside}`,
+      );
       return status();
     } catch (err) {
       initError = err;

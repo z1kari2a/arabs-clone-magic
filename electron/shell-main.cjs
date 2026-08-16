@@ -18,9 +18,7 @@ const db = require("./db.cjs");
 
 // ---- Configuration ---------------------------------------------------------
 
-const SERVER_BASE =
-  process.env.ERP_LICENSE_SERVER ||
-  "https://arabs-clone-magic.lovable.app";
+const SERVER_BASE = process.env.ERP_LICENSE_SERVER || "https://arabs-clone-magic.lovable.app";
 const HEARTBEAT_MS = 30 * 60 * 1000; // 30 minutes
 
 let mainWindow = null;
@@ -97,8 +95,12 @@ function writeLicense(obj) {
   fs.writeFileSync(licensePath(), JSON.stringify(obj, null, 2), { mode: 0o600 });
 }
 function clearLicense() {
-  try { fs.unlinkSync(licensePath()); } catch {}
-  try { fs.rmSync(bundleDir(), { recursive: true, force: true }); } catch {}
+  try {
+    fs.unlinkSync(licensePath());
+  } catch {}
+  try {
+    fs.rmSync(bundleDir(), { recursive: true, force: true });
+  } catch {}
 }
 
 // ---- Fetch helpers (no external deps) --------------------------------------
@@ -126,7 +128,10 @@ function httpJson(url, opts = {}) {
           try {
             resolve({ status: res.statusCode || 0, json: JSON.parse(body) });
           } catch {
-            resolve({ status: res.statusCode || 0, json: { ok: false, error: "invalid_response" } });
+            resolve({
+              status: res.statusCode || 0,
+              json: { ok: false, error: "invalid_response" },
+            });
           }
         });
       },
@@ -215,12 +220,20 @@ async function heartbeat() {
   });
   if (status === 200 && json.ok) {
     if (json.bundle_version && json.bundle_version !== license.bundle_version) {
-      try { await downloadAndInstallBundle(license); } catch (e) { console.error("update failed", e); }
+      try {
+        await downloadAndInstallBundle(license);
+      } catch (e) {
+        console.error("update failed", e);
+      }
     }
     return { ok: true };
   }
   // Terminal errors: wipe and force re-activation.
-  if (["license_disabled", "license_expired", "invalid_session", "device_revoked"].includes(json.error)) {
+  if (
+    ["license_disabled", "license_expired", "invalid_session", "device_revoked"].includes(
+      json.error,
+    )
+  ) {
     clearLicense();
     if (mainWindow) mainWindow.loadFile(path.join(__dirname, "..", "electron-shell", "index.html"));
   }
@@ -300,9 +313,8 @@ function createWindow() {
   const license = readLicense();
   const bundleIndex = path.join(bundleDir(), "index.html");
   const hasBundle = fs.existsSync(bundleIndex);
-  const url = license && hasBundle
-    ? bundleIndex
-    : path.join(__dirname, "..", "electron-shell", "index.html");
+  const url =
+    license && hasBundle ? bundleIndex : path.join(__dirname, "..", "electron-shell", "index.html");
   mainWindow.loadFile(url).catch((e) => console.error("loadFile failed", e));
 
   if (process.argv.includes("--dev")) mainWindow.webContents.openDevTools();
@@ -315,21 +327,37 @@ app.whenReady().then(() => {
   registerIpc();
   createWindow();
 
-  Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: "ملف", submenu: [
-      { label: "إلغاء التفعيل على هذا الجهاز", click: () => { clearLicense(); mainWindow?.reload(); } },
-      { type: "separator" },
-      { role: "quit", label: "خروج" },
-    ]},
-    { label: "عرض", submenu: [
-      { role: "reload", label: "إعادة تحميل" },
-      { role: "toggleDevTools", label: "أدوات المطور" },
-      { type: "separator" },
-      { role: "togglefullscreen", label: "ملء الشاشة" },
-    ]},
-  ]));
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: "ملف",
+        submenu: [
+          {
+            label: "إلغاء التفعيل على هذا الجهاز",
+            click: () => {
+              clearLicense();
+              mainWindow?.reload();
+            },
+          },
+          { type: "separator" },
+          { role: "quit", label: "خروج" },
+        ],
+      },
+      {
+        label: "عرض",
+        submenu: [
+          { role: "reload", label: "إعادة تحميل" },
+          { role: "toggleDevTools", label: "أدوات المطور" },
+          { type: "separator" },
+          { role: "togglefullscreen", label: "ملء الشاشة" },
+        ],
+      },
+    ]),
+  );
 
-  heartbeatTimer = setInterval(() => { heartbeat().catch(() => {}); }, HEARTBEAT_MS);
+  heartbeatTimer = setInterval(() => {
+    heartbeat().catch(() => {});
+  }, HEARTBEAT_MS);
   heartbeat().catch(() => {}); // fire once on start
 
   autoBackup();
