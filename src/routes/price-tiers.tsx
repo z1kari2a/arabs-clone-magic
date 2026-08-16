@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
+import { useCloseGuard } from "@/components/erp/CloseGuard";
 import { ErpTable, fmt } from "@/components/erp/ErpUI";
 import { useErpStore, computePO, readStashedPO } from "@/lib/erp-store";
 import { printPriceTiers } from "@/lib/print-po";
@@ -128,13 +129,16 @@ function PriceTiersPage() {
 
   const backToPO = () => router.navigate({ to: "/purchase-order" });
 
+  // شاشة عرض: لا بيانات معلّقة تُحفظ، فيكتفي الحارس بسؤال تأكيد قبل الإغلاق.
+  const closeGuard = useCloseGuard({ title: "التسعيرات" });
+
   const actions = [
     { icon: FolderOpen, label: "فتح فاتورة", hint: "Ctrl+O", color: "text-amber-500", onClick: () => setOpenDlg(true) },
     { icon: Printer, label: "طباعة", hint: "Ctrl+P", color: "text-slate-600", onClick: onPrint, disabled: !po },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport, disabled: !po },
     { icon: SettingsIcon, label: "تعريف التسعيرات", color: "text-indigo-600", onClick: () => router.navigate({ to: "/settings" }) },
     { icon: ClipboardList, label: "أمر الشراء", color: "text-blue-600", onClick: backToPO },
-    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: () => history.back() },
+    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
   ];
 
   useEffect(() => {
@@ -142,12 +146,16 @@ function PriceTiersPage() {
       const k = e.key.toLowerCase();
       if (e.ctrlKey && k === "o") { e.preventDefault(); setOpenDlg(true); }
       else if (e.ctrlKey && k === "p") { e.preventDefault(); onPrint(); }
-      else if (e.key === "Escape") setOpenDlg(false);
+      else if (e.key === "Escape") {
+        if (closeGuard.pending) return;
+        if (openDlg) setOpenDlg(false);
+        else closeGuard.requestClose();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [po, displayCurrency, priceTiers]);
+  }, [po, displayCurrency, priceTiers, openDlg, closeGuard.pending]);
 
   return (
     <ErpLayout title="التسعيرات حسب الوجهات" ribbon={<Ribbon actions={actions} />}>
@@ -284,6 +292,7 @@ function PriceTiersPage() {
           </div>
         </DialogContent>
       </Dialog>
+      {closeGuard.dialog}
     </ErpLayout>
   );
 }

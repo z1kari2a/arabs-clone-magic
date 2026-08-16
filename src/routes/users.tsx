@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { RefreshCw, X, Users as UsersIcon, ShieldAlert, UserPlus, Trash2, KeyRound, LockKeyhole, LockKeyholeOpen } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
+import { useCloseGuard } from "@/components/erp/CloseGuard";
 import { ErpTable } from "@/components/erp/ErpUI";
 import { useErpStore, hydrateStore } from "@/lib/erp-store";
 import { useAuth, signUp, changePassword, approveUser, setAllowSignup } from "@/lib/auth";
@@ -121,6 +122,9 @@ function UsersPage() {
     finally { setBusy(false); }
   };
 
+  // شاشة عرض: لا بيانات معلّقة تُحفظ، فيكتفي الحارس بسؤال تأكيد قبل الإغلاق.
+  const closeGuard = useCloseGuard({ title: "المستخدمين" });
+
   const actions = [
     ...(isAdmin ? [{ icon: UserPlus, label: "مستخدم جديد", color: "text-emerald-600", onClick: () => setShowAdd(true) }] : []),
     ...(isAdmin
@@ -131,7 +135,7 @@ function UsersPage() {
         ]
       : []),
     { icon: RefreshCw, label: "تحديث", color: "text-blue-600", onClick: () => hydrateStore() },
-    { icon: X, label: "إغلاق", color: "text-rose-600", onClick: () => history.back() },
+    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
   ];
 
   return (
@@ -213,6 +217,7 @@ function UsersPage() {
           )}
         </ErpTable>
       </div>
+      {closeGuard.dialog}
     </ErpLayout>
   );
 }

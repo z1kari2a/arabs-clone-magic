@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, Package } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
+import { useCloseGuard } from "@/components/erp/CloseGuard";
 import { ErpTable, Cell, fmt, parseDecimal } from "@/components/erp/ErpUI";
 import { cell, num } from "@/lib/sheet";
 import { erpStore, useErpStore } from "@/lib/erp-store";
@@ -65,18 +66,20 @@ function ItemsPage() {
     setList([...list, { code: `MOD-${max + 1}`, name: "", barcode: "", units: [{ name: "حبة", pack: 1, lastPrice: 0 }], cbmPerCarton: 0, lastCost: 0, currency: defaultCurrency }]);
     setEditing(true);
   };
-  const onSave = () => {
-    if (!mayWrite) return toast.error("ليس لديك صلاحية لهذا الإجراء");
-    if (!hydrated) return toast.error("لم يكتمل تحميل البيانات بعد — انتظر لحظة ثم احفظ");
+  // يُعيد true/false ليعرف حارس الإغلاق هل نجح الحفظ فيُغلق الشاشة.
+  const onSave = (): boolean => {
+    if (!mayWrite) { toast.error("ليس لديك صلاحية لهذا الإجراء"); return false; }
+    if (!hydrated) { toast.error("لم يكتمل تحميل البيانات بعد — انتظر لحظة ثم احفظ"); return false; }
     const codes = new Set<string>();
     for (const it of list) {
-      if (!it.code.trim()) return toast.error("يوجد صنف بدون موديل");
-      if (codes.has(it.code)) return toast.error(`موديل مكرر: ${it.code}`);
+      if (!it.code.trim()) { toast.error("يوجد صنف بدون موديل"); return false; }
+      if (codes.has(it.code)) { toast.error(`موديل مكرر: ${it.code}`); return false; }
       codes.add(it.code);
     }
     erpStore.set({ items: list });
     setEditing(false);
     toast.success("تم الحفظ");
+    return true;
   };
   const onDelete = (idx: number) => {
     if (!mayDelete) return toast.error("الحذف يتطلب صلاحية مدير");
@@ -172,6 +175,14 @@ function ItemsPage() {
   };
   const noop = () => {};
 
+  // حارس الإغلاق: «تعديل» هنا يعني قائمة محلية لم تُكتب في التخزين بعد.
+  const closeGuard = useCloseGuard({
+    dirty: editing && mayWrite,
+    title: "دليل الأصناف",
+    onSave: mayWrite ? onSave : undefined,
+    onDiscard: () => setList(items), // تراجع عن التعديلات المحلية غير المحفوظة
+  });
+
   const actions = [
     { icon: FilePlus2, label: "جديد", color: "text-emerald-600", onClick: onNew, disabled: !mayWrite },
     { icon: FolderOpen, label: "فتح", color: "text-amber-500", onClick: noop },
@@ -183,7 +194,7 @@ function ItemsPage() {
     { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled: !mayWrite },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
     { icon: CheckCircle2, label: "اعتماد", color: "text-emerald-700", onClick: onSave, disabled: !mayWrite },
-    { icon: X, label: "إغلاق", color: "text-rose-600", onClick: () => history.back() },
+    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
   ];
 
   return (
@@ -232,6 +243,7 @@ function ItemsPage() {
           })}
         </ErpTable>
       </div>
+      {closeGuard.dialog}
     </ErpLayout>
   );
 }

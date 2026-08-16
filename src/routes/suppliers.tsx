@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { FilePlus2, FolderOpen, Save, Pencil, Trash2, Search, Printer, FileSpreadsheet, Download, CheckCircle2, X, Building2 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
+import { useCloseGuard } from "@/components/erp/CloseGuard";
 import { ErpTable, Cell } from "@/components/erp/ErpUI";
 import { cell } from "@/lib/sheet";
 import { erpStore, useErpStore } from "@/lib/erp-store";
@@ -59,18 +60,20 @@ function SuppliersPage() {
     setList([...list, { code: `SUP${String(max + 1).padStart(4, "0")}`, name: "", country: "", city: "", phone: "", email: "", currency: "USD", notes: "", active: true }]);
     setEditing(true);
   };
-  const onSave = () => {
-    if (!mayWrite) return toast.error("ليس لديك صلاحية لهذا الإجراء");
-    if (!hydrated) return toast.error("لم يكتمل تحميل البيانات بعد — انتظر لحظة ثم احفظ");
+  // يُعيد true/false ليعرف حارس الإغلاق هل نجح الحفظ فيُغلق الشاشة.
+  const onSave = (): boolean => {
+    if (!mayWrite) { toast.error("ليس لديك صلاحية لهذا الإجراء"); return false; }
+    if (!hydrated) { toast.error("لم يكتمل تحميل البيانات بعد — انتظر لحظة ثم احفظ"); return false; }
     const codes = new Set<string>();
     for (const s of list) {
-      if (!s.code.trim()) return toast.error("يوجد مورد بدون كود");
-      if (codes.has(s.code)) return toast.error(`كود مكرر: ${s.code}`);
+      if (!s.code.trim()) { toast.error("يوجد مورد بدون كود"); return false; }
+      if (codes.has(s.code)) { toast.error(`كود مكرر: ${s.code}`); return false; }
       codes.add(s.code);
     }
     erpStore.set({ suppliers: list });
     setEditing(false);
     toast.success("تم حفظ الموردين");
+    return true;
   };
   const onDelete = (idx: number) => {
     if (!mayDelete) return toast.error("الحذف يتطلب صلاحية مدير");
@@ -162,6 +165,14 @@ function SuppliersPage() {
   };
   const noop = () => {};
 
+  // حارس الإغلاق: «تعديل» هنا يعني قائمة محلية لم تُكتب في التخزين بعد.
+  const closeGuard = useCloseGuard({
+    dirty: editing && mayWrite,
+    title: "الموردين",
+    onSave: mayWrite ? onSave : undefined,
+    onDiscard: () => setList(suppliers), // تراجع عن التعديلات المحلية
+  });
+
   const actions = [
     { icon: FilePlus2, label: "جديد", color: "text-emerald-600", onClick: onNew, disabled: !mayWrite },
     { icon: FolderOpen, label: "فتح", color: "text-amber-500", onClick: noop },
@@ -173,7 +184,7 @@ function SuppliersPage() {
     { icon: FileSpreadsheet, label: "استيراد Excel", color: "text-green-600", onClick: onImport, disabled: !mayWrite },
     { icon: Download, label: "تصدير Excel", color: "text-teal-600", onClick: onExport },
     { icon: CheckCircle2, label: "اعتماد", color: "text-emerald-700", onClick: onSave, disabled: !mayWrite },
-    { icon: X, label: "إغلاق", color: "text-rose-600", onClick: () => history.back() },
+    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
   ];
 
   return (
@@ -214,6 +225,7 @@ function SuppliersPage() {
           })}
         </ErpTable>
       </div>
+      {closeGuard.dialog}
     </ErpLayout>
   );
 }

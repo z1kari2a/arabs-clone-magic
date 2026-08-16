@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { RefreshCw, X, ScrollText, ShieldAlert } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
+import { useCloseGuard } from "@/components/erp/CloseGuard";
 import { ErpTable } from "@/components/erp/ErpUI";
 import { useAuth } from "@/lib/auth";
 import { getAudit } from "@/lib/local-db";
@@ -42,6 +43,10 @@ function AuditPage() {
 
   useEffect(() => { if (role === "admin") void load(); else setLoading(false); }, [role]);
 
+  // شاشة عرض: لا بيانات معلّقة تُحفظ، فيكتفي الحارس بسؤال تأكيد قبل الإغلاق.
+  // يُستدعى قبل أي `return` مبكر — قواعد الخطّافات لا تسمح باستدعاء مشروط.
+  const closeGuard = useCloseGuard({ title: "سجل التدقيق" });
+
   if (role !== "admin") {
     return (
       <ErpLayout title="سجل التدقيق">
@@ -58,7 +63,7 @@ function AuditPage() {
 
   const actions = [
     { icon: RefreshCw, label: "تحديث", color: "text-blue-600", onClick: load },
-    { icon: X, label: "إغلاق", color: "text-rose-600", onClick: () => history.back() },
+    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
   ];
 
   return (
@@ -110,6 +115,7 @@ function AuditPage() {
           </ErpTable>
         </div>
       </div>
+      {closeGuard.dialog}
     </ErpLayout>
   );
 }

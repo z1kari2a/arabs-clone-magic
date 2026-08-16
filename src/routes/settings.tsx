@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
+import { useCloseGuard } from "@/components/erp/CloseGuard";
 import {
   Panel,
   FieldRow,
@@ -253,8 +254,9 @@ function SettingsPage() {
   // time (possibly before store hydration finished), so writing it back as-is would
   // silently revert currencies/masterCurrency/expenseTypes to that stale snapshot,
   // undoing rate edits made on "أسعار الصرف" (or anywhere else) in the meantime.
-  const onSave = () => {
-    if (!mayWrite) return toast.error("ليس لديك صلاحية لتعديل الإعدادات");
+  // يُعيد true/false ليعرف حارس الإغلاق هل نجح الحفظ فيُغلق الشاشة.
+  const onSave = (): boolean => {
+    if (!mayWrite) { toast.error("ليس لديك صلاحية لتعديل الإعدادات"); return false; }
     const liveCurrencies = settings.currencies ?? [];
     const defaultCurrency = liveCurrencies.some((c) => c.code === local.defaultCurrency)
       ? local.defaultCurrency
@@ -296,6 +298,7 @@ function SettingsPage() {
       },
     });
     toast.success("تم حفظ الإعدادات");
+    return true;
   };
   // ---- Company / branch card ----
   const co: CompanyProfile = local.company ?? {};
@@ -456,6 +459,18 @@ function SettingsPage() {
     }
   };
 
+  // حارس الإغلاق: مقارنة النموذج المحلي بالمحفوظ فعلاً — الحقول التي تحفظها
+  // هذه الشاشة وحدها، حتى لا يُحسب تغيّر سعر صرف من شاشة أخرى «تعديلاً معلّقاً».
+  const settingsDirty =
+    JSON.stringify([local.companyName, local.fiscalYear, local.defaultCurrency, local.language, local.priceTiers, local.appName ?? "", local.appIcon ?? "", local.company ?? {}]) !==
+    JSON.stringify([settings.companyName, settings.fiscalYear, settings.defaultCurrency, settings.language, settings.priceTiers, settings.appName ?? "", settings.appIcon ?? "", settings.company ?? {}]);
+  const closeGuard = useCloseGuard({
+    dirty: settingsDirty && mayWrite,
+    title: "الإعدادات",
+    onSave: mayWrite ? onSave : undefined,
+    onDiscard: () => setLocal(settings), // تراجع عن تعديلات النموذج غير المحفوظة
+  });
+
   const actions = [
     { icon: FilePlus2, label: "جديد", color: "text-emerald-600", onClick: noop },
     { icon: FolderOpen, label: "فتح", color: "text-amber-500", onClick: noop },
@@ -475,7 +490,7 @@ function SettingsPage() {
       onClick: onSave,
       disabled: !mayWrite,
     },
-    { icon: X, label: "إغلاق", color: "text-rose-600", onClick: () => history.back() },
+    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
   ];
 
   return (
@@ -737,6 +752,7 @@ function SettingsPage() {
           ))}
         </ErpTable>
       </Panel>
+      {closeGuard.dialog}
     </ErpLayout>
   );
 }
