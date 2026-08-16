@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Save, RefreshCw, Plus, Trash2, Star, DollarSign, Info } from "lucide-react";
+import { Save, RefreshCw, Plus, Trash2, Star, DollarSign, Info, X } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
+import { useCloseGuard } from "@/components/erp/CloseGuard";
 import { Panel, fmt, parseDecimal, useNumericBuffer } from "@/components/erp/ErpUI";
 import { erpStore, useErpStore } from "@/lib/erp-store";
 import { useAuth, canWrite } from "@/lib/auth";
@@ -70,22 +71,25 @@ function RatesPage() {
     setRows(rows.filter((r) => r.code !== code));
   };
 
-  const save = () => {
-    if (!mayWrite) return toast.error("تعديل أسعار الصرف يتطلب صلاحية مستخدم أو مدير");
+  // يُعيد true/false ليعرف حارس الإغلاق هل نجح الحفظ فيُغلق الشاشة — تحقّق مرفوض
+  // يعني أن الشاشة تبقى مفتوحة بدل أن تُغلق وتضيع التعديلات.
+  const save = (): boolean => {
+    if (!mayWrite) { toast.error("تعديل أسعار الصرف يتطلب صلاحية مستخدم أو مدير"); return false; }
     const codes = new Set<string>();
     for (const r of rows) {
-      if (!r.code) return toast.error("يوجد عملة بدون رمز");
-      if (codes.has(r.code)) return toast.error(`رمز مكرر: ${r.code}`);
+      if (!r.code) { toast.error("يوجد عملة بدون رمز"); return false; }
+      if (codes.has(r.code)) { toast.error(`رمز مكرر: ${r.code}`); return false; }
       codes.add(r.code);
       // A zero/negative rate makes `amount / rate` return 0 everywhere instead
       // of erroring — the whole invoice silently prices at nothing. Reject it here.
-      if (!(r.rate > 0)) return toast.error(`سعر صرف غير صالح للعملة ${r.code} — يجب أن يكون أكبر من صفر`);
+      if (!(r.rate > 0)) { toast.error(`سعر صرف غير صالح للعملة ${r.code} — يجب أن يكون أكبر من صفر`); return false; }
       if (r.code === BASE_CODE && r.rate !== 1) {
-        return toast.error(`سعر صرف ${BASE_CODE} يجب أن يبقى 1 — هي العملة الأساسية للنظام`);
+        toast.error(`سعر صرف ${BASE_CODE} يجب أن يبقى 1 — هي العملة الأساسية للنظام`);
+        return false;
       }
     }
-    if (!codes.has(BASE_CODE)) return toast.error(`قائمة العملات يجب أن تحتوي ${BASE_CODE} — هي العملة الأساسية للنظام`);
-    if (!codes.has(defCode)) return toast.error("اختر عملة افتراضية موجودة في القائمة");
+    if (!codes.has(BASE_CODE)) { toast.error(`قائمة العملات يجب أن تحتوي ${BASE_CODE} — هي العملة الأساسية للنظام`); return false; }
+    if (!codes.has(defCode)) { toast.error("اختر عملة افتراضية موجودة في القائمة"); return false; }
     erpStore.set({ settings: { ...settings, currencies: rows, defaultCurrency: defCode } });
     // المستندات تحمل سعر صرفها مثبَّتاً عليها، فحفظ الجدول هنا لا يحرّك رقماً في
     // مستند قائم — وهذا مقصود. لكن مستنداً قيد التحرير يجب أن يستطيع اللحاق،
@@ -94,14 +98,43 @@ function RatesPage() {
       "تم حفظ الأسعار — المستندات المحفوظة لا تتأثر (السعر مثبّت على كل مستند). " +
         "لتطبيقها على أمر/طلب شراء مفتوح: زر «تحديث الأسعار» بجانب حقل سعر الصرف فيه.",
     );
+    return true;
   };
 
-  const reset = () => setRows(settings.currencies ?? []);
+  const reset = () => {
+    setRows(settings.currencies ?? []);
+    setDefCode(settings.defaultCurrency || "");
+  };
+
+  // حارس الإغلاق. هذه الشاشة كانت الوحيدة التي تحتفظ بتعديلات غير محفوظة (المؤشر
+  // «● يوجد تعديلات لم تُحفظ» أسفلها) وليس فيها زر «إغلاق» أصلاً — فالخروج منها
+  // عبر التبويبات كان يضيّع التعديلات بلا سؤال. الأسعار تغذّي كل حساب في النظام،
+  // فضياع تعديل هنا ليس تفصيلاً.
+  const closeGuard = useCloseGuard({
+    dirty: dirty && mayWrite,
+    title: "أسعار الصرف",
+    onSave: mayWrite ? save : undefined,
+    onDiscard: reset,
+  });
 
   const actions = [
-    { icon: Save, label: "حفظ", color: "text-blue-600", onClick: save, disabled: !mayWrite },
-    { icon: RefreshCw, label: "استرجاع", color: "text-slate-600", onClick: reset },
+    { icon: Save, label: "حفظ", hint: "Ctrl+S", color: "text-blue-600", onClick: save, disabled: !mayWrite },
+    { icon: RefreshCw, label: "استرجاع", color: "text-slate-600", onClick: reset, disabled: !dirty },
+    { icon: X, label: "إغلاق", hint: "Esc", color: "text-rose-600", onClick: closeGuard.requestClose },
   ];
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key.toLowerCase() === "s") { e.preventDefault(); save(); }
+      else if (e.key === "Escape") {
+        if (closeGuard.pending) return; // نافذة السؤال نفسها تُغلق بـ Esc
+        closeGuard.requestClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, defCode, closeGuard.pending]);
 
   return (
     <ErpLayout title="أسعار الصرف" ribbon={<Ribbon actions={actions} />}>
@@ -263,6 +296,7 @@ function RatesPage() {
           </div>
         </div>
       </Panel>
+      {closeGuard.dialog}
     </ErpLayout>
   );
 }

@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { Toaster } from "../components/ui/sonner";
 import { useBranding } from "../lib/branding";
+import { installNativeDialogs } from "../lib/native-dialogs";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
 // Set only by vite.electron.config.mjs, so it is undefined in the web build.
@@ -109,7 +110,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         : [
             { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
             { rel: "preconnect", href: "https://fonts.googleapis.com" },
-            { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+            // `as const` مقصود: بدونه يتوسّع النوع إلى `string`، بينما
+            // `LinkHTMLAttributes.crossOrigin` اتحادٌ ضيّق — وهو خطأ الأنواع
+            // الوحيد الذي كان قائماً في المشروع.
+            { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" as const },
             {
               rel: "stylesheet",
               href: "https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap",
@@ -150,6 +154,9 @@ function RootComponent() {
   // Mounted above every route so a rename applies on whatever screen the user
   // happens to be on — including the login screen, which renders no layout.
   useBranding();
+  // فوق كل الشاشات كذلك: `confirm`/`alert` تصيران حوارَي ويندوز أصليَّين في
+  // نسخة سطح المكتب، ولا تتغيّران في المتصفح. لا شاشة تحتاج أن تعرف بذلك.
+  useEffect(() => installNativeDialogs(), []);
 
   return (
     <QueryClientProvider client={queryClient}>

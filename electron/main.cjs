@@ -710,11 +710,9 @@ function registerIpc() {
   ipcMain.handle("app:restoreDialog", restoreDb);
   ipcMain.handle("app:print", () => mainWindow?.webContents.print({ silent: false }));
   ipcMain.handle("app:openExternal", (_e, url) => openExternal(url));
-  ipcMain.handle("app:minimize", () => mainWindow?.minimize());
-  ipcMain.handle("app:toggleMaximize", () =>
-    mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize(),
-  );
-  ipcMain.handle("app:quit", () => mainWindow?.close());
+  // app:minimize / app:toggleMaximize / app:quit كانت تخدم أزرار شريط العنوان
+  // المرسوم في الواجهة. الشريط يعتمد الآن على إطار ويندوز الأصلي، فأزراره
+  // الحقيقية هي التي تصغّر وتكبّر وتغلق — ولا حاجة لقناة IPC تكرّرها.
 
   // Sync channels backing window.confirm / window.alert.
   ipcMain.on("app:confirm", (event, message) => {

@@ -33,6 +33,19 @@ type NativeBridge = {
   restoreFrom: (srcPath: string) => Promise<void>;
   /** Only implemented by the shell build's preload (electron/shell-preload.cjs). */
   backupNow?: () => Promise<string | null>;
+  // ---- حوارات وأفعال ويندوز الأصلية ----
+  // كانت معروضة في preload.cjs وغائبة عن هذا النوع، فأي خطأ في استعمالها لا
+  // يلتقطه مدقّق الأنواع. اختيارية لأن نسخة المتصفح بلا جسر، ولأن نسخة مثبَّتة
+  // قديمة قد تحمل preload أقدم لا يعرفها.
+  /** حوار تأكيد ويندوز — متزامن. يركّبه src/lib/native-dialogs.ts فوق window.confirm. */
+  confirmSync?: (message: string) => boolean;
+  /** حوار تنبيه ويندوز — متزامن. */
+  alertSync?: (message: string) => void;
+  info?: () => Promise<{ version: string; platform: string; dataDir: string }>;
+  backupDialog?: () => Promise<boolean>;
+  restoreDialog?: () => Promise<boolean>;
+  print?: () => Promise<void>;
+  openExternal?: (url: string) => Promise<void>;
   /**
    * Renames/re-icons the desktop window. Optional because the browser build has
    * no bridge at all, and an older installed copy has no such handler.

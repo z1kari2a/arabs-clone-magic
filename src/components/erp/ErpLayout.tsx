@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { Minus, Square, X, Circle, Keyboard, LogOut, ShieldCheck, Menu } from "lucide-react";
+import { Circle, Keyboard, LogOut, ShieldCheck, Menu } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useErpStore, useHydrate } from "@/lib/erp-store";
 import { appIcon, appName } from "@/lib/branding";
@@ -46,7 +46,11 @@ export default function ErpLayout({
     if (!loading && !session) router.navigate({ to: "/" });
   }, [loading, session, router]);
 
+  // يُسأل قبل الخروج. سابقاً كان زر «×» في الشريط المرسوم موصولاً بهذه الدالة —
+  // فمن ضغطه ظانّاً أنه يغلق النافذة وجد نفسه خارج حسابه. الزر حُذف، والسؤال
+  // يبقى لأن تسجيل الخروج فعلٌ مقصود لا يُنفَّذ بضغطة عابرة.
   const onLogout = async () => {
+    if (!confirm("تسجيل الخروج من الحساب؟")) return;
     await signOut();
     router.navigate({ to: "/" });
   };
@@ -60,7 +64,13 @@ export default function ErpLayout({
 
   return (
     <div className="h-screen w-full font-sans text-[13px] text-slate-800 flex flex-col overflow-hidden" style={{ background: "var(--color-erp-bg)" }} dir="rtl">
-      {/* Title bar */}
+      {/* شريط التطبيق — وليس شريط عنوان.
+          كان يرسم أزرار تصغير/تكبير/إغلاق تقليداً لويندوز: الأولان بلا onClick
+          إطلاقاً (ضغطهما لا يفعل شيئاً)، والثالث موصول بتسجيل الخروج. وفوق ذلك،
+          النافذة تُنشأ بإطار ويندوز الأصلي (electron/main.cjs: لا frame:false)
+          فكان يظهر شريطا عنوان فوق بعضهما. الأزرار الثلاثة حُذفت: النافذة لها
+          أزرارها الحقيقية من ويندوز، وهذا الشريط يحمل ما لا يحمله ذاك — هوية
+          البرنامج، واسم الشاشة، ومفتاح القائمة الجانبية، والخروج من الحساب. */}
       <div className="relative flex items-center justify-between px-3 h-9 text-white shrink-0" style={{ background: "var(--color-erp-titlebar)" }}>
         <div className="flex items-center gap-2">
           <button
@@ -81,10 +91,13 @@ export default function ErpLayout({
         </div>
         <div className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold">{title}</div>
         <div className="flex items-center gap-1">
-          <button onClick={onLogout} title="تسجيل الخروج" className="px-2 h-7 hover:bg-white/10 flex items-center gap-1 text-[11px]"><LogOut size={12} /> خروج</button>
-          <button className="w-8 h-7 hover:bg-white/10 flex items-center justify-center"><Minus size={14} /></button>
-          <button className="w-8 h-7 hover:bg-white/10 flex items-center justify-center"><Square size={12} /></button>
-          <button onClick={onLogout} className="w-8 h-7 hover:bg-rose-600 flex items-center justify-center"><X size={14} /></button>
+          <button
+            onClick={onLogout}
+            title="تسجيل الخروج من الحساب"
+            className="px-2.5 h-7 rounded hover:bg-white/15 flex items-center gap-1.5 text-[11px] transition-colors"
+          >
+            <LogOut size={12} /> خروج
+          </button>
         </div>
       </div>
 
