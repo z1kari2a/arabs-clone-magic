@@ -4,6 +4,7 @@ import {
   localDb,
   hashPassword,
   verifyPassword,
+  needsRehash,
   randomSalt,
   newId,
   logAudit,
@@ -92,6 +93,21 @@ export async function signIn(username: string, password: string): Promise<void> 
   if (u.pending) throw new Error("حسابك قيد المراجعة من قبل المدير");
   if (!(await verifyPassword(password, u.salt, u.passwordHash)))
     throw new Error("كلمة المرور غير صحيحة");
+
+  // Accounts made by older browser builds hold a single-round SHA-256 hash.
+  // Login is the only moment the plaintext is available to re-hash it, so take
+  // it — otherwise those hashes stay weak until the user happens to change the
+  // password, which most never do. A failure here must not block a valid login,
+  // so it is logged and swallowed: the account simply stays on the old format.
+  if (needsRehash(u.passwordHash)) {
+    try {
+      const salt = await randomSalt();
+      await localDb.users.upsert({ ...u, salt, passwordHash: await hashPassword(password, salt) });
+    } catch (err) {
+      console.error("password rehash failed", err);
+    }
+  }
+
   const sess: SessionUser = { id: u.id, username: u.username, fullName: u.fullName, role: u.role };
   writeSession(sess);
   setCurrentScope(u.id);

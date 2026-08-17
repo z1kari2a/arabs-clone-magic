@@ -16,9 +16,22 @@ dist-ssr
 .nitro
 *.local
 
-# Secrets — never commit real credentials
-.env.appwrite
-.env.*.local
+# Secrets — never commit real credentials.
+#
+# Deny every .env variant, then re-allow the two templates and the one real file
+# that is meant to be public. The old rules named .env.appwrite and .env.*.local
+# individually, which left .env.secret, .env.production and every other name a
+# future contributor might pick committable — into a public repository.
+#
+# `.env` itself IS tracked, deliberately: it holds only the Supabase project id,
+# its URL and the anon (publishable) key, all three of which ship inside the
+# renderer bundle anyway and are public by design. Put anything with real
+# authority — a service_role key, an Appwrite API key, a database password — in
+# .env.local instead. That one is ignored (by *.local above and .env.* here),
+# and Vite loads it on top of .env.
+.env.*
+!.env.example
+!.env.appwrite.example
 
 # Wrangler / Cloudflare
 .wrangler/

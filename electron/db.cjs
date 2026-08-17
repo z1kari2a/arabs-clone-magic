@@ -366,7 +366,12 @@ function getAudit(limit) {
 
 // ------------------------------------------------------------------ passwords
 
-const BCRYPT_ROUNDS = 10;
+// 12 is the current common floor; 10 dates from when it was. Each step doubles
+// the work for both the login and an offline cracker — measured here, a verify
+// went from ~85ms to ~340ms, which no one notices once per sign-in.
+// Raising it is safe at any time: a bcrypt hash carries the cost it was written
+// with, so hashes already stored keep verifying with their own value.
+const BCRYPT_ROUNDS = 12;
 
 /** bcrypt embeds its own salt, so the caller's salt is extra keying material. */
 async function hashPassword(password, salt) {
@@ -377,8 +382,17 @@ async function hashPassword(password, salt) {
  * The only correct way to check a password here. A bcrypt hash is different
  * every time it is computed, so comparing a fresh hash against the stored one
  * can never match — doing that is what made every login on Windows fail with
- * "كلمة المرور غير صحيحة". Accounts created by the browser build store
- * SHA-256(salt:password) instead, and are verified by comparison.
+ * "كلمة المرور غير صحيحة".
+ *
+ * Three formats arrive here, because a database can be created by one build and
+ * restored into another:
+ *
+ *   $2a$… / $2b$…                bcrypt, written by this file
+ *   pbkdf2$sha256$<iters>$<hex>  written by the browser build (local-db.ts)
+ *   <64 hex chars>               plain SHA-256, written by older browser builds
+ *
+ * The iteration count is read out of the hash rather than assumed, so a hash
+ * written with a different count still verifies.
  */
 async function verifyPassword(password, salt, storedHash) {
   if (typeof storedHash !== "string" || !storedHash) return false;
@@ -389,8 +403,30 @@ async function verifyPassword(password, salt, storedHash) {
       return false;
     }
   }
+  if (storedHash.startsWith(PBKDF2_PREFIX)) {
+    const [iters, expected] = storedHash.slice(PBKDF2_PREFIX.length).split("$");
+    const rounds = Number(iters);
+    if (!Number.isInteger(rounds) || rounds < 1 || !expected) return false;
+    let derived;
+    try {
+      derived = await pbkdf2Hex(password, salt, rounds);
+    } catch {
+      return false;
+    }
+    return timingSafeEqualHex(derived, expected);
+  }
   const sha = crypto.createHash("sha256").update(`${salt}:${password}`).digest("hex");
   return timingSafeEqualHex(sha, storedHash);
+}
+
+const PBKDF2_PREFIX = "pbkdf2$sha256$";
+
+function pbkdf2Hex(password, salt, iterations) {
+  return new Promise((resolve, reject) => {
+    crypto.pbkdf2(password, salt, iterations, 32, "sha256", (err, key) =>
+      err ? reject(err) : resolve(key.toString("hex")),
+    );
+  });
 }
 
 function timingSafeEqualHex(a, b) {

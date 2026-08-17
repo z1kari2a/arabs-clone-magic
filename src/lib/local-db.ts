@@ -274,8 +274,29 @@ export async function setKV(key: string, value: any): Promise<void> {
 }
 
 // ---------- Password hashing ----------
-// Electron uses bcrypt via IPC. Browser fallback uses SHA-256(salt+password),
-// which is fine for a local single-user desktop app but the Electron build is authoritative.
+// Electron hashes with bcrypt over IPC and is authoritative. The browser build
+// has to do it itself, and there are three stored formats it must understand:
+//
+//   $2a$… / $2b$…               bcrypt, written by the desktop build
+//   pbkdf2$sha256$<iters>$<hex>  written here, current
+//   <64 hex chars>               plain SHA-256, written here before this change
+//
+// The plain SHA-256 form is one hash round, so a leaked database could be
+// brute-forced at GPU speed — the whole point of a password hash is to be slow.
+// PBKDF2 replaces it. Old hashes still verify (nobody is locked out); they are
+// upgraded to PBKDF2 the next time the password is set, and callers can detect
+// one with needsRehash() to upgrade at login.
+//
+// The iteration count is stored inside the hash, not read from a constant here.
+// Raising the constant later must not invalidate hashes written before it.
+const PBKDF2_PREFIX = "pbkdf2$sha256$";
+// crypto.subtle is native, so this is the OWASP figure and costs ~0.2s.
+const PBKDF2_ITERATIONS_SUBTLE = 600_000;
+// The pure-JS path runs in the interpreter. 600k there would freeze the login
+// screen for the better part of a minute, so it gets a lower count — still
+// 60,000 times the work of the single round it replaces.
+const PBKDF2_ITERATIONS_JS = 60_000;
+
 export async function randomSalt(): Promise<string> {
   const n = native();
   if (n) return n.randomSalt();
@@ -305,25 +326,75 @@ export async function verifyPassword(
     const bcrypt = (await import("bcryptjs")).default;
     return bcrypt.compare(salt + ":" + password, storedHash);
   }
-  return (await hashPassword(password, salt)) === storedHash;
+  if (storedHash.startsWith(PBKDF2_PREFIX)) {
+    const [iters, expected] = storedHash.slice(PBKDF2_PREFIX.length).split("$");
+    const rounds = Number(iters);
+    if (!Number.isInteger(rounds) || rounds < 1 || !expected) return false;
+    return equalsConstantTime(await pbkdf2Hex(password, salt, rounds), expected);
+  }
+  // Legacy single-round SHA-256. Kept only so existing accounts still log in.
+  return equalsConstantTime(await legacySha256Hex(password, salt), storedHash);
+}
+
+/**
+ * True when the stored hash is in a format weaker than what hashPassword now
+ * writes, so the caller can transparently re-hash after a successful login.
+ */
+export function needsRehash(storedHash: string): boolean {
+  if (!storedHash) return false;
+  if (/^\$2[abxy]?\$/.test(storedHash)) return false; // bcrypt, desktop-owned
+  return !storedHash.startsWith(PBKDF2_PREFIX);
 }
 
 export async function hashPassword(password: string, salt: string): Promise<string> {
   const n = native();
   if (n) return n.hashPassword(password, salt);
-  const enc = new TextEncoder().encode(salt + ":" + password);
-  // crypto.subtle only exists in secure contexts (HTTPS or localhost). This
-  // app is often opened over plain http://<lan-ip>, so fall back to a pure-JS
-  // SHA-256 there instead of leaving hashPassword() permanently rejected.
-  if (typeof crypto !== "undefined" && crypto.subtle) {
-    const digest = await crypto.subtle.digest("SHA-256", enc);
-    return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  const subtle = hasSubtle();
+  const rounds = subtle ? PBKDF2_ITERATIONS_SUBTLE : PBKDF2_ITERATIONS_JS;
+  return `${PBKDF2_PREFIX}${rounds}$${await pbkdf2Hex(password, salt, rounds)}`;
+}
+
+// crypto.subtle only exists in secure contexts (HTTPS or localhost). This app is
+// often opened over plain http://<lan-ip>, so every path needs a pure-JS twin
+// rather than being left permanently rejected.
+function hasSubtle(): boolean {
+  return typeof crypto !== "undefined" && !!crypto.subtle;
+}
+
+async function pbkdf2Hex(password: string, salt: string, iterations: number): Promise<string> {
+  const pw = new TextEncoder().encode(password);
+  const st = new TextEncoder().encode(salt);
+  if (hasSubtle()) {
+    const key = await crypto.subtle.importKey("raw", pw, "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits(
+      { name: "PBKDF2", hash: "SHA-256", salt: st, iterations },
+      key,
+      256,
+    );
+    return toHex(new Uint8Array(bits));
   }
-  return sha256Hex(enc);
+  return toHex(pbkdf2Sha256Js(pw, st, iterations));
+}
+
+async function legacySha256Hex(password: string, salt: string): Promise<string> {
+  const enc = new TextEncoder().encode(salt + ":" + password);
+  if (hasSubtle()) return toHex(new Uint8Array(await crypto.subtle.digest("SHA-256", enc)));
+  return toHex(sha256Bytes(enc));
+}
+
+/** Comparing hashes with === leaks how many leading characters matched. */
+function equalsConstantTime(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 // ---------- Pure-JS SHA-256 fallback (insecure contexts) ----------
-function sha256Hex(data: Uint8Array): string {
+// Returns the raw 32 bytes rather than hex: PBKDF2 below needs to feed one
+// digest straight into the next, and going through hex each round would mean
+// parsing 64 characters back into bytes 60,000 times per login.
+function sha256Bytes(data: Uint8Array): Uint8Array {
   const K = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
     0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -393,12 +464,64 @@ function sha256Hex(data: Uint8Array): string {
     h6 = (h6 + g) | 0;
     h7 = (h7 + h) | 0;
   }
-  return [h0, h1, h2, h3, h4, h5, h6, h7]
-    .map((n) => (n >>> 0).toString(16).padStart(8, "0"))
-    .join("");
+  // One DataView, not eight: PBKDF2 calls this ~120,000 times per login on the
+  // pure-JS path, and each view was an allocation in that loop.
+  const out = new Uint8Array(32);
+  const outView = new DataView(out.buffer);
+  outView.setUint32(0, h0 >>> 0);
+  outView.setUint32(4, h1 >>> 0);
+  outView.setUint32(8, h2 >>> 0);
+  outView.setUint32(12, h3 >>> 0);
+  outView.setUint32(16, h4 >>> 0);
+  outView.setUint32(20, h5 >>> 0);
+  outView.setUint32(24, h6 >>> 0);
+  outView.setUint32(28, h7 >>> 0);
+  return out;
 }
 function rotr(x: number, n: number): number {
   return (x >>> n) | (x << (32 - n));
+}
+
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// ---------- Pure-JS HMAC-SHA256 and PBKDF2 ----------
+// Only reached in an insecure context, where crypto.subtle does not exist.
+
+const BLOCK = 64; // SHA-256 block size
+
+function hmacSha256(key: Uint8Array, msg: Uint8Array): Uint8Array {
+  // A key longer than one block is hashed down first; shorter keys are zero
+  // padded. Skipping this step is the classic HMAC implementation bug.
+  const k = new Uint8Array(BLOCK);
+  k.set(key.length > BLOCK ? sha256Bytes(key) : key);
+
+  const inner = new Uint8Array(BLOCK + msg.length);
+  const outer = new Uint8Array(BLOCK + 32);
+  for (let i = 0; i < BLOCK; i++) {
+    inner[i] = k[i] ^ 0x36;
+    outer[i] = k[i] ^ 0x5c;
+  }
+  inner.set(msg, BLOCK);
+  outer.set(sha256Bytes(inner), BLOCK);
+  return sha256Bytes(outer);
+}
+
+/** PBKDF2-HMAC-SHA256, single 32-byte output block (dkLen = hLen, so c = 1). */
+function pbkdf2Sha256Js(password: Uint8Array, salt: Uint8Array, iterations: number): Uint8Array {
+  // U1 = PRF(P, S || INT(1))
+  const block1 = new Uint8Array(salt.length + 4);
+  block1.set(salt);
+  block1[salt.length + 3] = 1;
+
+  let u = hmacSha256(password, block1);
+  const out = u.slice();
+  for (let i = 1; i < iterations; i++) {
+    u = hmacSha256(password, u);
+    for (let j = 0; j < 32; j++) out[j] ^= u[j];
+  }
+  return out;
 }
 
 // ---------- Audit log ----------

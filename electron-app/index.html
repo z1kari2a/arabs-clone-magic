@@ -3,6 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Second lock on the renderer, behind goOffline() in main.cjs. That one
+         cancels every network request; this one stops injected markup from
+         running at all — no inline <script>, no eval, no remote src. It matters
+         because imported spreadsheets are untrusted input that reaches the DOM,
+         and the renderer can read the whole database over IPC.
+         'unsafe-inline' is style-src only: the <style> below, plus the inline
+         styles Radix and Tailwind write at runtime. Never widen it to
+         script-src. blob:/data: images are for the logo the user uploads
+         (branding.ts) — nothing else needs them. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self';
+               style-src 'self' 'unsafe-inline';
+               img-src 'self' data: blob:;
+               font-src 'self' data:;
+               connect-src 'self';
+               object-src 'none';
+               base-uri 'none';
+               form-action 'none'"
+    />
     <title>ERP — نظام المشتريات</title>
     <!-- Cairo is bundled locally (see electron-app/fonts.css) — the desktop
          build must render Arabic with no network. Do not add a Google Fonts
