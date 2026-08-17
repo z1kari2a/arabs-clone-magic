@@ -50,7 +50,6 @@ dist-ssr
 
 # Desktop build output
 electron-release/
-shell-release/
 .cache/
 bundle.bin
 

@@ -56,7 +56,7 @@ import {
   repinRates,
 } from "@/lib/erp-store";
 import { cell, numCell } from "@/lib/sheet";
-import { getCurrentScope, localDb } from "@/lib/local-db";
+import { getCurrentScope, localDb, writeWebStorage } from "@/lib/local-db";
 import { useAuth, canWrite, canDelete, canApprove } from "@/lib/auth";
 import type { PurchaseRequest, PORow } from "@/lib/erp-types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -393,7 +393,7 @@ function PRPage() {
     editing && !pr.approved && (Boolean(pr.supplierCode) || pr.rows.some(isRealRow));
   const saveDraft = () => {
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(pr));
+      writeWebStorage(DRAFT_KEY, pr);
       toast.success("تم حفظ المسودّة — ستُستعاد عند العودة إلى الشاشة");
     } catch {
       toast.error("تعذّر حفظ المسودّة");
@@ -573,9 +573,10 @@ function PRPage() {
     if (!draftRestored || !editing || pr.approved) return;
     const t = setTimeout(() => {
       try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(pr));
+        writeWebStorage(DRAFT_KEY, pr);
       } catch {
-        /* ignore */
+        // Swallowed on purpose: fires every 400ms while typing. A full quota is
+        // reported once by onStorageFull at the root instead.
       }
     }, 400);
     return () => clearTimeout(t);

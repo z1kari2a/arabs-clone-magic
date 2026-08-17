@@ -34,11 +34,9 @@
     "sync:push": "node scripts/sync.js --push",
     "sync:pull": "node scripts/sync.js --pull",
     "sync:check": "node scripts/sync.js --dry-run",
-    "bundle:build": "npm run build:electron && node scripts/build-bundle.mjs --out=bundle.bin",
-    "shell:start": "electron electron/shell-main.cjs",
-    "shell:build:win": "electron-packager . ERP-Shell --platform=win32 --arch=x64 --out=shell-release --overwrite --electron-version=33.0.0 --ignore=\"^/src\" --ignore=\"^/public\" --ignore=\"^/dist\" --ignore=\"^/dist-electron\" --ignore=\"^/electron-release\" --ignore=\"^/shell-release\" --ignore=\"^/supabase\" --ignore=\"^/.lovable\" --ignore=\"^/electron-app\" --ignore=\"^/scripts\""
+    "bundle:build": "npm run build:electron && node scripts/build-bundle.mjs --out=bundle.bin"
   },
-  "main": "electron/shell-main.cjs",
+  "main": "electron/main.cjs",
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",

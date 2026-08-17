@@ -7,9 +7,9 @@
 // Everything the standalone desktop build needs that a plain `electron-packager`
 // invocation gets wrong is handled here:
 //
-//   1. package.json `main` points at electron/shell-main.cjs — that is the
-//      LICENSE SHELL product, not this one. The copy inside the package is
-//      rewritten to electron/main.cjs so the .exe boots the real app.
+//   1. The packaged package.json is rewritten: `main` is pinned to
+//      electron/main.cjs, and devDependencies and scripts are dropped so the
+//      shipped manifest says nothing about how the app was built.
 //   2. better-sqlite3 is native. Packager copies whatever is in node_modules,
 //      which on a Linux build machine is a Linux binary (or nothing at all).
 //      The matching electron/win32-x64 prebuild is injected instead.
@@ -182,9 +182,7 @@ const ignore = [
   // Electron's default.
   /^\/build\/(?!icon\.ico$)/,
   /^\/electron-app($|\/)/,
-  /^\/electron-shell($|\/)/,
   /^\/electron-release($|\/)/,
-  /^\/shell-release($|\/)/,
   // The shipped installer lives here. Packaging it would bury the previous
   // Setup .exe inside the new one and roughly double every release.
   /^\/release($|\/)/,
@@ -194,9 +192,6 @@ const ignore = [
   // customer machine hands them whatever credentials it holds. Also covers
   // .git, .output, .cache, .lovable, .claude, .wrangler, .tanstack.
   /^\/\.[^/]+($|\/)/,
-  // The license-shell product has its own entry point and preload; the
-  // standalone build must not carry them.
-  /^\/electron\/shell-/,
   /^\/(bun\.lock|package-lock\.json|tsconfig\.json|components\.json|bunfig\.toml)$/,
   /^\/(vite|eslint)\..*$/,
   /^\/(AGENTS|README)\.md$/,
@@ -228,7 +223,7 @@ const [appPath] = await packager({
   afterCopy: [
     async (buildPath, _electronVersion, _platform, _arch, done) => {
       try {
-        // (1) point Electron at the standalone entry, not the license shell
+        // (1) pin the entry point in the shipped manifest
         const pkgPath = path.join(buildPath, "package.json");
         const copied = JSON.parse(await readFile(pkgPath, "utf8"));
         copied.main = "electron/main.cjs";

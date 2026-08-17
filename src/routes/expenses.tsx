@@ -36,7 +36,13 @@ import {
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { ErpTable, fmt, fmtInt } from "@/components/erp/ErpUI";
-import { useErpStore, computePO, erpStore, savePurchaseOrder } from "@/lib/erp-store";
+import {
+  useErpStore,
+  computePO,
+  erpStore,
+  savePurchaseOrder,
+  ApprovedDocumentError,
+} from "@/lib/erp-store";
 import ExpensesDialog from "@/components/erp/ExpensesDialog";
 import { Plus } from "lucide-react";
 
@@ -611,7 +617,14 @@ function ExpensesPage() {
                 expenseTypes={settings.expenseTypes ?? []}
                 disabled={po.approved}
                 onSave={(rows) => {
-                  savePurchaseOrder({ ...po, expenses: rows });
+                  savePurchaseOrder({ ...po, expenses: rows }).catch((err) => {
+                    console.error("savePurchaseOrder failed", err);
+                    toast.error(
+                      err instanceof ApprovedDocumentError
+                        ? err.message
+                        : "تعذّر حفظ المصروفات — لم تُكتب البيانات",
+                    );
+                  });
                 }}
                 onSaveExpenseTypes={(types) =>
                   erpStore.set({ settings: { ...settings, expenseTypes: types } })

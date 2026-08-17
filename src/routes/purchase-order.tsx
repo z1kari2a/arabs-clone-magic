@@ -49,6 +49,7 @@ import {
   useErpStore,
   computePO,
   savePurchaseOrder,
+  ApprovedDocumentError,
   isRealRow,
   deletePO,
   cartonsOf,
@@ -57,7 +58,7 @@ import {
   repinRates,
 } from "@/lib/erp-store";
 import { cell, numCell } from "@/lib/sheet";
-import { getCurrentScope, localDb } from "@/lib/local-db";
+import { getCurrentScope, localDb, writeWebStorage } from "@/lib/local-db";
 import { useAuth, canWrite, canDelete, canApprove } from "@/lib/auth";
 import type { PurchaseOrder, PORow } from "@/lib/erp-types";
 import {
@@ -483,7 +484,7 @@ function POPage() {
     editing && !po.approved && (Boolean(po.supplierCode) || po.rows.some(isRealRow));
   const saveDraft = () => {
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(po));
+      writeWebStorage(DRAFT_KEY, po);
       toast.success("تم حفظ المسودّة — ستُستعاد عند العودة إلى الشاشة");
     } catch {
       toast.error("تعذّر حفظ المسودّة");
@@ -689,9 +690,11 @@ function POPage() {
     if (!draftRestored || !editing || po.approved) return;
     const t = setTimeout(() => {
       try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(po));
+        writeWebStorage(DRAFT_KEY, po);
       } catch {
-        /* ignore */
+        // Swallowed on purpose: this fires every 400ms while typing, so a toast
+        // here would stack dozens deep. writeWebStorage already reported a full
+        // quota through onStorageFull, which the root shows once.
       }
     }, 400);
     return () => clearTimeout(t);
@@ -1461,7 +1464,16 @@ function POPage() {
           // الشاشة. أمر جديد لم يُحفظ بعد يبقى مسودّة حتى يُحفظ كاملاً.
           const alreadySaved = orders.some((o) => o.number === po.number);
           if (alreadySaved && mayWrite) {
-            void savePurchaseOrder({ ...next, rows: next.rows.filter(isRealRow) });
+            // A floating promise here swallowed every failure — the dialog said
+            // "تم الحفظ" whether or not anything reached storage.
+            savePurchaseOrder({ ...next, rows: next.rows.filter(isRealRow) }).catch((err) => {
+              console.error("saving expenses onto the order failed", err);
+              toast.error(
+                err instanceof ApprovedDocumentError
+                  ? err.message
+                  : "تعذّر حفظ المصروفات — لم تُكتب البيانات",
+              );
+            });
           }
         }}
         onSaveExpenseTypes={(types) =>
@@ -1512,27 +1524,5 @@ function StepTitle({ n, label, hint }: { n: number; label: string; hint?: string
       <span>{label}</span>
       {hint && <span className="text-[10px] text-slate-500 font-normal">— {hint}</span>}
     </span>
-  );
-}
-
-function _OldSummaryStat({
-  label,
-  value,
-  unit,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div
-      className={`border rounded p-2 text-center shadow-sm ${highlight ? "bg-slate-100 border-slate-300" : "bg-white border-slate-200"}`}
-    >
-      <div className="text-[11px] text-slate-600">{label}</div>
-      <div className="text-lg font-bold text-slate-800 leading-tight">{value}</div>
-      {unit && <div className="text-[10px] text-slate-500">{unit}</div>}
-    </div>
   );
 }

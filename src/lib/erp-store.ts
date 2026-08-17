@@ -9,7 +9,7 @@ import type {
   Supplier,
   User,
 } from "./erp-types";
-import { localDb, logAudit, getCurrentScope } from "./local-db";
+import { localDb, logAudit, getCurrentScope, writeWebStorage } from "./local-db";
 import { scheduleCloudBackup } from "./cloud-sync";
 
 type StoreState = {
@@ -263,8 +263,40 @@ export async function deleteItem(code: string) {
   setState({ items: await localDb.items.list() });
 }
 
-export async function savePurchaseOrder(po: PurchaseOrder) {
+/** Raised when a write would overwrite an approved document. */
+export class ApprovedDocumentError extends Error {
+  readonly number: string;
+  constructor(number: string) {
+    super(`الأمر ${number} معتمد — لا يمكن تعديله. انسخه في أمر جديد (Ctrl+D).`);
+    this.name = "ApprovedDocumentError";
+    this.number = number;
+  }
+}
+
+export type SaveDocumentOptions = {
+  /**
+   * Lets the write through even when the stored document is approved. Only the
+   * restore/sync path sets this: it is reproducing a document that was already
+   * approved elsewhere, not editing one here.
+   */
+  overwriteApproved?: boolean;
+};
+
+export async function savePurchaseOrder(po: PurchaseOrder, opts: SaveDocumentOptions = {}) {
   const prev = (await localDb.purchaseOrders.list()).find((p) => p.number === po.number) ?? null;
+
+  // An approved purchase order is an accounting document: item costs and the
+  // sale prices derived from them were computed off it. Editing it after the
+  // fact silently changes numbers that decisions were already made on.
+  //
+  // Both screens that reach here disable their inputs when `approved` is set,
+  // so this changes no existing flow — it moves the rule from the button to
+  // the place the data is actually written, where the next caller (an import,
+  // a new screen) cannot miss it.
+  if (prev?.approved && !opts.overwriteApproved) {
+    throw new ApprovedDocumentError(po.number);
+  }
+
   // Same predicate the totals use — persisting a narrower set than what was
   // priced on screen made the invoice total change the moment it was saved.
   const validRows = po.rows.filter(isRealRow);
@@ -360,8 +392,13 @@ export async function savePurchaseOrder(po: PurchaseOrder) {
  * ما يشترك معه: تثبيت أسعار الصرف على المستند حتى لا تتغيّر أرقامه لاحقاً،
  * وتصفية الأسطر الفارغة بنفس isRealRow، وكتابة قيد التدقيق.
  */
-export async function savePurchaseRequest(pr: PurchaseRequest) {
+export async function savePurchaseRequest(pr: PurchaseRequest, opts: SaveDocumentOptions = {}) {
   const prev = (await localDb.purchaseRequests.list()).find((p) => p.number === pr.number) ?? null;
+  // Same rule as savePurchaseOrder: an approved request is what the order was
+  // raised from, so it must not drift underneath it.
+  if (prev?.approved && !opts.overwriteApproved) {
+    throw new ApprovedDocumentError(pr.number);
+  }
   const currencies = state.settings.currencies ?? [];
   const rateOf = (code?: string) => fin(currencies.find((c) => c.code === code)?.rate);
   const pinnedInv = fin(pr.rate) || rateOf(pr.currency) || 1;
@@ -509,7 +546,9 @@ export const erpStore = {
         }
         for (const p of next) {
           if (!prev.find((x) => JSON.stringify(x) === JSON.stringify(p)))
-            await savePurchaseOrder(p);
+            // A restore reproduces documents as they were approved elsewhere;
+            // it is the one caller allowed past the approved-document guard.
+            await savePurchaseOrder(p, { overwriteApproved: true });
         }
       })();
     }
@@ -525,7 +564,7 @@ export const erpStore = {
         }
         for (const p of next) {
           if (!prev.find((x) => JSON.stringify(x) === JSON.stringify(p)))
-            await savePurchaseRequest(p);
+            await savePurchaseRequest(p, { overwriteApproved: true });
         }
       })();
     }
@@ -581,9 +620,10 @@ const handoffKey = () => `erp:po-handoff-v1:${getCurrentScope() ?? "anon"}`;
 /** يحفظ نسخة من أمر الشراء الحالي قبل الانتقال إلى شاشة التسعيرات. */
 export function stashPO(po: PurchaseOrder) {
   try {
-    localStorage.setItem(handoffKey(), JSON.stringify(po));
+    writeWebStorage(handoffKey(), po);
   } catch {
-    /* ignore */
+    // Reported by onStorageFull; the pricing screen falls back to an empty
+    // sheet rather than blocking the navigation that triggered this.
   }
 }
 

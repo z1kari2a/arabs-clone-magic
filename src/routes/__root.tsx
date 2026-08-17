@@ -9,8 +9,11 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
+import { toast } from "sonner";
+
 import appCss from "../styles.css?url";
 import { Toaster } from "../components/ui/sonner";
+import { onStorageFull } from "../lib/local-db";
 import { useBranding } from "../lib/branding";
 import { installNativeDialogs } from "../lib/native-dialogs";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -169,6 +172,24 @@ function RootComponent() {
   // فوق كل الشاشات كذلك: `confirm`/`alert` تصيران حوارَي ويندوز أصليَّين في
   // نسخة سطح المكتب، ولا تتغيّران في المتصفح. لا شاشة تحتاج أن تعرف بذلك.
   useEffect(() => installNativeDialogs(), []);
+
+  // One subscriber for every storage write in the app. Browser storage fills up
+  // silently — setItem throws and the write just does not happen — so without
+  // this the user keeps working in a document that stopped being saved.
+  // Desktop writes to SQLite and never hits this.
+  useEffect(
+    () =>
+      onStorageFull(() =>
+        toast.error("مساحة التخزين ممتلئة — التغييرات لم تعد تُحفظ", {
+          // A fixed id so the 400ms draft autosave cannot stack this toast.
+          id: "storage-full",
+          duration: Infinity,
+          description:
+            "صدّر بياناتك ثم احذف أوامر قديمة لتفريغ مساحة. نسخة ويندوز لا تواجه هذا الحد.",
+        }),
+      ),
+    [],
+  );
 
   return (
     <QueryClientProvider client={queryClient}>

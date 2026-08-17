@@ -38,7 +38,8 @@ type NativeBridge = {
   dbStatus: () => Promise<{ backend: string; path: string; error: string | null }>;
   backupTo: (destPath: string) => Promise<void>;
   restoreFrom: (srcPath: string) => Promise<void>;
-  /** Only implemented by the shell build's preload (electron/shell-preload.cjs). */
+  /** Triggers the same automatic backup the timer runs. Optional: an older
+   *  installed copy ships a preload without it. */
   backupNow?: () => Promise<string | null>;
   // ---- حوارات وأفعال ويندوز الأصلية ----
   // كانت معروضة في preload.cjs وغائبة عن هذا النوع، فأي خطأ في استعمالها لا
@@ -151,6 +152,83 @@ const KV_KEY = (key: string) => {
   return `erp:kv:${key}`;
 };
 
+// ---------- Web storage writes ----------
+// Every write here used to be a bare setItem. localStorage is capped at roughly
+// 5 MB per ORIGIN — not per user — so the per-account scoping above means three
+// accounts on one browser share that cap. A table array crosses it at around
+// 850 purchase orders, and setItem then throws QuotaExceededError.
+//
+// Unhandled, that rejection surfaced as nothing at all: the write silently did
+// not happen and the user kept editing a document that was no longer being
+// saved. Losing data quietly is worse than any error message, so writes now go
+// through one helper that reports the condition and still throws for callers
+// that can react (a draft autosave, for one, should stop retrying).
+
+export class StorageFullError extends Error {
+  readonly key: string;
+  constructor(key: string, cause?: unknown) {
+    super("مساحة التخزين في المتصفح ممتلئة — لم يُحفظ التغيير");
+    this.name = "StorageFullError";
+    this.key = key;
+    this.cause = cause;
+  }
+}
+
+const storageFullListeners = new Set<(err: StorageFullError) => void>();
+
+/**
+ * Registers a listener for "browser storage is full". The app subscribes once at
+ * the root so any write path reports it, instead of each call site remembering
+ * to catch. Returns the unsubscribe function.
+ */
+export function onStorageFull(fn: (err: StorageFullError) => void): () => void {
+  storageFullListeners.add(fn);
+  return () => storageFullListeners.delete(fn);
+}
+
+// Browsers disagree on how they signal a full quota: the name is the reliable
+// signal in modern ones, code 22 is Safari's older DOMException, and 1014 is
+// Firefox's NS_ERROR_DOM_QUOTA_REACHED.
+function isQuotaError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const code = (err as DOMException).code;
+  return (
+    err.name === "QuotaExceededError" ||
+    err.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+    code === 22 ||
+    code === 1014
+  );
+}
+
+/**
+ * The only place this module (or anything else) should write web storage.
+ * Serializes, writes, and turns a full quota into a reported, typed error.
+ */
+export function writeWebStorage(
+  key: string,
+  value: unknown,
+  area: "local" | "session" = "local",
+): void {
+  if (!isBrowser) return;
+  const store = area === "local" ? window.localStorage : window.sessionStorage;
+  try {
+    store.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    if (!isQuotaError(err)) throw err;
+    const full = new StorageFullError(key, err);
+    // Listeners must not be able to swallow the throw below, so their own
+    // failures are contained here.
+    for (const fn of storageFullListeners) {
+      try {
+        fn(full);
+      } catch (listenerErr) {
+        console.error("onStorageFull listener failed", listenerErr);
+      }
+    }
+    throw full;
+  }
+}
+
 // ---------- Generic table storage ----------
 export async function getAll<T = any>(table: string): Promise<T[]> {
   const n = native();
@@ -168,7 +246,7 @@ export async function setAll<T = any>(table: string, rows: T[]): Promise<void> {
   const n = native();
   if (n) return n.setAll(table, rows as any);
   if (!isBrowser) return;
-  window.localStorage.setItem(KEY(table), JSON.stringify(rows));
+  writeWebStorage(KEY(table), rows);
 }
 
 // ---------- Per-table write serialization ----------
@@ -270,7 +348,7 @@ export async function setKV(key: string, value: any): Promise<void> {
   const scoped = SCOPED_KV.has(key) && currentScope ? `u:${currentScope}:${key}` : key;
   if (n) return n.setKV(scoped, value);
   if (!isBrowser) return;
-  window.localStorage.setItem(KV_KEY(key), JSON.stringify(value));
+  writeWebStorage(KV_KEY(key), value);
 }
 
 // ---------- Password hashing ----------
