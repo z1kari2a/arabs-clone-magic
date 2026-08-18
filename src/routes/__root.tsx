@@ -16,7 +16,6 @@ import { Toaster } from "../components/ui/sonner";
 import { onStorageFull } from "../lib/local-db";
 import { useBranding } from "../lib/branding";
 import { installNativeDialogs } from "../lib/native-dialogs";
-import { reportLovableError } from "../lib/lovable-error-reporting";
 
 // Set only by vite.electron.config.mjs, so it is undefined in the web build.
 const IS_DESKTOP = import.meta.env.VITE_DESKTOP === "true";
@@ -44,11 +43,10 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  // الخطأ يُسجَّل في طرفية المتصفّح وحدها: لا يُرسَل إلى أي جهة خارجية. كان
+  // هنا نداءٌ يُبلّغ محرّراً خارجياً بالأخطاء، حُذف مع بقيّة ارتباطاته.
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -88,24 +86,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "تسجيل الدخول - نظام ERP" },
       { name: "description", content: "تسجيل الدخول إلى نظام إدارة أوامر الشراء" },
-      { name: "author", content: "Lovable" },
+      { name: "author", content: "Fikra Digital" },
       { property: "og:title", content: "تسجيل الدخول - نظام ERP" },
       { property: "og:description", content: "تسجيل الدخول إلى نظام إدارة أوامر الشراء" },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: "تسجيل الدخول - نظام ERP" },
       { name: "twitter:description", content: "تسجيل الدخول إلى نظام إدارة أوامر الشراء" },
-      {
-        property: "og:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/78a08e22-e638-485c-8bca-d71f860a133d/id-preview-3988a8a0--fcee6d02-066c-4ec5-8918-f7362ac0e4e4.lovable.app-1784654489404.png",
-      },
-      {
-        name: "twitter:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/78a08e22-e638-485c-8bca-d71f860a133d/id-preview-3988a8a0--fcee6d02-066c-4ec5-8918-f7362ac0e4e4.lovable.app-1784654489404.png",
-      },
     ],
     links: [
       {

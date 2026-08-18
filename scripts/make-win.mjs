@@ -190,11 +190,11 @@ const ignore = [
   // Every root-level dotfile. This is the rule that keeps .env out of the
   // package — packager copies it happily otherwise, and a .env shipped to a
   // customer machine hands them whatever credentials it holds. Also covers
-  // .git, .output, .cache, .lovable, .claude, .wrangler, .tanstack.
+  // .git, .output, .cache, .claude, .wrangler, .tanstack.
   /^\/\.[^/]+($|\/)/,
   /^\/(bun\.lock|package-lock\.json|tsconfig\.json|components\.json|bunfig\.toml)$/,
   /^\/(vite|eslint)\..*$/,
-  /^\/(AGENTS|README)\.md$/,
+  /^\/README\.md$/,
 ];
 
 // ------------------------------------------------------------------- package
