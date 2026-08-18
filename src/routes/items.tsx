@@ -20,6 +20,9 @@ import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
 import { useCloseGuard } from "@/components/erp/CloseGuard";
 import { ErpTable, Cell, fmt, parseDecimal } from "@/components/erp/ErpUI";
+import RowMenu from "@/components/erp/RowMenu";
+import { LookupInput, ItemsLookupDialog, UnitsLookupDialog } from "@/components/erp/ItemLookup";
+import { itemMatches } from "@/lib/item-search";
 import { cell, num } from "@/lib/sheet";
 import { erpStore, useErpStore } from "@/lib/erp-store";
 import { useAuth, canWrite, canDelete } from "@/lib/auth";
@@ -40,11 +43,19 @@ export const Route = createFileRoute("/items")({
 function ItemsPage() {
   const items = useErpStore((s) => s.items);
   const settings = useErpStore((s) => s.settings);
+  // سجلّ الشراء الذي تقرأ منه قائمة الوحدات (F9 على خانة الوحدة).
+  const purchaseOrders = useErpStore((s) => s.purchaseOrders);
+  const suppliers = useErpStore((s) => s.suppliers);
   const currencies = settings.currencies ?? [];
   const defaultCurrency = settings.defaultCurrency || currencies[0]?.code || "USD";
   const [list, setList] = useState<Item[]>(items);
   const [editing, setEditing] = useState(false);
   const [search, setSearch] = useState("");
+  // F9 على خانة الموديل/الاسم: قائمة الدليل كاملاً مرتّبة، واختيار صنف منها
+  // يحصر الجدول عليه (بحث بموديله) — تصفّحٌ سريع لا تعديل.
+  const [lookup, setLookup] = useState<{ sortBy: "code" | "name" } | null>(null);
+  // F9 على خانة الوحدة: الوحدات المسجّلة بمرات الشراء والموردين والأسعار.
+  const [unitDlg, setUnitDlg] = useState<{ idx: number; model: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const hydrated = useErpStore((s) => s.hydrated);
   const { role } = useAuth();
@@ -63,13 +74,9 @@ function ItemsPage() {
     if (!editing) setList(items);
   }, [items, editing]);
 
-  const filtered = list.filter(
-    (it) =>
-      !search ||
-      it.name.includes(search) ||
-      it.code.includes(search) ||
-      it.barcode.includes(search),
-  );
+  // البحث يوحّد الأرقام العربية‑الهندية وأشكال الحروف قبل المقارنة، فكتابة ٧٢٠
+  // تجد الصنف 720 — انظر normalizeSearch في ItemLookup.
+  const filtered = list.filter((it) => itemMatches(it, search));
   const patch = (i: number, p: Partial<Item>) =>
     setList(list.map((it, idx) => (idx === i ? { ...it, ...p } : it)));
 
@@ -260,18 +267,23 @@ function ItemsPage() {
     },
     { icon: FolderOpen, label: "فتح", color: "text-amber-500", onClick: noop },
     { icon: Save, label: "حفظ", color: "text-blue-600", onClick: onSave, disabled: !mayWrite },
+    // مفعّل دائماً — يشرح رفضه بنفسه بدل أن يبقى رمادياً بلا تفسير.
     {
       icon: Pencil,
       label: "تعديل",
       color: "text-cyan-600",
-      onClick: () => (mayWrite ? setEditing(true) : toast.error("ليس لديك صلاحية لهذا الإجراء")),
-      disabled: !mayWrite,
+      onClick: () => {
+        if (!mayWrite) return toast.error("ليس لديك صلاحية لهذا الإجراء");
+        setEditing(true);
+        toast.info("وضع التعديل مفعّل");
+      },
     },
     {
       icon: Trash2,
       label: "حذف",
       color: "text-rose-600",
-      onClick: () => toast.info("استخدم زر الحذف في نهاية سطر الصنف"),
+      onClick: () =>
+        toast.info("الزر الأيمن على سطر الصنف ← «حذف الصف»، أو زر الحذف في نهاية السطر"),
     },
     {
       icon: Search,
@@ -349,76 +361,130 @@ function ItemsPage() {
             const u0 = it.units[0] ?? { name: "حبة", pack: 1, lastPrice: 0 };
             const cur = it.currency ?? defaultCurrency;
             return (
-              <tr key={it.code + i} className="hover:bg-blue-50/40">
-                <td className="border border-slate-200 text-center">{i + 1}</td>
-                <Cell
-                  value={it.code}
-                  onChange={(v) => patch(idx, { code: v })}
-                  disabled={!canEditRow}
-                />
-                <Cell
-                  value={it.name}
-                  onChange={(v) => patch(idx, { name: v })}
-                  disabled={!canEditRow}
-                  align="right"
-                />
-                <Cell
-                  value={it.barcode}
-                  onChange={(v) => patch(idx, { barcode: v })}
-                  disabled={!canEditRow}
-                />
-                <Cell
-                  value={u0.name}
-                  onChange={(v) => patch(idx, { units: [{ ...u0, name: v }] })}
-                  disabled={!canEditRow}
-                />
-                <Cell
-                  value={u0.pack}
-                  onChange={(v) => patch(idx, { units: [{ ...u0, pack: parseDecimal(v) }] })}
-                  disabled={!canEditRow}
-                  align="right"
-                />
-                <td className="border border-slate-200 text-right px-2 bg-slate-50">
-                  {fmt(u0.lastPrice)}
-                </td>
-                <td className="border border-slate-200 p-0">
-                  <select
-                    value={cur}
+              // المفتاح هو موقع الصنف في القائمة لا رقم موديله: مفتاحٌ مبنيّ على
+              // `it.code` يتغيّر مع كل حرف يُكتب في خانة الموديل، فيُفكِّك React
+              // السطر ويعيد بناءه، فيقفز المؤشّر خارج الخانة ويضيع التظليل —
+              // فيستحيل تعديل رقم موديل قائم بإضافة رقم أو حذفه.
+              <RowMenu key={idx} onDelete={() => onDelete(idx)} disabled={!mayDelete}>
+                <tr className="hover:bg-blue-50/40">
+                  <td className="border border-slate-200 text-center">{i + 1}</td>
+                  <td className="border border-slate-200 p-0">
+                    <LookupInput
+                      value={it.code}
+                      onChange={(v) => patch(idx, { code: v })}
+                      disabled={!canEditRow}
+                      onF9={() => setLookup({ sortBy: "code" })}
+                      title="F9 لعرض الدليل مرتّباً حسب رقم الموديل"
+                    />
+                  </td>
+                  <td className="border border-slate-200 p-0">
+                    <LookupInput
+                      value={it.name}
+                      onChange={(v) => patch(idx, { name: v })}
+                      disabled={!canEditRow}
+                      align="right"
+                      onF9={() => setLookup({ sortBy: "name" })}
+                      title="F9 لعرض الدليل مرتّباً حسب اسم الصنف"
+                    />
+                  </td>
+                  <Cell
+                    value={it.barcode}
+                    onChange={(v) => patch(idx, { barcode: v })}
                     disabled={!canEditRow}
-                    onChange={(e) => patch(idx, { currency: e.target.value })}
-                    className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none text-center"
-                  >
-                    {currencies.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.code}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <Cell
-                  value={it.cbmPerCarton}
-                  onChange={(v) => patch(idx, { cbmPerCarton: parseDecimal(v) })}
-                  disabled={!canEditRow}
-                  align="right"
-                />
-                <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold">
-                  {fmt(it.lastCost, 4)}
-                </td>
-                <td className="border border-slate-200 text-center">
-                  <button
-                    onClick={() => onDelete(idx)}
-                    disabled={!mayDelete}
-                    title={mayDelete ? "حذف الصنف" : "الحذف يتطلب صلاحية مدير"}
-                    className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-30"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </td>
-              </tr>
+                  />
+                  <td className="border border-slate-200 p-0">
+                    <LookupInput
+                      value={u0.name}
+                      onChange={(v) => patch(idx, { units: [{ ...u0, name: v }] })}
+                      disabled={!canEditRow}
+                      onF9={() => setUnitDlg({ idx, model: it.code })}
+                      title="F9 لعرض الوحدات المسجّلة بمرات الشراء والموردين والأسعار"
+                    />
+                  </td>
+                  <Cell
+                    value={u0.pack}
+                    onChange={(v) => patch(idx, { units: [{ ...u0, pack: parseDecimal(v) }] })}
+                    disabled={!canEditRow}
+                    align="right"
+                  />
+                  <td className="border border-slate-200 text-right px-2 bg-slate-50">
+                    {fmt(u0.lastPrice)}
+                  </td>
+                  <td className="border border-slate-200 p-0">
+                    <select
+                      value={cur}
+                      disabled={!canEditRow}
+                      onChange={(e) => patch(idx, { currency: e.target.value })}
+                      className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none text-center"
+                    >
+                      {currencies.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.code}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <Cell
+                    value={it.cbmPerCarton}
+                    onChange={(v) => patch(idx, { cbmPerCarton: parseDecimal(v) })}
+                    disabled={!canEditRow}
+                    align="right"
+                  />
+                  <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold">
+                    {fmt(it.lastCost, 4)}
+                  </td>
+                  <td className="border border-slate-200 text-center">
+                    <button
+                      onClick={() => onDelete(idx)}
+                      disabled={!mayDelete}
+                      title={
+                        mayDelete
+                          ? "حذف الصنف (أو بالزر الأيمن على السطر)"
+                          : "الحذف يتطلب صلاحية مدير"
+                      }
+                      className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-30"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </td>
+                </tr>
+              </RowMenu>
             );
           })}
         </ErpTable>
       </div>
+      {/* F9 من خانة الموديل/الاسم: الدليل مرتّباً، واختيار صنف يحصر الجدول عليه */}
+      <ItemsLookupDialog
+        open={Boolean(lookup)}
+        onOpenChange={(v) => {
+          if (!v) setLookup(null);
+        }}
+        items={list}
+        initialTerm={search}
+        sortBy={lookup?.sortBy ?? "code"}
+        onPick={(it) => setSearch(it.code)}
+      />
+
+      {/* F9 من خانة الوحدة: الوحدات المسجّلة بسجلّ شرائها */}
+      <UnitsLookupDialog
+        open={Boolean(unitDlg)}
+        onOpenChange={(v) => {
+          if (!v) setUnitDlg(null);
+        }}
+        items={list}
+        orders={purchaseOrders}
+        suppliers={suppliers}
+        model={unitDlg?.model ?? ""}
+        onPick={(u) => {
+          if (!unitDlg) return;
+          const cur = list[unitDlg.idx];
+          if (!cur) return;
+          const u0 = cur.units[0] ?? { name: "حبة", pack: 1, lastPrice: 0 };
+          patch(unitDlg.idx, { units: [{ ...u0, name: u }, ...cur.units.slice(1)] });
+          setEditing(true);
+        }}
+      />
+
       {closeGuard.dialog}
     </ErpLayout>
   );

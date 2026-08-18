@@ -24,6 +24,7 @@ import {
   Info,
   Check,
   Tags,
+  Undo2,
 } from "lucide-react";
 import ErpLayout from "@/components/erp/ErpLayout";
 import Ribbon from "@/components/erp/Ribbon";
@@ -43,6 +44,9 @@ import {
   parseDecimal,
 } from "@/components/erp/ErpUI";
 import ExpensesDialog from "@/components/erp/ExpensesDialog";
+import RowMenu from "@/components/erp/RowMenu";
+import { LookupInput, ItemsLookupDialog, UnitsLookupDialog } from "@/components/erp/ItemLookup";
+import { itemMatches } from "@/lib/item-search";
 import { printPurchaseOrder } from "@/lib/print-po";
 import {
   erpStore,
@@ -60,7 +64,7 @@ import {
 import { cell, numCell } from "@/lib/sheet";
 import { getCurrentScope, localDb, writeWebStorage } from "@/lib/local-db";
 import { useAuth, canWrite, canDelete, canApprove } from "@/lib/auth";
-import type { PurchaseOrder, PORow } from "@/lib/erp-types";
+import type { Item, PurchaseOrder, PORow } from "@/lib/erp-types";
 import {
   Dialog,
   DialogContent,
@@ -164,6 +168,16 @@ function POPage() {
   const [expDlg, setExpDlg] = useState(false);
   const [searchDlg, setSearchDlg] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  // قائمة الأصناف المفتوحة من خانة في الجدول: أي سطر فُتحت منه، وبأي ترتيب
+  // (حسب الرقم إن فُتحت من خانة الموديل، وحسب الاسم إن فُتحت من خانة الاسم)،
+  // وبأي نصّ مكتوب مسبقاً. `null` = لا قائمة مفتوحة.
+  const [lookup, setLookup] = useState<{
+    rowId: number;
+    sortBy: "code" | "name";
+    term: string;
+  } | null>(null);
+  // قائمة الوحدات المسجّلة (F9 من خانة «الوحدة»).
+  const [unitDlg, setUnitDlg] = useState<{ rowId: number; model: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   // Guards the one-time "load the last saved PO once the store hydrates" effect
   // below — any explicit user action (draft restore, new/copy/delete) disarms it
@@ -255,6 +269,71 @@ function POPage() {
       ],
     });
   const removeRow = (id: number) => setPo({ ...po, rows: po.rows.filter((r) => r.id !== id) });
+  /**
+   * نسخ صنف من الدليل إلى سطر بعينه. المسار الوحيد الذي يملأ بيانات صنف في
+   * السطر: لا شيء يُملأ أثناء الكتابة حرفاً حرفاً بعد الآن — كان أي نصّ يوافق
+   * موديلاً أو باركوداً عابراً يقفز إلى السطر فيَدخل صنفٌ غير الذي يقصده
+   * المستخدم. الآن يدخل الصنف بالاختيار من القائمة أو بمطابقة تامّة عند Enter.
+   */
+  const applyItem = (rowId: number, it: Item) =>
+    setPo((cur) => ({
+      ...cur,
+      rows: cur.rows.map((r) => {
+        if (r.id !== rowId) return r;
+        // عملة الصنف بسعر صرف اليوم — لا السعر المثبَّت عليه منذ آخر شراء.
+        const rowCurrency = it.currency ?? r.currency ?? cur.currency;
+        return {
+          ...r,
+          model: it.code,
+          name: it.name,
+          cbm: it.cbmPerCarton,
+          unit: it.units[0]?.name ?? r.unit,
+          pack: it.units[0]?.pack ?? r.pack,
+          price: it.units[0]?.lastPrice ?? r.price,
+          currency: rowCurrency,
+          rate: rateOf(rowCurrency),
+        };
+      }),
+    }));
+  /**
+   * إضافة سطر جديد مملوء بصنف من الدليل — تحديثٌ واحد للحالة. كان المسار
+   * السابق `addRow()` ثم `setTimeout` يعدّل «آخر سطر»، فأي إضافة أخرى تتخلّل
+   * المهلة تجعل البيانات تهبط على السطر الخطأ.
+   */
+  const addRowFromItem = (it: Item) =>
+    setPo((cur) => {
+      const rowCurrency = it.currency ?? cur.currency;
+      return {
+        ...cur,
+        rows: [
+          ...cur.rows,
+          {
+            id: (cur.rows.at(-1)?.id ?? 0) + 1,
+            model: it.code,
+            name: it.name,
+            unit: it.units[0]?.name ?? "حبة",
+            pack: it.units[0]?.pack ?? 1,
+            qty: 0,
+            price: it.units[0]?.lastPrice ?? 0,
+            cbm: it.cbmPerCarton,
+            currency: rowCurrency,
+            rate: rateOf(rowCurrency),
+          },
+        ],
+      };
+    });
+  /**
+   * Enter في خانة الموديل/الاسم يفتح قائمة بكل ما يحتوي المكتوب — رقماً كان أو
+   * اسماً. لا يُملأ صنفٌ إلا باختيار صريح من القائمة، حتى لا «يدخل صنف آخر».
+   * المطابقة التامّة تُبرَز مختارةً سلفاً فيكفيها Enter ثانية.
+   * Enter على خانة فارغة يبقى تنقّلاً بين الأسطر كما كان.
+   */
+  const lookupFromCell = (rowId: number, text: string, sortBy: "code" | "name") => {
+    const term = text.trim();
+    if (!term) return false;
+    setLookup({ rowId, sortBy, term });
+    return true;
+  };
 
   // تحرير المصروفات كلّه داخل ExpensesDialog — لا نسخة ثانية هنا.
 
@@ -307,8 +386,12 @@ function POPage() {
     toast.success("تم حفظ أمر الشراء");
     return true;
   };
+  // زر «تعديل» مفعّل دائماً — لا يُعطَّل لأن الأمر معتمد. الأمر المعتمد مستند
+  // محاسبي لا يُعدَّل مباشرةً، فالزر يقول ذلك ويدلّ على «إلغاء الاعتماد» بدل أن
+  // يبقى رمادياً بلا تفسير.
   const onEdit = () => {
     if (!mayWrite) return denied();
+    if (po.approved) return toast.error("الأمر معتمد — اضغط «إلغاء الاعتماد» (Shift+F9) ثم عدّله");
     setEditing(true);
     toast.info("وضع التعديل مفعّل");
   };
@@ -341,6 +424,28 @@ function POPage() {
     setPo(approved);
     setEditing(false);
     toast.success("تم اعتماد أمر الشراء");
+  };
+  /**
+   * إلغاء الاعتماد: يعيد الأمر مستنداً قابلاً للتعديل. يمرّ بـ overwriteApproved
+   * لأن طبقة الحفظ ترفض الكتابة فوق مستند معتمد — وهذا بالضبط الاستثناء المقصود:
+   * فعلٌ صريح من صاحب صلاحية الاعتماد، لا تعديل صامت.
+   * «آخر تكلفة» المكتوبة على الأصناف وقت الاعتماد تبقى كما هي حتى يُعتمد الأمر
+   * من جديد فتُكتب من الأرقام الجديدة.
+   */
+  const onUnapprove = async () => {
+    if (!mayApprove) return denied();
+    if (!po.approved) return toast.info("الأمر غير معتمد أصلاً");
+    if (!confirm(`إلغاء اعتماد الأمر ${po.number}؟ سيعود قابلاً للتعديل.`)) return;
+    const draft = { ...po, approved: false };
+    try {
+      await savePurchaseOrder(draft, { overwriteApproved: true });
+    } catch (err) {
+      console.error("unapprove failed", err);
+      return toast.error("تعذّر إلغاء الاعتماد — لم تُكتب البيانات");
+    }
+    setPo(draft);
+    setEditing(true);
+    toast.success("تم إلغاء الاعتماد — الأمر قابل للتعديل الآن");
   };
   // طباعة مستند الفاتورة كاملاً (بنود + مصروفات + مجاميع + تسعيرات) بدل
   // لقطة من الشاشة — انظر src/lib/print-po.ts.
@@ -537,13 +642,13 @@ function POPage() {
       onClick: onSave,
       disabled: !editing || !mayWrite,
     },
+    // لا `disabled` هنا عن قصد: الزر مفعّل دائماً ويشرح رفضه بنفسه (انظر onEdit).
     {
       icon: Pencil,
       label: "تعديل",
       hint: "F2",
       color: "text-cyan-600",
       onClick: onEdit,
-      disabled: po.approved || !mayWrite,
     },
     {
       icon: Trash2,
@@ -590,6 +695,14 @@ function POPage() {
       disabled: po.approved || !mayApprove,
     },
     {
+      icon: Undo2,
+      label: "إلغاء الاعتماد",
+      hint: "Shift+F9",
+      color: "text-amber-600",
+      onClick: onUnapprove,
+      disabled: !po.approved || !mayApprove,
+    },
+    {
       icon: X,
       label: "إغلاق",
       hint: "Esc",
@@ -601,6 +714,22 @@ function POPage() {
   // Windows-like keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // قوائم البحث/الوحدات تتكفّل بمفاتيحها بنفسها (Enter للاختيار، Esc
+      // للإغلاق، وF9 فتحها أصلاً) — فلا يجوز أن يلتقطها اختصار الشاشة فيعتمد
+      // الأمرَ والمستخدم يتصفّح قائمة أصناف.
+      if (lookup || unitDlg) {
+        // Esc يغلق القائمة المفتوحة لا الشاشة — وهو المعالج الوحيد لها هنا،
+        // فبقيّة المفاتيح تُترك للقائمة نفسها (↑↓ للتنقّل، Enter للاختيار).
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setLookup(null);
+          setUnitDlg(null);
+        }
+        return;
+      }
+      // F9 داخل خانة موديل/اسم/وحدة يخصّ تلك الخانة (يفتح قائمتها) لا الشاشة.
+      const inCell = e.target instanceof HTMLElement && e.target.hasAttribute("data-lookup-cell");
+      if (inCell && e.key === "F9") return;
       const k = e.key.toLowerCase();
       if (e.ctrlKey && k === "s") {
         e.preventDefault();
@@ -616,7 +745,7 @@ function POPage() {
         onPrint();
       } else if (e.key === "F2") {
         e.preventDefault();
-        if (!po.approved) onEdit();
+        onEdit();
       } else if (e.key === "F3") {
         e.preventDefault();
         setItemsDlg(true);
@@ -629,7 +758,8 @@ function POPage() {
         onTiers();
       } else if (e.key === "F9") {
         e.preventDefault();
-        if (!po.approved) void onApprove();
+        if (e.shiftKey) void onUnapprove();
+        else if (!po.approved) void onApprove();
       } else if (e.ctrlKey && k === "d") {
         e.preventDefault();
         onCopy();
@@ -648,10 +778,26 @@ function POPage() {
         } else closeGuard.requestClose();
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // طور الالتقاط لا الفقاعة: Radix يغلق نافذته المنبثقة على Escape ويُفرِغ
+    // حالتها فوراً (حدث Escape حدثٌ متقطّع يُفرَّغ تفريغاً متزامناً)، فلو قرأ
+    // هذا المعالج الحالة بعده لوجد كل النوافذ مغلقة وفهم Escape على أنه «أغلق
+    // الشاشة» — فيقفز سؤال «بيانات غير محفوظة» لمجرّد إغلاق قائمة أصناف.
+    // بالالتقاط يقرأ الحالة كما كانت لحظة الضغط فيغلق النافذة وحدها.
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [po, editing, openDlg, supDlg, expDlg, searchDlg, itemsDlg, closeGuard.pending]);
+  }, [
+    po,
+    editing,
+    openDlg,
+    supDlg,
+    expDlg,
+    searchDlg,
+    itemsDlg,
+    lookup,
+    unitDlg,
+    closeGuard.pending,
+  ]);
 
   // ── Draft autosave: restore on mount, save on every edit ──
   useEffect(() => {
@@ -759,136 +905,131 @@ function POPage() {
         const salePrice = saleOverridden ? r.salePrice! : autoSale;
         const dt = po.distributionType;
         return (
-          <tr key={r.id} className="hover:bg-slate-50">
-            <td className="border border-slate-200 text-center text-slate-500 w-8">{i + 1}</td>
-            <td className="border border-slate-200 p-0">
-              <input
-                value={r.model}
+          // قائمة الزر الأيمن على السطر: «حذف الصف» يحذف السطر وبياناته كلّها.
+          <RowMenu key={r.id} onDelete={() => removeRow(r.id)} disabled={disabled}>
+            <tr className="hover:bg-slate-50">
+              <td className="border border-slate-200 text-center text-slate-500 w-8">{i + 1}</td>
+              <td className="border border-slate-200 p-0">
+                <LookupInput
+                  value={r.model}
+                  disabled={disabled}
+                  onChange={(v) => patchRow(r.id, { model: v })}
+                  onEnter={() => lookupFromCell(r.id, r.model, "code")}
+                  onF9={() => setLookup({ rowId: r.id, sortBy: "code", term: "" })}
+                  title="اكتب جزءاً من الرقم واضغط Enter للبحث — F9 لكل الأصناف مرتّبة بالرقم"
+                  inputClass="text-[13px] font-semibold tabular-nums text-slate-800"
+                />
+              </td>
+              <td className="border border-slate-200 p-0">
+                <LookupInput
+                  value={r.name}
+                  disabled={disabled}
+                  align="right"
+                  onChange={(v) => patchRow(r.id, { name: v })}
+                  onEnter={() => lookupFromCell(r.id, r.name, "name")}
+                  onF9={() => setLookup({ rowId: r.id, sortBy: "name", term: "" })}
+                  title="اكتب جزءاً من الاسم واضغط Enter للبحث — F9 لكل الأصناف مرتّبة بالاسم"
+                  inputClass="text-[13px] font-semibold text-slate-800"
+                />
+              </td>
+              <td className="border border-slate-200 p-0">
+                <LookupInput
+                  value={r.unit}
+                  disabled={disabled}
+                  onChange={(v) => patchRow(r.id, { unit: v })}
+                  onF9={() => setUnitDlg({ rowId: r.id, model: r.model })}
+                  title="F9 لعرض الوحدات المسجّلة بمرات الشراء والموردين والأسعار"
+                />
+              </td>
+              <Cell
+                value={r.pack}
+                onChange={(v) => patchRow(r.id, { pack: parseDecimal(v) })}
                 disabled={disabled}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const it = items.find((x) => x.code === v || x.barcode === v);
-                  // Take the item's currency, but price it at TODAY's rate.
-                  // `it.rate` is the rate pinned at the item's last purchase —
-                  // carrying it into a new invoice valued today's goods at a
-                  // months-old exchange rate.
-                  if (it) {
-                    const rowCurrency = it.currency ?? r.currency ?? po.currency;
-                    patchRow(r.id, {
-                      model: it.code,
-                      name: it.name,
-                      cbm: it.cbmPerCarton,
-                      unit: it.units[0]?.name ?? r.unit,
-                      pack: it.units[0]?.pack ?? r.pack,
-                      price: it.units[0]?.lastPrice ?? r.price,
-                      currency: rowCurrency,
-                      rate: rateOf(rowCurrency),
-                    });
-                  } else patchRow(r.id, { model: v });
-                }}
-                className="w-full px-1 py-1 text-[13px] font-semibold tabular-nums text-slate-800 bg-white disabled:bg-slate-50 border-0 focus:outline-none text-center"
+                align="right"
+                type="number"
               />
-            </td>
-            <Cell
-              value={r.name}
-              onChange={(v) => patchRow(r.id, { name: v })}
-              disabled={disabled}
-              align="right"
-              inputClass="text-[13px] font-semibold text-slate-800"
-            />
-            <Cell
-              value={r.unit}
-              onChange={(v) => patchRow(r.id, { unit: v })}
-              disabled={disabled}
-            />
-            <Cell
-              value={r.pack}
-              onChange={(v) => patchRow(r.id, { pack: parseDecimal(v) })}
-              disabled={disabled}
-              align="right"
-              type="number"
-            />
-            <Cell
-              value={r.qty}
-              onChange={(v) => patchRow(r.id, { qty: parseDecimal(v) })}
-              disabled={disabled}
-              align="right"
-              type="number"
-            />
-            <td className="border border-slate-200 p-0">
-              <select
-                value={rowCur}
+              <Cell
+                value={r.qty}
+                onChange={(v) => patchRow(r.id, { qty: parseDecimal(v) })}
                 disabled={disabled}
-                onChange={(ev) =>
-                  patchRow(r.id, { currency: ev.target.value, rate: rateOf(ev.target.value) })
+                align="right"
+                type="number"
+              />
+              <td className="border border-slate-200 p-0">
+                <select
+                  value={rowCur}
+                  disabled={disabled}
+                  onChange={(ev) =>
+                    patchRow(r.id, { currency: ev.target.value, rate: rateOf(ev.target.value) })
+                  }
+                  className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none"
+                >
+                  {currencyOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.value}
+                    </option>
+                  ))}
+                </select>
+              </td>
+              <Cell
+                value={r.price}
+                onChange={(v) => patchRow(r.id, { price: parseDecimal(v) })}
+                disabled={disabled}
+                align="right"
+                type="number"
+              />
+              {/* إجمالي أمر الشراء = الكمية × العبوة × سعر الحبة، بعملة السطر */}
+              <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold text-slate-800">
+                {fmtAuto(m?.lineInvoiceTotal ?? 0, 4)}
+              </td>
+              <Cell value={fmt(m?.purchaseCost ?? 0, 1)} align="right" />
+              <Cell
+                value={r.cbm}
+                onChange={(v) => patchRow(r.id, { cbm: parseDecimal(v) })}
+                disabled={disabled}
+                align="right"
+                type="number"
+              />
+              <Cell value={fmtAuto(cartons * r.cbm, 4)} align="right" />
+              <td
+                className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "cbm" ? "!bg-slate-200 font-bold" : ""}`}
+              >
+                {fmt(m?.cbmCost ?? 0, 1)}
+              </td>
+              <td
+                className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "percentage" ? "!bg-slate-200 font-bold" : ""}`}
+              >
+                {fmt(m?.pctCost ?? 0, 1)}
+              </td>
+              <td
+                className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "average" ? "!bg-slate-200 font-bold" : ""}`}
+              >
+                {fmt(m?.avgCost ?? 0, 1)}
+              </td>
+              <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold text-slate-800">
+                {fmt(m?.allocatedExpPerCarton ?? 0, 5)}
+              </td>
+              <SaleCell
+                value={salePrice}
+                overridden={saleOverridden}
+                disabled={disabled}
+                decimals={4}
+                onChange={(v) =>
+                  patchRow(r.id, { salePrice: v.trim() === "" ? undefined : parseDecimal(v) })
                 }
-                className="w-full px-1 py-1 text-xs bg-white disabled:bg-slate-50 border-0 focus:outline-none"
-              >
-                {currencyOptions.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.value}
-                  </option>
-                ))}
-              </select>
-            </td>
-            <Cell
-              value={r.price}
-              onChange={(v) => patchRow(r.id, { price: parseDecimal(v) })}
-              disabled={disabled}
-              align="right"
-              type="number"
-            />
-            {/* إجمالي أمر الشراء = الكمية × العبوة × سعر الحبة، بعملة السطر */}
-            <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold text-slate-800">
-              {fmtAuto(m?.lineInvoiceTotal ?? 0, 4)}
-            </td>
-            <Cell value={fmt(m?.purchaseCost ?? 0, 1)} align="right" />
-            <Cell
-              value={r.cbm}
-              onChange={(v) => patchRow(r.id, { cbm: parseDecimal(v) })}
-              disabled={disabled}
-              align="right"
-              type="number"
-            />
-            <Cell value={fmtAuto(cartons * r.cbm, 4)} align="right" />
-            <td
-              className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "cbm" ? "!bg-slate-200 font-bold" : ""}`}
-            >
-              {fmt(m?.cbmCost ?? 0, 1)}
-            </td>
-            <td
-              className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "percentage" ? "!bg-slate-200 font-bold" : ""}`}
-            >
-              {fmt(m?.pctCost ?? 0, 1)}
-            </td>
-            <td
-              className={`border border-slate-200 text-right px-2 bg-slate-50 text-slate-700 ${dt === "average" ? "!bg-slate-200 font-bold" : ""}`}
-            >
-              {fmt(m?.avgCost ?? 0, 1)}
-            </td>
-            <td className="border border-slate-200 text-right px-2 bg-slate-50 font-semibold text-slate-800">
-              {fmt(m?.allocatedExpPerCarton ?? 0, 5)}
-            </td>
-            <SaleCell
-              value={salePrice}
-              overridden={saleOverridden}
-              disabled={disabled}
-              decimals={4}
-              onChange={(v) =>
-                patchRow(r.id, { salePrice: v.trim() === "" ? undefined : parseDecimal(v) })
-              }
-            />
-            <td className="border border-slate-200 text-center">
-              <button
-                disabled={disabled}
-                onClick={() => removeRow(r.id)}
-                className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-40"
-                title="حذف"
-              >
-                <Trash2 size={12} />
-              </button>
-            </td>
-          </tr>
+              />
+              <td className="border border-slate-200 text-center">
+                <button
+                  disabled={disabled}
+                  onClick={() => removeRow(r.id)}
+                  className="text-rose-600 hover:bg-rose-50 p-1 rounded disabled:opacity-40"
+                  title="حذف"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </td>
+            </tr>
+          </RowMenu>
         );
       })}
     </ErpTable>
@@ -1394,46 +1535,12 @@ function POPage() {
           />
           <div className="max-h-64 overflow-auto space-y-1">
             {items
-              .filter(
-                (it) =>
-                  !searchTerm ||
-                  it.name.includes(searchTerm) ||
-                  it.code.includes(searchTerm) ||
-                  it.barcode.includes(searchTerm),
-              )
+              .filter((it) => itemMatches(it, searchTerm))
               .map((it) => (
                 <button
                   key={it.code}
                   onClick={() => {
-                    addRow();
-                    setTimeout(
-                      () =>
-                        setPo((cur) => {
-                          const last = cur.rows[cur.rows.length - 1];
-                          // Today's rate for the item's currency — never the stale one
-                          // pinned on the catalog entry at its last purchase.
-                          const rowCurrency = it.currency ?? cur.currency;
-                          return {
-                            ...cur,
-                            rows: cur.rows.map((r) =>
-                              r.id === last.id
-                                ? {
-                                    ...r,
-                                    model: it.code,
-                                    name: it.name,
-                                    cbm: it.cbmPerCarton,
-                                    unit: it.units[0]?.name ?? "حبة",
-                                    pack: it.units[0]?.pack ?? 1,
-                                    price: it.units[0]?.lastPrice ?? 0,
-                                    currency: rowCurrency,
-                                    rate: rateOf(rowCurrency),
-                                  }
-                                : r,
-                            ),
-                          };
-                        }),
-                      0,
-                    );
+                    addRowFromItem(it);
                     setSearchDlg(false);
                   }}
                   className="w-full text-right p-2 border border-slate-200 rounded hover:bg-slate-100"
@@ -1479,6 +1586,31 @@ function POPage() {
         onSaveExpenseTypes={(types) =>
           erpStore.set({ settings: { ...settings, expenseTypes: types } })
         }
+      />
+
+      {/* قائمة الأصناف (Enter/F9 من خانة الموديل أو الاسم) */}
+      <ItemsLookupDialog
+        open={Boolean(lookup)}
+        onOpenChange={(v) => {
+          if (!v) setLookup(null);
+        }}
+        items={items}
+        initialTerm={lookup?.term ?? ""}
+        sortBy={lookup?.sortBy ?? "code"}
+        onPick={(it) => lookup && applyItem(lookup.rowId, it)}
+      />
+
+      {/* قائمة الوحدات المسجّلة (F9 من خانة الوحدة) */}
+      <UnitsLookupDialog
+        open={Boolean(unitDlg)}
+        onOpenChange={(v) => {
+          if (!v) setUnitDlg(null);
+        }}
+        items={items}
+        orders={orders}
+        suppliers={suppliers}
+        model={unitDlg?.model ?? ""}
+        onPick={(u) => unitDlg && patchRow(unitDlg.rowId, { unit: u })}
       />
 
       {closeGuard.dialog}
